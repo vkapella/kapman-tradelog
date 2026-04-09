@@ -1,0 +1,3 @@
+ALTER TABLE "imports"
+  ADD COLUMN "skipped_duplicate_rows" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN "failed_rows" INTEGER NOT NULL DEFAULT 0;

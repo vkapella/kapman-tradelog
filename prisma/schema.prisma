@@ -63,17 +63,19 @@ model Account {
 }
 
 model Import {
-  id            String       @id @default(cuid())
-  filename      String
-  broker        Broker
-  status        ImportStatus
-  parsedRows    Int          @default(0) @map("parsed_rows")
-  persistedRows Int          @default(0) @map("persisted_rows")
-  skippedRows   Int          @default(0) @map("skipped_rows")
-  sourceFileText String?     @map("source_file_text")
-  warnings      Json?
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id                   String       @id @default(cuid())
+  filename             String
+  broker               Broker
+  status               ImportStatus
+  parsedRows           Int          @default(0) @map("parsed_rows")
+  persistedRows        Int          @default(0) @map("persisted_rows")
+  skippedRows          Int          @default(0) @map("skipped_rows")
+  skippedDuplicateRows Int          @default(0) @map("skipped_duplicate_rows")
+  failedRows           Int          @default(0) @map("failed_rows")
+  sourceFileText       String?      @map("source_file_text")
+  warnings             Json?
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
 
   accountId String  @map("account_id")
   account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -93,6 +95,7 @@ model Execution {
   eventType            EventType             @default(TRADE) @map("event_type")
   assetClass           AssetClass            @map("asset_class")
   symbol               String
+  brokerTxId           String                @map("broker_tx_id")
   instrumentKey        String?               @map("instrument_key")
   descriptionRaw       String?               @map("description_raw")
   side                 Side?
@@ -125,6 +128,7 @@ model Execution {
   @@index([accountId])
   @@index([importId])
   @@index([symbol])
+  @@unique([accountId, brokerTxId])
   @@map("executions")
 }
 

@@ -20,6 +20,8 @@ function parseFidelity(_file: UploadedFile): ParseResult {
   throw new Error("Fidelity parser is a stub and is not implemented in MVP Step 3.");
 }
 
+// Deduplication is broker-neutral in the ledger ingest layer (/src/lib/ledger/ingest.ts),
+// so Fidelity will inherit duplicate protection automatically once parsing is implemented.
 export const fidelityAdapter: BrokerAdapter = {
   id: "fidelity",
   displayName: "Fidelity",

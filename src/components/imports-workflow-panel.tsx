@@ -131,7 +131,7 @@ export function ImportsWorkflowPanel() {
       return null;
     }
 
-    return `${commitResult.parsedRows} parsed · ${commitResult.persistedRows} persisted · ${commitResult.skippedRows} skipped`;
+    return `${commitResult.parsedRows} parsed · ${commitResult.inserted} inserted · ${commitResult.skipped_duplicate} skipped duplicate · ${commitResult.failed} failed`;
   }, [commitResult]);
 
   return (
@@ -264,8 +264,9 @@ export function ImportsWorkflowPanel() {
                   <th className="px-2 py-2 text-left">Account</th>
                   <th className="px-2 py-2 text-left">Status</th>
                   <th className="px-2 py-2 text-right">Parsed</th>
-                  <th className="px-2 py-2 text-right">Persisted</th>
-                  <th className="px-2 py-2 text-right">Skipped</th>
+                  <th className="px-2 py-2 text-right">Inserted</th>
+                  <th className="px-2 py-2 text-right">Skipped Duplicate</th>
+                  <th className="px-2 py-2 text-right">Failed</th>
                   <th className="px-2 py-2 text-left">Link</th>
                 </tr>
               </thead>
@@ -278,8 +279,9 @@ export function ImportsWorkflowPanel() {
                     <td className="px-2 py-2">{row.accountId}</td>
                     <td className="px-2 py-2">{row.status}</td>
                     <td className="px-2 py-2 text-right">{row.parsedRows}</td>
-                    <td className="px-2 py-2 text-right">{row.persistedRows}</td>
-                    <td className="px-2 py-2 text-right">{row.skippedRows}</td>
+                    <td className="px-2 py-2 text-right">{row.inserted}</td>
+                    <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
+                    <td className="px-2 py-2 text-right">{row.failed}</td>
                     <td className="px-2 py-2">
                       <a href={`/executions?import=${row.id}&account=${row.accountId}`} className="text-blue-300 underline">
                         View executions
