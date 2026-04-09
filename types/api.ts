@@ -157,6 +157,9 @@ export interface SetupDetailResponse {
   setup: SetupSummaryRecord;
   lots: MatchedLotRecord[];
   executionIds: string[];
+  inference: {
+    reasons: string[];
+  };
 }
 
 export interface OverviewSummaryResponse {
@@ -201,6 +204,25 @@ export interface DiagnosticsResponse {
   warningsCount: number;
   syntheticExpirationCount: number;
   warningSamples: string[];
+  setupInference: {
+    setupInferenceTotal: number;
+    setupInferenceUncategorizedTotal: number;
+    setupInferenceShortCallStandaloneTotal: number;
+    setupInferenceShortCallPairedTotal: number;
+    setupInferencePairVerticalTotal: number;
+    setupInferencePairCalendarTotal: number;
+    setupInferencePairDiagonalTotal: number;
+    setupInferencePairFailNoOverlapLongCallTotal: number;
+    setupInferencePairFailNoEligibleExpTotal: number;
+    setupInferencePairFailMissingMetadataTotal: number;
+    setupInferencePairAmbiguousTotal: number;
+    setupInferenceSamples: Array<{
+      code: string;
+      message: string;
+      underlyingSymbol: string;
+      lotIds: string[];
+    }>;
+  };
 }
 
 export interface HealthResponse {
