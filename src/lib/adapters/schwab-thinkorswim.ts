@@ -1,4 +1,4 @@
-import { parseAccountMetadataFromCsv } from "../accounts/parse-account-metadata";
+import { parseThinkorswimTradeHistory } from "./thinkorswim/trade-history";
 import type { BrokerAdapter, DetectionResult, ParseResult, UploadedFile } from "./types";
 
 function detectThinkorswim(file: UploadedFile): DetectionResult {
@@ -17,16 +17,7 @@ function detectThinkorswim(file: UploadedFile): DetectionResult {
 }
 
 function parseThinkorswim(file: UploadedFile): ParseResult {
-  const metadata = parseAccountMetadataFromCsv(file.content);
-
-  return {
-    accountMetadata: {
-      accountId: metadata.accountId,
-      label: metadata.label,
-      paperMoney: metadata.paperMoney,
-    },
-    warnings: [],
-  };
+  return parseThinkorswimTradeHistory(file.content);
 }
 
 export const schwabThinkorswimAdapter: BrokerAdapter = {

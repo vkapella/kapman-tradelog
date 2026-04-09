@@ -38,6 +38,31 @@ export interface ParsedAccountMetadata {
 export interface ParseResult {
   warnings: AdapterWarning[];
   accountMetadata: ParsedAccountMetadata;
+  executions: NormalizedExecution[];
+  parsedRows: number;
+  skippedRows: number;
+}
+
+export interface NormalizedExecution {
+  eventTimestamp: Date;
+  tradeDate: Date;
+  eventType: "TRADE";
+  assetClass: "EQUITY" | "OPTION";
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  price: number | null;
+  grossAmount: number | null;
+  netAmount: number | null;
+  openingClosingEffect: "TO_OPEN" | "TO_CLOSE" | "UNKNOWN";
+  underlyingSymbol: string | null;
+  optionType: string | null;
+  strike: number | null;
+  expirationDate: Date | null;
+  spread: string;
+  spreadGroupId: string | null;
+  sourceRowRef: string;
+  rawRowJson: Record<string, string | null>;
 }
 
 export interface BrokerAdapter {

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
 import { prisma } from "@/lib/db/prisma";
@@ -49,12 +50,34 @@ export async function POST(request: Request) {
       },
     });
 
-    const createdImport = await prisma.import.create({
-      data: {
+    const warningsJson = [...matched.detection.warnings, ...parsed.warnings] as unknown as Prisma.InputJsonValue;
+
+    const createdImport = await prisma.import.upsert({
+      where: {
+        accountId_filename: {
+          accountId: account.id,
+          filename: file.name,
+        },
+      },
+      update: {
+        broker,
+        status: "UPLOADED",
+        parsedRows: 0,
+        persistedRows: 0,
+        skippedRows: 0,
+        warnings: warningsJson,
+        sourceFileText: csvText,
+      },
+      create: {
         filename: file.name,
         broker,
         status: "UPLOADED",
         accountId: account.id,
+        parsedRows: 0,
+        persistedRows: 0,
+        skippedRows: 0,
+        warnings: warningsJson,
+        sourceFileText: csvText,
       },
     });
 

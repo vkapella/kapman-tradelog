@@ -70,6 +70,7 @@ model Import {
   parsedRows    Int          @default(0) @map("parsed_rows")
   persistedRows Int          @default(0) @map("persisted_rows")
   skippedRows   Int          @default(0) @map("skipped_rows")
+  sourceFileText String?     @map("source_file_text")
   warnings      Json?
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")

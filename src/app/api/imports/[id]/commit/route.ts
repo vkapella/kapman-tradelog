@@ -1,4 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
+import { detectAdapter } from "@/lib/adapters/registry";
 import { prisma } from "@/lib/db/prisma";
 import type { CommitImportResponse } from "@/types/api";
 
@@ -10,14 +12,77 @@ export async function POST(_request: Request, context: { params: { id: string } 
     return errorResponse("NOT_FOUND", "Import not found.", [`Import ${importId} does not exist.`], 404);
   }
 
-  const updated = await prisma.import.update({
-    where: { id: importId },
-    data: {
-      status: "COMMITTED",
-      parsedRows: existingImport.parsedRows,
-      persistedRows: existingImport.persistedRows,
-      skippedRows: existingImport.skippedRows,
-    },
+  if (!existingImport.sourceFileText) {
+    return errorResponse("MISSING_SOURCE_FILE", "Import has no source file text to parse.", [
+      `Import ${importId} does not contain source_file_text.`,
+    ]);
+  }
+
+  const matched = detectAdapter({
+    name: existingImport.filename,
+    content: existingImport.sourceFileText,
+    mimeType: "text/csv",
+    size: existingImport.sourceFileText.length,
+  });
+
+  if (!matched) {
+    return errorResponse("UNSUPPORTED_BROKER", "No registered adapter matched this import file.", [
+      `Import ${importId} cannot be parsed by the registry.`,
+    ]);
+  }
+
+  const parsed = matched.adapter.parse({
+    name: existingImport.filename,
+    content: existingImport.sourceFileText,
+    mimeType: "text/csv",
+    size: existingImport.sourceFileText.length,
+  });
+
+  const executionData = parsed.executions.map((execution) => ({
+    importId: existingImport.id,
+    accountId: existingImport.accountId,
+    broker: existingImport.broker,
+    eventTimestamp: execution.eventTimestamp,
+    tradeDate: execution.tradeDate,
+    eventType: execution.eventType,
+    assetClass: execution.assetClass,
+    symbol: execution.symbol,
+    side: execution.side,
+    quantity: execution.quantity,
+    price: execution.price,
+    grossAmount: execution.grossAmount,
+    netAmount: execution.netAmount,
+    openingClosingEffect: execution.openingClosingEffect,
+    underlyingSymbol: execution.underlyingSymbol,
+    optionType: execution.optionType,
+    strike: execution.strike,
+    expirationDate: execution.expirationDate,
+    spreadGroupId: execution.spreadGroupId,
+    sourceRowRef: execution.sourceRowRef,
+    rawRowJson: execution.rawRowJson,
+  }));
+
+  const warningsJson = parsed.warnings as unknown as Prisma.InputJsonValue;
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.execution.deleteMany({ where: { importId: existingImport.id } });
+
+    if (executionData.length > 0) {
+      await tx.execution.createMany({
+        data: executionData,
+      });
+    }
+
+    return tx.import.update({
+      where: { id: importId },
+      data: {
+        status: "COMMITTED",
+        parsedRows: parsed.parsedRows,
+        persistedRows: executionData.length,
+        skippedRows: parsed.skippedRows,
+        warnings: warningsJson,
+      },
+    });
   });
 
   const payload: CommitImportResponse = {
@@ -25,7 +90,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
     parsedRows: updated.parsedRows,
     persistedRows: updated.persistedRows,
     skippedRows: updated.skippedRows,
-    warnings: [],
+    warnings: parsed.warnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
 
   return detailResponse(payload);
