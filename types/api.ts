@@ -31,8 +31,10 @@ export interface ImportRecord {
   accountId: string;
   status: ImportStatus;
   parsedRows: number;
-  persistedRows: number;
-  skippedRows: number;
+  inserted: number;
+  skipped_duplicate: number;
+  failed: number;
+  skipped_parse: number;
   createdAt: string;
 }
 
@@ -50,11 +52,15 @@ export interface UploadImportResponse {
   previewRows: ExecutionPreviewRow[];
 }
 
-export interface CommitImportResponse {
-  importId: string;
+export interface ImportResult {
   parsedRows: number;
-  persistedRows: number;
-  skippedRows: number;
+  inserted: number;
+  skipped_duplicate: number;
+  failed: number;
+}
+
+export interface CommitImportResponse extends ImportResult {
+  importId: string;
   warnings: string[];
 }
 

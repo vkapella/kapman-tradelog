@@ -6,6 +6,7 @@ import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-m
 import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
 import { deriveInstrumentKeyFromNormalizedExecution } from "../src/lib/ledger/instrument-key";
+import { ingestExecutions } from "../src/lib/ledger/ingest";
 import { rebuildAccountLedger } from "../src/lib/ledger/rebuild-account-ledger";
 
 const prisma = new PrismaClient();
@@ -47,9 +48,11 @@ async function main() {
       update: {
         broker: metadata.broker,
         status: "COMMITTED",
-        parsedRows: parsedTradeHistory.parsedRows,
-        persistedRows: parsedTradeHistory.executions.length,
+        parsedRows: 0,
+        persistedRows: 0,
         skippedRows: parsedTradeHistory.skippedRows,
+        skippedDuplicateRows: 0,
+        failedRows: 0,
         sourceFileText: csvText,
         warnings: parsedTradeHistory.warnings as unknown as Prisma.InputJsonValue,
       },
@@ -57,45 +60,16 @@ async function main() {
         filename,
         broker: metadata.broker,
         status: "COMMITTED",
-        parsedRows: parsedTradeHistory.parsedRows,
-        persistedRows: parsedTradeHistory.executions.length,
+        parsedRows: 0,
+        persistedRows: 0,
         skippedRows: parsedTradeHistory.skippedRows,
+        skippedDuplicateRows: 0,
+        failedRows: 0,
         warnings: parsedTradeHistory.warnings as unknown as Prisma.InputJsonValue,
         sourceFileText: csvText,
         accountId: account.id,
       },
     });
-
-    await prisma.execution.deleteMany({ where: { importId: seededImport.id } });
-
-    if (parsedTradeHistory.executions.length > 0) {
-      await prisma.execution.createMany({
-        data: parsedTradeHistory.executions.map((execution) => ({
-          importId: seededImport.id,
-          accountId: account.id,
-          broker: metadata.broker,
-          eventTimestamp: execution.eventTimestamp,
-          tradeDate: execution.tradeDate,
-          eventType: execution.eventType,
-          assetClass: execution.assetClass,
-          symbol: execution.symbol,
-          instrumentKey: deriveInstrumentKeyFromNormalizedExecution(execution),
-          side: execution.side,
-          quantity: execution.quantity,
-          price: execution.price,
-          grossAmount: execution.grossAmount,
-          netAmount: execution.netAmount,
-          openingClosingEffect: execution.openingClosingEffect,
-          underlyingSymbol: execution.underlyingSymbol,
-          optionType: execution.optionType,
-          strike: execution.strike,
-          expirationDate: execution.expirationDate,
-          spreadGroupId: execution.spreadGroupId,
-          sourceRowRef: execution.sourceRowRef,
-          rawRowJson: execution.rawRowJson,
-        })),
-      });
-    }
 
     const snapshots = parseCashBalanceSnapshots(csvText);
 
@@ -121,13 +95,51 @@ async function main() {
     }
 
     await prisma.$transaction(async (tx) => {
+      const ingestResult = await ingestExecutions(
+        tx,
+        parsedTradeHistory.executions.map((execution) => ({
+          importId: seededImport.id,
+          accountId: account.id,
+          broker: metadata.broker,
+          eventTimestamp: execution.eventTimestamp,
+          tradeDate: execution.tradeDate,
+          eventType: execution.eventType,
+          assetClass: execution.assetClass,
+          symbol: execution.symbol,
+          instrumentKey: deriveInstrumentKeyFromNormalizedExecution(execution),
+          side: execution.side,
+          quantity: execution.quantity,
+          price: execution.price,
+          grossAmount: execution.grossAmount,
+          netAmount: execution.netAmount,
+          openingClosingEffect: execution.openingClosingEffect,
+          underlyingSymbol: execution.underlyingSymbol,
+          optionType: execution.optionType,
+          strike: execution.strike,
+          expirationDate: execution.expirationDate,
+          spreadGroupId: execution.spreadGroupId,
+          sourceRowRef: execution.sourceRowRef,
+          rawRowJson: execution.rawRowJson,
+        })),
+      );
+
       const rebuilt = await rebuildAccountLedger(tx, account.id, new Date());
       const setupResult = await rebuildAccountSetups(tx, account.id);
       await tx.import.update({
         where: { id: seededImport.id },
         data: {
+          parsedRows: ingestResult.parsed,
+          persistedRows: ingestResult.inserted,
+          skippedRows: parsedTradeHistory.skippedRows,
+          skippedDuplicateRows: ingestResult.skipped_duplicate,
+          failedRows: ingestResult.failed,
           warnings: [
             ...parsedTradeHistory.warnings,
+            ...ingestResult.failures.map((message, index) => ({
+              code: "INGEST_ROW_FAILED",
+              message,
+              rowRef: String(index + 1),
+            })),
             ...rebuilt.warnings,
             ...(setupResult.uncategorizedCount > 0
               ? [

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { computeBrokerTxId } from "./ingest";
 import { deriveInstrumentKeyFromPersistedExecution } from "./instrument-key";
 import { runFifoMatcher, type LedgerExecution, type LedgerWarning } from "./fifo-matcher";
 
@@ -75,27 +76,41 @@ export async function rebuildAccountLedger(
 
   if (matchResult.syntheticExecutions.length > 0) {
     await tx.execution.createMany({
-      data: matchResult.syntheticExecutions.map((execution) => ({
-        id: execution.id,
-        importId: execution.importId,
-        accountId: execution.accountId,
-        broker: execution.broker,
-        eventTimestamp: execution.eventTimestamp,
-        tradeDate: execution.tradeDate,
-        eventType: execution.eventType,
-        assetClass: execution.assetClass,
-        symbol: execution.symbol,
-        instrumentKey: execution.instrumentKey,
-        side: execution.side,
-        quantity: execution.quantity,
-        price: execution.price,
-        openingClosingEffect: execution.openingClosingEffect,
-        optionType: execution.optionType,
-        strike: execution.strike,
-        expirationDate: execution.expirationDate,
-        sourceRowRef: execution.sourceRowRef,
-        rawRowJson: { synthetic: true, source: "ledger" },
-      })),
+      data: matchResult.syntheticExecutions.map((execution) => {
+        const brokerTxId = computeBrokerTxId({
+          accountId: execution.accountId,
+          eventTimestamp: execution.eventTimestamp,
+          symbol: execution.symbol,
+          side: execution.side,
+          quantity: execution.quantity,
+          rawPrice: execution.price.toString(),
+          spreadGroupId: null,
+          sourceRowRef: execution.sourceRowRef,
+        });
+
+        return {
+          id: execution.id,
+          importId: execution.importId,
+          accountId: execution.accountId,
+          broker: execution.broker,
+          eventTimestamp: execution.eventTimestamp,
+          tradeDate: execution.tradeDate,
+          eventType: execution.eventType,
+          assetClass: execution.assetClass,
+          symbol: execution.symbol,
+          brokerTxId,
+          instrumentKey: execution.instrumentKey,
+          side: execution.side,
+          quantity: execution.quantity,
+          price: execution.price,
+          openingClosingEffect: execution.openingClosingEffect,
+          optionType: execution.optionType,
+          strike: execution.strike,
+          expirationDate: execution.expirationDate,
+          sourceRowRef: execution.sourceRowRef,
+          rawRowJson: { synthetic: true, source: "ledger" },
+        };
+      }),
     });
   }
 

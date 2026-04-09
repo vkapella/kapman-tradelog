@@ -4,6 +4,7 @@ import { detectAdapter } from "@/lib/adapters/registry";
 import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
+import { ingestExecutions } from "@/lib/ledger/ingest";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { CommitImportResponse } from "@/types/api";
 
@@ -47,6 +48,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
       where: { id: importId },
       data: {
         status: "FAILED",
+        persistedRows: 0,
+        skippedDuplicateRows: 0,
+        failedRows: 0,
         warnings: [{ code: "PARSE_ERROR", message: error instanceof Error ? error.message : "Unknown parse error" }],
       },
     });
@@ -84,18 +88,17 @@ export async function POST(_request: Request, context: { params: { id: string } 
   let transactionResult;
   try {
     transactionResult = await prisma.$transaction(async (tx) => {
-      await tx.execution.deleteMany({ where: { importId: existingImport.id } });
-
-      if (executionData.length > 0) {
-        await tx.execution.createMany({
-          data: executionData,
-        });
-      }
+      const ingestResult = await ingestExecutions(tx, executionData);
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
       const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);
       const combinedWarnings = [
         ...parsed.warnings,
+        ...ingestResult.failures.map((message, index) => ({
+          code: "INGEST_ROW_FAILED",
+          message,
+          rowRef: String(index + 1),
+        })),
         ...rebuildResult.warnings.map((warning) => ({
           code: warning.code,
           message: warning.message,
@@ -116,9 +119,11 @@ export async function POST(_request: Request, context: { params: { id: string } 
         where: { id: importId },
         data: {
           status: "COMMITTED",
-          parsedRows: parsed.parsedRows,
-          persistedRows: executionData.length,
+          parsedRows: ingestResult.parsed,
+          persistedRows: ingestResult.inserted,
           skippedRows: parsed.skippedRows,
+          skippedDuplicateRows: ingestResult.skipped_duplicate,
+          failedRows: ingestResult.failed,
           warnings: warningsJson,
         },
       });
@@ -126,6 +131,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
       return {
         updatedImport,
         combinedWarnings,
+        ingestResult,
       };
     });
   } catch (error) {
@@ -133,6 +139,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
       where: { id: importId },
       data: {
         status: "FAILED",
+        persistedRows: 0,
+        skippedDuplicateRows: 0,
+        failedRows: 0,
         warnings: [{ code: "COMMIT_ERROR", message: error instanceof Error ? error.message : "Unknown commit error" }],
       },
     });
@@ -145,8 +154,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
   const payload: CommitImportResponse = {
     importId: transactionResult.updatedImport.id,
     parsedRows: transactionResult.updatedImport.parsedRows,
-    persistedRows: transactionResult.updatedImport.persistedRows,
-    skippedRows: transactionResult.updatedImport.skippedRows,
+    inserted: transactionResult.updatedImport.persistedRows,
+    skipped_duplicate: transactionResult.updatedImport.skippedDuplicateRows,
+    failed: transactionResult.updatedImport.failedRows,
     warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
 

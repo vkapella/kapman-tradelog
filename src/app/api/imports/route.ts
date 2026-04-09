@@ -31,8 +31,10 @@ export async function GET(request: Request) {
     accountId: row.account.accountId,
     status: row.status,
     parsedRows: row.parsedRows,
-    persistedRows: row.persistedRows,
-    skippedRows: row.skippedRows,
+    inserted: row.persistedRows,
+    skipped_duplicate: row.skippedDuplicateRows,
+    failed: row.failedRows,
+    skipped_parse: row.skippedRows,
     createdAt: row.createdAt.toISOString(),
   }));
 
