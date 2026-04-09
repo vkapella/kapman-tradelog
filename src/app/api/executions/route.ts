@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const symbol = url.searchParams.get("symbol") ?? undefined;
   const account = url.searchParams.get("account") ?? undefined;
   const importId = url.searchParams.get("import") ?? undefined;
+  const executionId = url.searchParams.get("execution") ?? undefined;
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
 
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
   }
   if (importId) {
     where.importId = importId;
+  }
+  if (executionId) {
+    where.id = executionId;
   }
   if (account) {
     where.account = { accountId: { equals: account, mode: "insensitive" as const } };
@@ -32,7 +36,7 @@ export async function GET(request: Request) {
     prisma.execution.count({ where }),
     prisma.execution.findMany({
       where,
-      orderBy: { eventTimestamp: "desc" },
+      orderBy: [{ eventTimestamp: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -41,13 +45,22 @@ export async function GET(request: Request) {
   const data: ExecutionRecord[] = rows.map((row) => ({
     id: row.id,
     accountId: row.accountId,
+    broker: row.broker,
     symbol: row.symbol,
+    tradeDate: row.tradeDate.toISOString(),
     eventTimestamp: row.eventTimestamp.toISOString(),
     eventType: row.eventType,
     assetClass: row.assetClass,
     side: row.side,
     quantity: row.quantity.toString(),
     price: row.price?.toString() ?? null,
+    openingClosingEffect: row.openingClosingEffect ?? null,
+    instrumentKey: row.instrumentKey,
+    underlyingSymbol: row.underlyingSymbol,
+    optionType: row.optionType,
+    strike: row.strike?.toString() ?? null,
+    expirationDate: row.expirationDate?.toISOString() ?? null,
+    spreadGroupId: row.spreadGroupId,
     importId: row.importId,
   }));
 

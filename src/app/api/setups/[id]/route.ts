@@ -8,7 +8,12 @@ export async function GET(_request: Request, context: { params: { id: string } }
     include: {
       lots: {
         include: {
-          matchedLot: true,
+          matchedLot: {
+            include: {
+              openExecution: true,
+              closeExecution: true,
+            },
+          },
         },
       },
     },
@@ -36,6 +41,11 @@ export async function GET(_request: Request, context: { params: { id: string } }
     lots: lots.map((lot) => ({
       id: lot.id,
       accountId: lot.accountId,
+      symbol: lot.openExecution.symbol,
+      openTradeDate: lot.openExecution.tradeDate.toISOString(),
+      closeTradeDate: lot.closeExecution?.tradeDate.toISOString() ?? null,
+      openImportId: lot.openExecution.importId,
+      closeImportId: lot.closeExecution?.importId ?? null,
       quantity: lot.quantity.toString(),
       realizedPnl: lot.realizedPnl.toString(),
       holdingDays: lot.holdingDays,

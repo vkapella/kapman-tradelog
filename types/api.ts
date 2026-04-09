@@ -67,13 +67,22 @@ export interface ImportsListQuery {
 export interface ExecutionRecord {
   id: string;
   accountId: string;
+  broker: string;
   symbol: string;
+  tradeDate: string;
   eventTimestamp: string;
   eventType: string;
   assetClass: string;
   side: string | null;
   quantity: string;
   price: string | null;
+  openingClosingEffect: string | null;
+  instrumentKey: string | null;
+  underlyingSymbol: string | null;
+  optionType: string | null;
+  strike: string | null;
+  expirationDate: string | null;
+  spreadGroupId: string | null;
   importId: string;
 }
 
@@ -90,6 +99,8 @@ export interface ExecutionPreviewRow {
 export interface ExecutionsListQuery {
   symbol?: string;
   account?: string;
+  import?: string;
+  execution?: string;
   date_from?: string;
   date_to?: string;
   page?: number;
@@ -99,6 +110,11 @@ export interface ExecutionsListQuery {
 export interface MatchedLotRecord {
   id: string;
   accountId: string;
+  symbol: string;
+  openTradeDate: string;
+  closeTradeDate: string | null;
+  openImportId: string;
+  closeImportId: string | null;
   quantity: string;
   realizedPnl: string;
   holdingDays: number;
@@ -111,6 +127,9 @@ export interface MatchedLotsListQuery {
   symbol?: string;
   outcome?: string;
   account?: string;
+  import?: string;
+  date_from?: string;
+  date_to?: string;
   page?: number;
   pageSize?: number;
 }
