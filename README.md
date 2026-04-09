@@ -39,6 +39,7 @@ docker compose up --build
 - `http://localhost:3000`
 
 On startup, the app container runs Prisma generate, migrations, and seed automatically.
+Seed logic parses `Cash Balance` `BAL` rows from fixture account statements and writes them into `daily_account_snapshots` for the Overview equity-curve source.
 
 ## Scripts
 

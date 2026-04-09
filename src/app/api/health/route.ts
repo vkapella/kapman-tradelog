@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { detailResponse } from "@/lib/api/responses";
+import type { HealthResponse } from "@/types/api";
 
 export async function GET() {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({ status: "ok", db: "connected" });
+    await prisma.account.count();
+    const payload: HealthResponse = { status: "ok", db: "connected" };
+    return detailResponse(payload);
   } catch {
-    return NextResponse.json({ status: "degraded", db: "disconnected" }, { status: 503 });
+    const payload: HealthResponse = { status: "degraded", db: "disconnected" };
+    return detailResponse(payload);
   }
 }

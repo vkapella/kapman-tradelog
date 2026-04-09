@@ -79,6 +79,7 @@ model Import {
 
   executions Execution[]
 
+  @@unique([accountId, filename])
   @@index([accountId])
   @@map("imports")
 }

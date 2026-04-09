@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { parseCashBalanceSnapshots } from "../src/lib/adapters/thinkorswim/cash-balance";
 import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
 
 const prisma = new PrismaClient();
@@ -9,8 +10,6 @@ const seedFiles = [
   "fixtures/2026-04-06-AccountStatement.csv",
   "fixtures/2026-04-06-AccountStatement-2.csv",
 ];
-
-const today = new Date();
 
 async function main() {
   for (const fixturePath of seedFiles) {
@@ -32,9 +31,20 @@ async function main() {
       },
     });
 
-    const seededImport = await prisma.import.create({
-      data: {
-        filename: fixturePath.split("/").pop() ?? fixturePath,
+    const filename = fixturePath.split("/").pop() ?? fixturePath;
+    const seededImport = await prisma.import.upsert({
+      where: {
+        accountId_filename: {
+          accountId: account.id,
+          filename,
+        },
+      },
+      update: {
+        broker: metadata.broker,
+        status: "UPLOADED",
+      },
+      create: {
+        filename,
         broker: metadata.broker,
         status: "UPLOADED",
         parsedRows: 0,
@@ -45,24 +55,28 @@ async function main() {
       },
     });
 
-    await prisma.dailyAccountSnapshot.upsert({
-      where: {
-        accountId_snapshotDate: {
-          accountId: account.id,
-          snapshotDate: new Date(today.toISOString().slice(0, 10)),
+    const snapshots = parseCashBalanceSnapshots(csvText);
+
+    for (const snapshot of snapshots) {
+      await prisma.dailyAccountSnapshot.upsert({
+        where: {
+          accountId_snapshotDate: {
+            accountId: account.id,
+            snapshotDate: snapshot.snapshotDate,
+          },
         },
-      },
-      update: {
-        balance: 100000,
-        sourceRef: seededImport.id,
-      },
-      create: {
-        accountId: account.id,
-        snapshotDate: new Date(today.toISOString().slice(0, 10)),
-        balance: 100000,
-        sourceRef: seededImport.id,
-      },
-    });
+        update: {
+          balance: snapshot.balance,
+          sourceRef: seededImport.id,
+        },
+        create: {
+          accountId: account.id,
+          snapshotDate: snapshot.snapshotDate,
+          balance: snapshot.balance,
+          sourceRef: seededImport.id,
+        },
+      });
+    }
   }
 }
 
