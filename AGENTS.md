@@ -20,6 +20,14 @@ Use `/docs/` as the source of truth for scope, sequencing, and acceptance criter
 - Before editing, inspect existing files and follow established patterns.
 - After each meaningful change, run the narrowest relevant validation step.
 
+## Git workflow
+- Always create a feature branch from `main` for each fix or feature.
+- Commit and push changes to that feature branch.
+- Open a PR from the feature branch to `main`.
+- Enable PR auto-merge when checks/reviews pass so merge is not blocked on manual timing.
+- Do not push directly to `main` unless the user explicitly requests direct-to-main delivery.
+- If auto-merge cannot be enabled due to repo settings or permissions, report the blocker and next required manual step.
+
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router
 - TypeScript 5.4.x in strict mode
