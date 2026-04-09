@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kapman
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kapman"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/kapman
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - app-node-modules:/app/node_modules
+    command: sh -c "npm install && npm run dev:container"
+
+volumes:
+  postgres-data:
+  app-node-modules:

@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Broker {
+  SCHWAB_THINKORSWIM
+  FIDELITY
+}
+
+enum ImportStatus {
+  UPLOADED
+  PARSED
+  COMMITTED
+  FAILED
+}
+
+enum AssetClass {
+  EQUITY
+  OPTION
+  CASH
+  OTHER
+}
+
+enum EventType {
+  TRADE
+  EXPIRATION_INFERRED
+  ASSIGNMENT
+  EXERCISE
+}
+
+enum Side {
+  BUY
+  SELL
+}
+
+enum OpeningClosingEffect {
+  TO_OPEN
+  TO_CLOSE
+  UNKNOWN
+}
+
+model Account {
+  id         String   @id @default(cuid())
+  accountId  String   @unique @map("account_id")
+  label      String
+  broker     Broker
+  paperMoney Boolean  @default(false) @map("paper_money")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  imports     Import[]
+  executions  Execution[]
+  snapshots   DailyAccountSnapshot[]
+  setupGroups SetupGroup[]
+  matchedLots MatchedLot[]
+
+  @@map("accounts")
+}
+
+model Import {
+  id            String       @id @default(cuid())
+  filename      String
+  broker        Broker
+  status        ImportStatus
+  parsedRows    Int          @default(0) @map("parsed_rows")
+  persistedRows Int          @default(0) @map("persisted_rows")
+  skippedRows   Int          @default(0) @map("skipped_rows")
+  warnings      Json?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  executions Execution[]
+
+  @@index([accountId])
+  @@map("imports")
+}
+
+model Execution {
+  id                   String                @id @default(cuid())
+  broker               Broker
+  eventTimestamp       DateTime              @map("event_timestamp")
+  tradeDate            DateTime              @map("trade_date")
+  eventType            EventType             @default(TRADE) @map("event_type")
+  assetClass           AssetClass            @map("asset_class")
+  symbol               String
+  instrumentKey        String?               @map("instrument_key")
+  descriptionRaw       String?               @map("description_raw")
+  side                 Side?
+  quantity             Decimal               @db.Decimal(20, 6)
+  price                Decimal?              @db.Decimal(20, 6)
+  grossAmount          Decimal?              @map("gross_amount") @db.Decimal(20, 6)
+  fees                 Decimal?              @db.Decimal(20, 6)
+  netAmount            Decimal?              @map("net_amount") @db.Decimal(20, 6)
+  openingClosingEffect OpeningClosingEffect? @map("opening_closing_effect")
+  underlyingSymbol     String?               @map("underlying_symbol")
+  optionType           String?               @map("option_type")
+  strike               Decimal?              @db.Decimal(20, 6)
+  expirationDate       DateTime?             @map("expiration_date")
+  multiplier           Int?
+  spreadGroupId        String?               @map("spread_group_id")
+  sourceRowRef         String?               @map("source_row_ref")
+  rawRowJson           Json?                 @map("raw_row_json")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  importId String @map("import_id")
+  import   Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  openMatchedLots  MatchedLot[] @relation("open_execution")
+  closeMatchedLots MatchedLot[] @relation("close_execution")
+
+  @@index([accountId])
+  @@index([importId])
+  @@index([symbol])
+  @@map("executions")
+}
+
+model MatchedLot {
+  id          String   @id @default(cuid())
+  quantity    Decimal  @db.Decimal(20, 6)
+  realizedPnl Decimal  @map("realized_pnl") @db.Decimal(20, 6)
+  holdingDays Int      @map("holding_days")
+  outcome     String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  openExecutionId String    @map("open_execution_id")
+  openExecution   Execution @relation("open_execution", fields: [openExecutionId], references: [id], onDelete: Cascade)
+
+  closeExecutionId String?    @map("close_execution_id")
+  closeExecution   Execution? @relation("close_execution", fields: [closeExecutionId], references: [id], onDelete: SetNull)
+
+  setupGroupLots SetupGroupLot[]
+
+  @@index([accountId])
+  @@map("matched_lots")
+}
+
+model SetupGroup {
+  id               String   @id @default(cuid())
+  tag              String
+  overrideTag      String?  @map("override_tag")
+  underlyingSymbol String   @map("underlying_symbol")
+  realizedPnl      Decimal? @map("realized_pnl") @db.Decimal(20, 6)
+  winRate          Decimal? @map("win_rate") @db.Decimal(8, 4)
+  expectancy       Decimal? @db.Decimal(20, 6)
+  averageHoldDays  Decimal? @map("average_hold_days") @db.Decimal(10, 2)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  lots SetupGroupLot[]
+
+  @@index([accountId])
+  @@map("setup_groups")
+}
+
+model SetupGroupLot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  setupGroupId String     @map("setup_group_id")
+  setupGroup   SetupGroup @relation(fields: [setupGroupId], references: [id], onDelete: Cascade)
+
+  matchedLotId String     @map("matched_lot_id")
+  matchedLot   MatchedLot @relation(fields: [matchedLotId], references: [id], onDelete: Cascade)
+
+  @@unique([setupGroupId, matchedLotId])
+  @@map("setup_group_lots")
+}
+
+model DailyAccountSnapshot {
+  id           String   @id @default(cuid())
+  snapshotDate DateTime @map("snapshot_date")
+  balance      Decimal  @db.Decimal(20, 6)
+  sourceRef    String?  @map("source_ref")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, snapshotDate])
+  @@index([snapshotDate])
+  @@map("daily_account_snapshots")
+}

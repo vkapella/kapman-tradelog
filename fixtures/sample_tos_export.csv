@@ -1,0 +1,16 @@
+This document was exported from the paperMoney platform.
+
+Account Statement for D-00000001 (paper margin) since 1/1/26 through 1/31/26
+
+Account Trade History
+,Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type
+,1/5/26 10:00:00,STOCK,BUY,+100,TO OPEN,SPY,,,ETF,500.00,500.00,LMT
+,1/12/26 10:15:00,STOCK,SELL,-100,TO CLOSE,SPY,,,ETF,510.00,510.00,LMT
+,1/8/26 11:00:00,SINGLE,BUY,+1,TO OPEN,AAPL,21 FEB 26,200,CALL,4.00,4.00,LMT
+,1/15/26 11:30:00,SINGLE,SELL,-1,TO CLOSE,AAPL,21 FEB 26,200,CALL,6.00,6.00,LMT
+,1/10/26 09:45:00,VERTICAL,BUY,+1,TO OPEN,QQQ,21 FEB 26,430,CALL,4.20,2.10,LMT
+,,,SELL,-1,TO OPEN,QQQ,21 FEB 26,440,CALL,2.10,DEBIT,
+
+Cash Balance
+,Date,Type,Description,Amount,Balance,REF #
+,1/31/26,BAL,Daily Balance,0.00,102500.00,="1234567890"
