@@ -42,6 +42,26 @@ On startup, the app container runs Prisma generate, migrations, and seed automat
 Seed logic parses `Cash Balance` `BAL` rows from fixture account statements and writes them into `daily_account_snapshots` for the Overview equity-curve source.
 If connecting to Postgres from the host, use `127.0.0.1:55432`.
 
+## Troubleshooting import failures
+
+If CSV upload fails with a Prisma runtime error such as `Unknown argument skippedDuplicateRows`, the app container is usually running with a stale Prisma client.
+
+1. Quick fix:
+
+```bash
+docker compose restart app
+```
+
+2. If it still fails, run a clean app-runtime refresh (preserves DB data):
+
+```bash
+docker compose down
+docker volume rm kapman-tradelog_app-node-modules
+docker compose up --build
+```
+
+For full operational notes, see [RUNBOOK.md](RUNBOOK.md).
+
 ## Scripts
 
 - `npm run dev`
