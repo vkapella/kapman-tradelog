@@ -258,6 +258,61 @@ export interface AdapterSummaryRecord {
   coverage: AdapterCoverageRecord;
 }
 
+export interface QuoteUnavailableResponse {
+  error: "unavailable";
+}
+
+export interface EquityQuoteRecord {
+  mark: number;
+  bid: number;
+  ask: number;
+  last: number;
+  netChange: number;
+  netPctChange: number;
+}
+
+export type QuotesResponse = Record<string, EquityQuoteRecord> | QuoteUnavailableResponse;
+
+export interface OptionQuoteRecord {
+  mark: number;
+  bid: number;
+  ask: number;
+  delta: number;
+  theta: number;
+  iv: number;
+  dte: number;
+  inTheMoney: boolean;
+}
+
+export type OptionQuoteResponse = OptionQuoteRecord | QuoteUnavailableResponse;
+
+export interface OpenPosition {
+  symbol: string;
+  underlyingSymbol: string;
+  assetClass: "OPTION" | "EQUITY";
+  optionType: "CALL" | "PUT" | null;
+  strike: string | null;
+  expirationDate: string | null;
+  instrumentKey: string;
+  netQty: number;
+  costBasis: number;
+  accountId: string;
+}
+
+export interface NlvResult {
+  nlv: number | null;
+  cash: number;
+  lastUpdated: Date | null;
+  loading: boolean;
+}
+
+export interface StreakSummaryResponse {
+  currentStreak: number;
+  currentStreakType: "WIN" | "LOSS" | null;
+  longestWinStreak: number;
+  longestLossStreak: number;
+}
+
 export type ImportsListApiResponse = ApiListResponse<ImportRecord> | ApiErrorResponse;
 export type UploadImportApiResponse = ApiDetailResponse<UploadImportResponse> | ApiErrorResponse;
 export type CommitImportApiResponse = ApiDetailResponse<CommitImportResponse> | ApiErrorResponse;

@@ -53,14 +53,17 @@ const tagOptions = [
   "uncategorized",
 ];
 
+const SHOW_ALL_STORAGE_KEY = "kapman_table_setups_showAll";
+
 export function SetupsAnalyticsPanel() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 50 });
+  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [page, setPage] = useState(1);
+  const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draftFilters, setDraftFilters] = useState<SetupFilters>(defaultFilters);
@@ -70,6 +73,14 @@ export function SetupsAnalyticsPanel() {
   const [detail, setDetail] = useState<SetupDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      setShowAll(window.localStorage.getItem(SHOW_ALL_STORAGE_KEY) === "1");
+    } catch {
+      setShowAll(false);
+    }
+  }, []);
 
   useEffect(() => {
     const setupFromQuery = searchParams.get("setup");
@@ -96,8 +107,8 @@ export function SetupsAnalyticsPanel() {
       setError(null);
 
       const query = new URLSearchParams({
-        page: String(page),
-        pageSize: String(meta.pageSize),
+        page: String(showAll ? 1 : page),
+        pageSize: String(showAll ? 1000 : 25),
       });
 
       if (appliedFilters.account.trim()) {
@@ -122,7 +133,7 @@ export function SetupsAnalyticsPanel() {
     }
 
     void loadSetups();
-  }, [appliedFilters, page, meta.pageSize]);
+  }, [appliedFilters, page, showAll]);
 
   useEffect(() => {
     async function loadSetupDetail() {
@@ -187,6 +198,17 @@ export function SetupsAnalyticsPanel() {
   const hasRows = rows.length > 0;
   const canGoBack = meta.page > 1;
   const canGoForward = meta.page * meta.pageSize < meta.total;
+
+  function toggleShowAll() {
+    const next = !showAll;
+    setShowAll(next);
+    setPage(1);
+    try {
+      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // Ignore localStorage errors.
+    }
+  }
 
   function applyFilters() {
     setAppliedFilters(draftFilters);
@@ -268,6 +290,9 @@ export function SetupsAnalyticsPanel() {
         >
           Reset
         </button>
+        <button type="button" onClick={toggleShowAll} className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200">
+          {showAll ? "Show pages" : `Show all ${meta.total}`}
+        </button>
       </div>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
@@ -285,7 +310,10 @@ export function SetupsAnalyticsPanel() {
 
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
-          <div className="overflow-auto rounded border border-slate-700">
+          <div
+            className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+            style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
+          >
             <table className="min-w-full text-xs">
               <thead className="bg-slate-900 text-slate-300">
                 <tr>
@@ -320,29 +348,33 @@ export function SetupsAnalyticsPanel() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-300">
-            <p>
-              Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={!canGoBack}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={!canGoForward}
-                onClick={() => setPage((current) => current + 1)}
-                className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-              >
-                Next
-              </button>
+          {showAll ? (
+            <p className="text-xs text-slate-300">Showing all {meta.total} records</p>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <p>
+                Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!canGoBack}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  disabled={!canGoForward}
+                  onClick={() => setPage((current) => current + 1)}
+                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : null}
 

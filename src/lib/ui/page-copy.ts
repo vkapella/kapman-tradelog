@@ -6,38 +6,38 @@ export interface DataPageCopy {
 
 export const dataPageCopy: Record<string, DataPageCopy> = {
   overview: {
-    title: "OverviewPage",
-    subtitle: "Placeholder overview summary while ingestion and analytics are implemented.",
+    title: "Overview",
+    subtitle: "Portfolio summary, import quality, and account snapshots.",
     nextAction: "Upload a thinkorswim statement in Imports & Connections.",
   },
   imports: {
-    title: "ImportsConnectionsPage",
-    subtitle: "Placeholder import workflow surface.",
+    title: "Imports & Connections",
+    subtitle: "Upload statements, inspect previews, and commit results.",
     nextAction: "Select Upload Statement to start a new import.",
   },
   executions: {
-    title: "ExecutionsPage",
-    subtitle: "Placeholder canonical execution table view.",
+    title: "Executions",
+    subtitle: "Canonical execution table with broker and account context.",
     nextAction: "Commit an import to generate execution rows.",
   },
   matchedLots: {
-    title: "MatchedLotsPage",
-    subtitle: "Placeholder FIFO matched lots view.",
+    title: "Matched Lots",
+    subtitle: "FIFO open/close matching with realized P&L and holding periods.",
     nextAction: "Run matching after imports are persisted.",
   },
   setups: {
-    title: "SetupsPage",
-    subtitle: "Placeholder setup analytics view.",
+    title: "Setups",
+    subtitle: "Setup-level analytics grouped from matched lots.",
     nextAction: "Generate setup groups from matched lots.",
   },
   ttsEvidence: {
-    title: "TtsEvidencePage",
-    subtitle: "Placeholder TTS evidence/readiness view.",
+    title: "TTS Evidence",
+    subtitle: "Evidence and readiness metrics from historical trading activity.",
     nextAction: "Load matched lot history to compute evidence metrics.",
   },
   diagnostics: {
-    title: "DiagnosticsPage",
-    subtitle: "Placeholder parser/matcher diagnostics view.",
+    title: "Diagnostics",
+    subtitle: "Parser, matcher, and setup-inference diagnostic metrics.",
     nextAction: "Run imports and matching to populate diagnostics.",
   },
 };

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { OverviewSummaryResponse } from "@/types/api";
 
@@ -66,26 +67,11 @@ export function OverviewDashboardPanel() {
       {!loading && !error && data && hasData ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Net P&L</p>
-              <p className={`text-lg font-semibold ${Number(data.netPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>{data.netPnl}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Executions</p>
-              <p className="text-lg font-semibold text-slate-100">{data.executionCount}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Matched Lots</p>
-              <p className="text-lg font-semibold text-slate-100">{data.matchedLotCount}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Setup Groups</p>
-              <p className="text-lg font-semibold text-slate-100">{data.setupCount}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Average Hold Days</p>
-              <p className="text-lg font-semibold text-slate-100">{data.averageHoldDays}</p>
-            </div>
+            <KpiCard label="Net P&L" value={data.netPnl} colorVariant={Number(data.netPnl) >= 0 ? "pos" : "neg"} />
+            <KpiCard label="Executions" value={data.executionCount} colorVariant="accent" />
+            <KpiCard label="Matched Lots" value={data.matchedLotCount} colorVariant="accent" />
+            <KpiCard label="Setup Groups" value={data.setupCount} colorVariant="accent" />
+            <KpiCard label="Average Hold Days" value={data.averageHoldDays} colorVariant="neutral" />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
