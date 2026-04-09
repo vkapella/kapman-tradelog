@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KapMan Dashboard Mock v3</title>
+<style>
+:root{--bg:#0a1120;--bg2:#0d1630;--panel:#121c34;--panel2:#0f1730;--line:#243252;--text:#eaf1ff;--muted:#95a3c6;--blue:#3875ff;--cyan:#62d7ff;--green:#59e39d;--yellow:#f0c55f;--red:#ff7f8f;--pill:#1a2746}
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#08101d,#0a1120 24%,#0a1120);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.side{border-right:1px solid var(--line);padding:22px 18px;background:rgba(7,11,24,.82);position:sticky;top:0;height:100vh}
+.brand{font-size:24px;font-weight:800;margin:0 0 6px}.tag{font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:22px}
+.nav a{display:block;text-decoration:none;color:var(--text);padding:11px 12px;border-radius:12px;margin:6px 0;border:1px solid transparent}.nav a.active,.nav a:hover{background:var(--panel);border-color:var(--line)}
+.main{padding:24px 28px 48px}
+.hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:18px}.hero h1{margin:0;font-size:30px}.hero p{margin:8px 0 0;color:var(--muted);max-width:940px;line-height:1.55}
+.badges{display:flex;gap:8px;flex-wrap:wrap}.badge{background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:#dce8ff;font-size:12px}
+.topmenu{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0 20px}.menu-item{background:linear-gradient(180deg,#0d1732,#0a1329);border:1px solid var(--line);border-radius:14px;padding:14px 14px;display:flex;align-items:center;gap:10px}.menu-item.active{border-color:#3e7cff;box-shadow:0 0 0 1px rgba(62,124,255,.2) inset}.menu-icon{width:28px;height:28px;border-radius:8px;background:#172443;display:flex;align-items:center;justify-content:center;color:#bcd0ff;font-weight:700}.menu-text{font-size:13px}.menu-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 36px rgba(0,0,0,.18)}
+.span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-4{grid-column:span 4}.span-7{grid-column:span 7}.span-5{grid-column:span 5}.span-6{grid-column:span 6}.kpi{grid-column:span 3}.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.kpi .value{font-size:29px;font-weight:800;margin-top:8px}.kpi .note{font-size:13px;color:var(--muted);margin-top:7px}.neg{color:var(--red)}.pos{color:var(--green)}
+.h2{margin:0 0 14px;font-size:17px;font-weight:760}.copy{color:var(--muted);font-size:14px;line-height:1.55}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field label{display:block;font-size:12px;color:#c9d7fb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}.input,.select,.filebox,.btn,.ghost{width:100%;border:1px solid #33456e;background:#2d3952;color:#edf3ff;border-radius:10px;padding:12px 12px;font-size:14px}.input::placeholder{color:#99a9cd}.row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}.small{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}.checkbox{display:flex;align-items:center;gap:8px;font-size:14px;color:#dae6ff;margin:10px 0 12px}
+.actions{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.btn{background:linear-gradient(180deg,#3875ff,#285de8);border-color:#4a82ff;text-align:center;font-weight:700}.ghost{background:#13203c}
+.instruction-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}.tab{font-size:12px;padding:6px 10px;border-radius:999px;background:#152547;border:1px solid #31456f;color:#d8e6ff}.tab.active{background:#254db3;border-color:#3a67da}
+.instruction-list{margin:10px 0 0;padding-left:18px;color:#e6eeff;line-height:1.6}.instruction-list li{margin:6px 0}.info-box{border-left:3px solid var(--cyan);background:rgba(98,215,255,.07);padding:12px 14px;border-radius:12px;color:#dff7ff;font-size:13px;line-height:1.5;margin-top:14px}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap}.pill{padding:6px 10px;background:var(--pill);border:1px solid var(--line);border-radius:999px;font-size:12px;color:#dce8ff}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px} table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top} th{background:#0d1632;color:#cde0ff;text-transform:uppercase;font-size:12px;letter-spacing:.06em} tr:hover td{background:rgba(255,255,255,.02)}
+.metric{display:grid;grid-template-columns:110px 1fr 90px;gap:10px;align-items:center;margin:10px 0}.track{height:10px;background:#0a1226;border:1px solid var(--line);border-radius:999px;overflow:hidden}.bar{height:100%;border-radius:999px}.bar.blue{background:linear-gradient(90deg,#54a1ff,#8dc9ff)}.bar.green{background:linear-gradient(90deg,#4ddc96,#8cf3b8)}.bar.yellow{background:linear-gradient(90deg,#e4ba51,#f9d98b)}.right{font-size:12px;color:var(--muted);text-align:right}
+.footer-note{margin-top:16px;color:var(--muted);font-size:12px;line-height:1.5}
+@media (max-width:1200px){.topmenu,.form-grid,.grid{grid-template-columns:1fr}.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.kpi,.span-4,.span-5,.span-6,.span-7,.span-8,.span-12{grid-column:span 1}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">KapMan Ledger</div>
+    <div class="tag">Broker-agnostic trading ledger and TTS evidence dashboard. MVP starts with Thinkorswim. Fidelity is next.</div>
+    <nav class="nav">
+      <a href="#">Overview</a>
+      <a class="active" href="#">Imports &amp; Connections</a>
+      <a href="#">Matched Lots</a>
+      <a href="#">Executions</a>
+      <a href="#">Setups</a>
+      <a href="#">TTS Evidence</a>
+      <a href="#">Reconciliation</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <section class="hero">
+      <div>
+        <h1>Imports &amp; Connections</h1>
+        <p>Adapter-oriented ingestion surface. Statement upload is the production path for the MVP, with <strong>Schwab Thinkorswim</strong> as the first fully implemented broker adapter, <strong>Fidelity</strong> shown as the next adapter on the same contract, and additional brokers designed to bolt on without changing ledger or analytics code.</p>
+      </div>
+      <div class="badges">
+        <div class="badge">FIFO record of book</div>
+        <div class="badge">Matched-lot canonical ledger</div>
+        <div class="badge">Thinkorswim MVP</div>
+        <div class="badge">Fidelity next</div>
+      </div>
+    </section>
+
+    <section class="topmenu">
+      <div class="menu-item active"><div class="menu-icon">↑</div><div><div class="menu-text">Upload File</div><div class="menu-sub">Primary import path</div></div></div>
+      <div class="menu-item"><div class="menu-icon">✎</div><div><div class="menu-text">Manual Trade Entry</div><div class="menu-sub">Scaffold for edge cases</div></div></div>
+      <div class="menu-item"><div class="menu-icon">⟲</div><div><div class="menu-text">Add Auto-sync Connection</div><div class="menu-sub">Phase 2 scaffold</div></div></div>
+      <div class="menu-item"><div class="menu-icon">☰</div><div><div class="menu-text">View Auto-sync Connections</div><div class="menu-sub">Status and credentials</div></div></div>
+      <div class="menu-item"><div class="menu-icon">⇩</div><div><div class="menu-text">Manage/Export Data</div><div class="menu-sub">Exports, purge, backups</div></div></div>
+    </section>
+
+    <section class="grid">
+      <div class="card span-7">
+        <h2 class="h2">Upload statement</h2>
+        <div class="form-grid">
+          <div class="field"><label>Trading account</label><div class="select">Victor - Thinkorswim Paper ▾</div><div class="small">Create accounts independent of any single upload so multiple imports map into the same ledger account.</div></div>
+          <div class="field"><label>Select broker / trading platform</label><div class="select">Schwab Thinkorswim ▾</div><div class="small">Broker selector is adapter-driven. Fidelity uses the same workflow next.</div></div>
+          <div class="field"><label>Broker reporting timezone</label><div class="select">America/New_York ▾</div></div>
+          <div class="field"><label>Broker reporting currency</label><div class="select">USD - United States Dollar ▾</div></div>
+          <div class="field"><label>Tags (optional)</label><input class="input" placeholder="paper, kapman, tos" /></div>
+          <div class="field"><label>Import from date (optional)</label><div class="row"><input class="input" placeholder="2025-08-25" /><button class="ghost">Clear Date</button></div></div>
+          <div class="field" style="grid-column:1/-1"><label>Upload file</label><div class="filebox">Choose file…&nbsp;&nbsp;&nbsp; <span style="color:#9fb0d6">/ statements / thinkorswim / account_statement.csv</span></div></div>
+        </div>
+        <div class="checkbox"><input type="checkbox" checked /> Auto-add closing executions for expired options when broker data omits the close row</div>
+        <div class="actions"><button class="ghost" style="width:120px">Clear</button><button class="btn" style="width:150px">Upload</button></div>
+        <div class="footer-note">Design note: the upload route calls a broker adapter registry, not broker-specific UI logic. The same form submits `broker_family`, `adapter_key`, file metadata, and import context to a generic import service.</div>
+      </div>
+
+      <div class="card span-5">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+          <div>
+            <h2 class="h2">Broker export instructions</h2>
+            <div class="copy">Instruction content is owned by the adapter and changes with the selected broker.</div>
+          </div>
+          <div class="pillrow"><div class="pill">Stocks</div><div class="pill">Options</div></div>
+        </div>
+        <div class="instruction-tabs">
+          <div class="tab active">Thinkorswim</div>
+          <div class="tab">Fidelity</div>
+          <div class="tab">Other (future)</div>
+        </div>
+        <ol class="instruction-list">
+          <li>Open Schwab Thinkorswim and navigate to account statement or trade history export.</li>
+          <li>Export executed trades for the target date range as CSV.</li>
+          <li>Retain timestamp, quantity, price, fees, and balance columns when available.</li>
+          <li>Upload the exported file through this page.</li>
+          <li>Review parser flags for unsupported complex rows before relying on analytics.</li>
+        </ol>
+        <div class="info-box">Fidelity is the next adapter. The same page will swap in Fidelity-specific export help and send the file through the Fidelity parser without changing the ledger engine.</div>
+      </div>
+
+      <div class="card kpi"><div class="label">Supported brokers</div><div class="value">2+</div><div class="note">Thinkorswim active, Fidelity scaffolded, more adapters later.</div></div>
+      <div class="card kpi"><div class="label">Import sources</div><div class="value">3</div><div class="note">Statement upload, manual entry, future connection sync.</div></div>
+      <div class="card kpi"><div class="label">Flagged rows</div><div class="value neg">1</div><div class="note">Unsupported custom multi-leg row awaiting reconciliation logic.</div></div>
+      <div class="card kpi"><div class="label">Trades / trade day</div><div class="value">4.04</div><div class="note">Prototype metric; production computed from matched lots and executions.</div></div>
+
+      <div class="card span-8">
+        <h2 class="h2">Adapter roadmap and system boundary</h2>
+        <div class="metric"><div>Thinkorswim</div><div class="track"><div class="bar blue" style="width:82%"></div></div><div class="right">MVP parser</div></div>
+        <div class="metric"><div>Fidelity</div><div class="track"><div class="bar green" style="width:48%"></div></div><div class="right">Next adapter</div></div>
+        <div class="metric"><div>Other brokers</div><div class="track"><div class="bar yellow" style="width:22%"></div></div><div class="right">Plugin path</div></div>
+        <div class="info-box">Everything below normalization is broker-agnostic: executions, matched lots, setups, daily equity snapshots, analytics, and TTS evidence reporting. Only the adapter layer knows how a specific broker names columns or formats rows.</div>
+      </div>
+
+      <div class="card span-4">
+        <h2 class="h2">TTS evidence posture</h2>
+        <div class="copy">The application should present trading-activity metrics as evidence or readiness indicators. It must not state that the user qualifies for Trader Tax Status. Qualification is a facts-and-circumstances determination outside the app.</div>
+        <div class="pillrow" style="margin-top:14px">
+          <div class="pill">Mean hold duration</div>
+          <div class="pill">Median hold duration</div>
+          <div class="pill">31-day close rate</div>
+          <div class="pill">Gross proceeds</div>
+        </div>
+      </div>
+
+      <div class="card span-12">
+        <h2 class="h2">Recent imports</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Imported at</th><th>Account</th><th>Broker</th><th>Source type</th><th>File</th><th>Rows</th><th>Duplicates</th><th>Flags</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>2026-04-06 16:02 ET</td><td>Victor - Thinkorswim Paper</td><td>Schwab Thinkorswim</td><td>Statement upload</td><td>account_statement.csv</td><td>278</td><td>0</td><td>1</td><td>Parsed</td></tr>
+              <tr><td>2026-04-06 16:04 ET</td><td>Victor - Thinkorswim Paper 2</td><td>Schwab Thinkorswim</td><td>Statement upload</td><td>account_statement_2.csv</td><td>183</td><td>0</td><td>0</td><td>Parsed</td></tr>
+              <tr><td>Future</td><td>Victor - Fidelity Live</td><td>Fidelity</td><td>Statement upload</td><td>fidelity_history.csv</td><td>—</td><td>—</td><td>—</td><td>Adapter scaffold</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KapMan MVP Mockup v4</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#121933;
+      --panel-2:#182145;
+      --muted:#95a2c6;
+      --text:#eef3ff;
+      --accent:#67a3ff;
+      --accent-2:#7ef0c6;
+      --warn:#ffca6b;
+      --danger:#ff7d7d;
+      --border:rgba(255,255,255,.08);
+      --chip:#222d59;
+      --shadow:0 10px 30px rgba(0,0,0,.28);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:linear-gradient(180deg,#09101f 0%,#0d1327 100%);
+      color:var(--text);
+    }
+    .app{
+      display:grid;
+      grid-template-columns:280px 1fr;
+      min-height:100vh;
+    }
+    .sidebar{
+      background:rgba(8,12,26,.92);
+      border-right:1px solid var(--border);
+      padding:22px 18px;
+      position:sticky;
+      top:0;
+      height:100vh;
+    }
+    .brand{
+      display:flex; gap:12px; align-items:center;
+      margin-bottom:22px;
+      padding:12px 10px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(103,163,255,.10), rgba(126,240,198,.06));
+    }
+    .logo{
+      width:40px;height:40px;border-radius:12px;
+      background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      color:#06101f; font-weight:800; display:grid; place-items:center;
+    }
+    .brand h1{font-size:16px; margin:0}
+    .brand p{font-size:12px; color:var(--muted); margin:2px 0 0}
+    .nav-group-title{
+      font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+      color:var(--muted); margin:18px 10px 8px;
+    }
+    .nav{
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .nav button{
+      width:100%; text-align:left; padding:12px 14px; border-radius:14px;
+      border:1px solid transparent; background:transparent; color:var(--text);
+      cursor:pointer; font-size:14px;
+    }
+    .nav button:hover{background:rgba(255,255,255,.04)}
+    .nav button.active{
+      background:linear-gradient(180deg, rgba(103,163,255,.16), rgba(103,163,255,.08));
+      border-color:rgba(103,163,255,.35);
+      box-shadow:var(--shadow);
+    }
+    .sidebar-footer{
+      position:absolute; left:18px; right:18px; bottom:18px;
+      border:1px solid var(--border); border-radius:14px; padding:12px;
+      background:rgba(255,255,255,.03);
+      color:var(--muted); font-size:12px; line-height:1.45;
+    }
+    .main{
+      padding:24px;
+      overflow:auto;
+    }
+    .topbar{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:16px; margin-bottom:18px;
+    }
+    .title-block h2{margin:0; font-size:28px}
+    .title-block p{margin:6px 0 0; color:var(--muted)}
+    .context{
+      display:flex; gap:10px; flex-wrap:wrap;
+    }
+    .pill{
+      padding:10px 12px; border-radius:999px; background:var(--panel);
+      border:1px solid var(--border); color:var(--muted); font-size:13px;
+    }
+    .screen{display:none}
+    .screen.active{display:block}
+    .grid{
+      display:grid; gap:16px;
+    }
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .card{
+      background:linear-gradient(180deg, rgba(23,31,63,.94), rgba(14,20,43,.98));
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:18px;
+      box-shadow:var(--shadow);
+    }
+    .card h3, .card h4{
+      margin:0 0 8px;
+      font-size:16px;
+    }
+    .subtle{color:var(--muted); font-size:13px}
+    .metric{
+      display:flex; flex-direction:column; gap:8px;
+      min-height:110px;
+    }
+    .metric .label{font-size:13px; color:var(--muted)}
+    .metric .value{font-size:30px; font-weight:800}
+    .metric .delta{font-size:13px}
+    .up{color:var(--accent-2)}
+    .flat{color:var(--warn)}
+    .down{color:var(--danger)}
+    .toolbar{
+      display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+    }
+    .btn{
+      padding:10px 14px; border-radius:12px; border:1px solid var(--border);
+      background:var(--panel); color:var(--text); cursor:pointer; font-size:14px;
+    }
+    .btn.primary{background:linear-gradient(135deg, rgba(103,163,255,.28), rgba(126,240,198,.18)); border-color:rgba(103,163,255,.35)}
+    .btn.ghost{background:transparent}
+    .import-actions{
+      display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:10px;
+    }
+    .action{
+      border:1px solid var(--border); border-radius:16px; padding:16px;
+      background:rgba(255,255,255,.03);
+      min-height:110px;
+    }
+    .action .icon{
+      width:34px;height:34px;border-radius:10px;background:var(--chip);
+      display:grid;place-items:center;margin-bottom:10px;font-size:18px;
+    }
+    table{
+      width:100%; border-collapse:collapse; font-size:13px;
+    }
+    th, td{
+      padding:12px 10px; border-bottom:1px solid var(--border); text-align:left;
+      vertical-align:top;
+    }
+    th{color:var(--muted); font-weight:600}
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px; font-size:12px;
+      background:var(--chip); border:1px solid var(--border);
+    }
+    .bar{
+      height:10px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden;
+      margin-top:8px;
+    }
+    .bar > span{
+      display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2));
+      border-radius:999px;
+    }
+    .section-title{
+      display:flex; justify-content:space-between; align-items:end; gap:12px;
+      margin:8px 0 14px;
+    }
+    .section-title h3{margin:0; font-size:18px}
+    .section-title p{margin:4px 0 0; color:var(--muted); font-size:13px}
+    .two-col{
+      display:grid; grid-template-columns:1.4fr .9fr; gap:16px;
+    }
+    .mini-stat{
+      display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border);
+      font-size:14px;
+    }
+    .mini-stat:last-child{border-bottom:none}
+    .kpi-stack{display:grid; gap:12px}
+    .list{
+      display:grid; gap:12px;
+    }
+    .list-item{
+      border:1px solid var(--border); border-radius:16px; padding:14px; background:rgba(255,255,255,.03);
+    }
+    .list-item .top{
+      display:flex; justify-content:space-between; gap:12px; margin-bottom:8px;
+    }
+    .tiny{font-size:12px; color:var(--muted)}
+    .heat{
+      display:grid; grid-template-columns:repeat(12,1fr); gap:6px; margin-top:8px;
+    }
+    .heat span{
+      display:block; height:20px; border-radius:6px; background:#26345f;
+    }
+    .heat span:nth-child(3n){background:#32538e}
+    .heat span:nth-child(4n){background:#4478c9}
+    .heat span:nth-child(5n){background:#5aa3ff}
+    .note{
+      padding:12px 14px; background:rgba(126,240,198,.08); border:1px solid rgba(126,240,198,.2);
+      border-radius:14px; color:#dffdf2; font-size:13px;
+    }
+    .diag-grid{
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;
+    }
+    @media (max-width: 1180px){
+      .grid.cols-4,.grid.cols-3,.grid.cols-2,.import-actions,.two-col,.diag-grid{grid-template-columns:1fr}
+      .app{grid-template-columns:1fr}
+      .sidebar{position:relative;height:auto}
+      .sidebar-footer{position:static;margin-top:16px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">K</div>
+        <div>
+          <h1>KapMan Trading Journal</h1>
+          <p>MVP product mock · multi-screen</p>
+        </div>
+      </div>
+
+      <div class="nav-group-title">Core</div>
+      <div class="nav">
+        <button class="nav-btn active" data-screen="overview">Overview</button>
+        <button class="nav-btn" data-screen="imports">Imports &amp; Connections</button>
+        <button class="nav-btn" data-screen="executions">Executions (T1)</button>
+        <button class="nav-btn" data-screen="matched">Matched Lots (T2)</button>
+        <button class="nav-btn" data-screen="setups">Setups (T3)</button>
+      </div>
+
+      <div class="nav-group-title">Evidence &amp; QA</div>
+      <div class="nav">
+        <button class="nav-btn" data-screen="tts">TTS Evidence</button>
+        <button class="nav-btn" data-screen="diagnostics">Diagnostics</button>
+      </div>
+
+      <div class="sidebar-footer">
+        MVP emphasis: ingestion must be correct, but the app still includes overview analytics, matched-lot accounting, setup-level performance, and TTS evidence outputs.
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title-block">
+          <h2 id="screen-title">Overview</h2>
+          <p id="screen-subtitle">Default landing page for the MVP system.</p>
+        </div>
+        <div class="context">
+          <div class="pill">Date Range: Since Aug 2025</div>
+          <div class="pill">Broker Scope: thinkorswim MVP</div>
+          <div class="pill">Next Adapter: Fidelity</div>
+        </div>
+      </div>
+
+      <section class="screen active" id="overview">
+        <div class="grid cols-4">
+          <div class="card metric">
+            <div class="label">Net P&amp;L</div>
+            <div class="value">$12,480</div>
+            <div class="delta up">+6.2% from starting capital</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Matched Lots Closed</div>
+            <div class="value">184</div>
+            <div class="delta flat">FIFO record of book</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Average Time in Trade</div>
+            <div class="value">11.4d</div>
+            <div class="delta flat">Median: 6.0d</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Trade Days / Month</div>
+            <div class="value">17.8</div>
+            <div class="delta up">Evidence trend improving</div>
+          </div>
+        </div>
+
+        <div class="two-col" style="margin-top:16px;">
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>MVP system summary</h3>
+                <p>Shows the full product shape, not just ingestion.</p>
+              </div>
+              <span class="chip">Overview</span>
+            </div>
+            <div class="grid cols-3">
+              <div class="list-item">
+                <div class="tiny">Ingestion</div>
+                <div style="font-size:22px; font-weight:800; margin-top:6px;">3 adapters</div>
+                <div class="subtle">1 active · 1 next · 1 planned</div>
+                <div class="bar"><span style="width:38%"></span></div>
+              </div>
+              <div class="list-item">
+                <div class="tiny">Ledger</div>
+                <div style="font-size:22px; font-weight:800; margin-top:6px;">T1 → T2</div>
+                <div class="subtle">Execution to matched-lot pipeline</div>
+                <div class="bar"><span style="width:62%"></span></div>
+              </div>
+              <div class="list-item">
+                <div class="tiny">Analytics</div>
+                <div style="font-size:22px; font-weight:800; margin-top:6px;">T3 + TTS</div>
+                <div class="subtle">Setup and evidence reporting</div>
+                <div class="bar"><span style="width:54%"></span></div>
+              </div>
+            </div>
+
+            <div class="section-title" style="margin-top:18px;">
+              <div>
+                <h3>Portfolio / activity trend</h3>
+                <p>Placeholder chart zone in the mock.</p>
+              </div>
+            </div>
+            <div class="card" style="padding:14px; background:rgba(255,255,255,.02);">
+              <div class="heat">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <div class="subtle" style="margin-top:12px;">Placeholder for equity curve / trade density / time-in-market visualizations.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Quick drill paths</h3>
+                <p>How the MVP system is meant to flow.</p>
+              </div>
+            </div>
+            <div class="kpi-stack">
+              <div class="note">Imports → canonical execution events → FIFO matched lots → strategy setup rollups → TTS evidence pack.</div>
+              <div class="mini-stat"><span>Latest import</span><strong>thinkorswim paper account</strong></div>
+              <div class="mini-stat"><span>Rows parsed</span><strong>461 / 462</strong></div>
+              <div class="mini-stat"><span>Warnings</span><strong>1 custom multi-leg line</strong></div>
+              <div class="mini-stat"><span>Largest setup</span><strong>NVDA bull vertical</strong></div>
+              <div class="mini-stat"><span>Next action</span><strong>Review diagnostics</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="imports">
+        <div class="card">
+          <div class="section-title">
+            <div>
+              <h3>Imports &amp; Connections</h3>
+              <p>Most detailed screen in the mock. TradesViz-inspired action menu, simplified for MVP.</p>
+            </div>
+            <span class="chip">Detailed MVP page</span>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary">Upload Statement / Export</button>
+            <button class="btn">Detect Broker Format</button>
+            <button class="btn">Reprocess Last Import</button>
+            <button class="btn ghost">Download Sample CSV Map</button>
+          </div>
+
+          <div class="import-actions">
+            <div class="action">
+              <div class="icon">⇪</div>
+              <h4>Upload File</h4>
+              <div class="subtle">Drop thinkorswim CSV or statement export to start a new import job.</div>
+            </div>
+            <div class="action">
+              <div class="icon">◎</div>
+              <h4>Auto Detect</h4>
+              <div class="subtle">Route file to the registered adapter with the highest confidence.</div>
+            </div>
+            <div class="action">
+              <div class="icon">⚙</div>
+              <h4>Map / Normalize</h4>
+              <div class="subtle">Translate broker-specific rows into canonical execution events.</div>
+            </div>
+            <div class="action">
+              <div class="icon">✓</div>
+              <h4>Validate</h4>
+              <div class="subtle">Surface unsupported rows, warnings, and parse coverage before commit.</div>
+            </div>
+            <div class="action">
+              <div class="icon">⇢</div>
+              <h4>Commit to Ledger</h4>
+              <div class="subtle">Persist T1 executions for downstream FIFO and setup analysis.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col" style="margin-top:16px;">
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Adapter registry</h3>
+                <p>MVP must start with thinkorswim, but be ready for Fidelity next and others later.</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Adapter</th>
+                  <th>Status</th>
+                  <th>Coverage</th>
+                  <th>Detection</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Schwab thinkorswim</strong><div class="tiny">paper + real money variants</div></td>
+                  <td><span class="chip">MVP active</span></td>
+                  <td>Equities, single-leg options, verticals, diagonals, open/close, expiration, assignment/exercise</td>
+                  <td>0.98</td>
+                </tr>
+                <tr>
+                  <td><strong>Fidelity</strong><div class="tiny">next adapter target</div></td>
+                  <td><span class="chip">Registered stub</span></td>
+                  <td>Manifest + detector scaffold, parser next</td>
+                  <td>0.00</td>
+                </tr>
+                <tr>
+                  <td><strong>Generic broker</strong><div class="tiny">future extensibility</div></td>
+                  <td><span class="chip">Planned</span></td>
+                  <td>CSV mapping framework only</td>
+                  <td>—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Latest import QA</h3>
+                <p>What the user reviews before trusting the ledger.</p>
+              </div>
+            </div>
+            <div class="mini-stat"><span>Source file</span><strong>2026-04-06-AccountStatement.csv</strong></div>
+            <div class="mini-stat"><span>Detected adapter</span><strong>schwab_thinkorswim</strong></div>
+            <div class="mini-stat"><span>Rows parsed</span><strong>461</strong></div>
+            <div class="mini-stat"><span>Rows unsupported</span><strong>1</strong></div>
+            <div class="mini-stat"><span>Coverage</span><strong>99.8%</strong></div>
+            <div class="mini-stat"><span>Commit mode</span><strong>Create / upsert executions</strong></div>
+            <div class="note" style="margin-top:12px;">Design intent: the adapter stays lean. It detects, parses, and normalizes rows into execution events. FIFO matching, setup inference, and TTS metrics live downstream.</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title">
+            <div>
+              <h3>Import history</h3>
+              <p>Shows reprocessing lineage and trust in the ingest path.</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Imported At</th>
+                <th>Broker</th>
+                <th>Account</th>
+                <th>Rows</th>
+                <th>Status</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2026-04-08 10:42</td>
+                <td>Schwab thinkorswim</td>
+                <td>Paper Margin #1</td>
+                <td>462</td>
+                <td><span class="chip">Parsed with warning</span></td>
+                <td>Committed to T1</td>
+              </tr>
+              <tr>
+                <td>2026-04-08 10:51</td>
+                <td>Schwab thinkorswim</td>
+                <td>Paper Margin #2</td>
+                <td>438</td>
+                <td><span class="chip">Success</span></td>
+                <td>Committed to T1</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="screen" id="executions">
+        <div class="card">
+          <div class="section-title">
+            <div>
+              <h3>Executions (T1)</h3>
+              <p>Raw canonical fills and brokerage events after import normalization.</p>
+            </div>
+            <span class="chip">Audit trail</span>
+          </div>
+          <div class="toolbar">
+            <button class="btn">Filter by symbol</button>
+            <button class="btn">Filter by broker</button>
+            <button class="btn">Show options only</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Symbol</th>
+                <th>Instrument</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Effect</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>2026-03-14 10:18</td><td>NVDA</td><td>Stock</td><td>BUY</td><td>100</td><td>$108.20</td><td>Open</td><td>tos paper</td></tr>
+              <tr><td>2026-03-14 10:19</td><td>NVDA 05/17 120C</td><td>Option</td><td>SELL</td><td>1</td><td>$2.94</td><td>Open</td><td>tos paper</td></tr>
+              <tr><td>2026-03-18 11:06</td><td>IBIT 05/15 50C</td><td>Option</td><td>BUY</td><td>2</td><td>$4.10</td><td>Open</td><td>tos paper</td></tr>
+              <tr><td>2026-03-18 11:06</td><td>IBIT 05/15 55C</td><td>Option</td><td>SELL</td><td>2</td><td>$1.35</td><td>Open</td><td>tos paper</td></tr>
+              <tr><td>2026-03-28 16:00</td><td>TSLA 04/04 180P</td><td>Option</td><td>EXPIRE</td><td>1</td><td>$0.00</td><td>Close</td><td>tos paper</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="screen" id="matched">
+        <div class="grid cols-3">
+          <div class="card metric">
+            <div class="label">Closed Lots</div>
+            <div class="value">184</div>
+            <div class="delta flat">Canonical tax/analytics unit</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Win Rate</div>
+            <div class="value">58.7%</div>
+            <div class="delta up">Across FIFO matched lots</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Average Hold</div>
+            <div class="value">11.4d</div>
+            <div class="delta flat">Median 6.0d</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title">
+            <div>
+              <h3>Matched Lots (T2)</h3>
+              <p>Open-to-close pairs created by the FIFO ledger.</p>
+            </div>
+            <span class="chip">Primary drill-down unit</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Setup</th>
+                <th>Open</th>
+                <th>Close</th>
+                <th>Days</th>
+                <th>Qty</th>
+                <th>Realized P&amp;L</th>
+                <th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>NVDA Covered Call</td><td>2026-03-14</td><td>2026-03-22</td><td>8</td><td>1 lot</td><td>$294</td><td class="up">Win</td></tr>
+              <tr><td>IBIT Bull Vertical</td><td>2026-03-18</td><td>2026-03-25</td><td>7</td><td>2 lots</td><td>$510</td><td class="up">Win</td></tr>
+              <tr><td>TSLA Cash-Secured Put</td><td>2026-03-21</td><td>2026-03-28</td><td>7</td><td>1 lot</td><td>$165</td><td class="up">Expired worthless</td></tr>
+              <tr><td>AMD Long Call</td><td>2026-02-10</td><td>2026-02-27</td><td>17</td><td>1 lot</td><td>-$120</td><td class="down">Loss</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="screen" id="setups">
+        <div class="grid cols-4">
+          <div class="card metric">
+            <div class="label">Tracked Setups</div>
+            <div class="value">14</div>
+            <div class="delta flat">Auto-tagged, override-ready</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Win Rate</div>
+            <div class="value">61.2%</div>
+            <div class="delta up">By setup outcome</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Expectancy</div>
+            <div class="value">$78</div>
+            <div class="delta up">Per closed setup group</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Best Performer</div>
+            <div class="value">Bull Vertical</div>
+            <div class="delta up">Avg P&amp;L +$184</div>
+          </div>
+        </div>
+
+        <div class="two-col" style="margin-top:16px;">
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Setups (T3)</h3>
+                <p>Business-intelligence layer above matched lots.</p>
+              </div>
+              <span class="chip">Performance summary · win rate · expectancy</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Setup Type</th>
+                  <th>Closed</th>
+                  <th>Win Rate</th>
+                  <th>Expectancy</th>
+                  <th>Avg Hold</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Bull Vertical</td><td>28</td><td>67.9%</td><td>$184</td><td>8.4d</td></tr>
+                <tr><td>Covered Call</td><td>22</td><td>72.7%</td><td>$96</td><td>11.8d</td></tr>
+                <tr><td>Cash-Secured Put</td><td>31</td><td>64.5%</td><td>$88</td><td>9.6d</td></tr>
+                <tr><td>Diagonal</td><td>9</td><td>55.6%</td><td>$41</td><td>18.2d</td></tr>
+                <tr><td>Long Call</td><td>17</td><td>35.3%</td><td>-$54</td><td>6.1d</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Setup detail</h3>
+                <p>Notes are later; the MVP still needs actionable analytics now.</p>
+              </div>
+            </div>
+            <div class="list">
+              <div class="list-item">
+                <div class="top">
+                  <div>
+                    <strong>NVDA Bull Vertical Apr/May</strong>
+                    <div class="tiny">Auto tag: bull_vertical · Override: empty</div>
+                  </div>
+                  <span class="chip">Expectancy +$210</span>
+                </div>
+                <div class="mini-stat"><span>Win rate</span><strong>71%</strong></div>
+                <div class="mini-stat"><span>Closed groups</span><strong>7</strong></div>
+                <div class="mini-stat"><span>Avg days in trade</span><strong>9.3</strong></div>
+              </div>
+              <div class="list-item">
+                <div class="top">
+                  <div>
+                    <strong>TSLA Diagonal Income</strong>
+                    <div class="tiny">Auto tag: diagonal · Override: empty</div>
+                  </div>
+                  <span class="chip">Expectancy +$34</span>
+                </div>
+                <div class="mini-stat"><span>Win rate</span><strong>57%</strong></div>
+                <div class="mini-stat"><span>Closed groups</span><strong>4</strong></div>
+                <div class="mini-stat"><span>Avg days in trade</span><strong>16.7</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="tts">
+        <div class="grid cols-3">
+          <div class="card metric">
+            <div class="label">Trades / Month</div>
+            <div class="value">63</div>
+            <div class="delta flat">Readiness heuristic, not legal threshold</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Active Days / Week</div>
+            <div class="value">4.2</div>
+            <div class="delta up">Last 8-week average</div>
+          </div>
+          <div class="card metric">
+            <div class="label">Gross Proceeds</div>
+            <div class="value">$1.24M</div>
+            <div class="delta flat">Annualized illustration</div>
+          </div>
+        </div>
+
+        <div class="diag-grid" style="margin-top:16px;">
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>TTS evidence pack</h3>
+                <p>Evidence/readiness outputs, not qualification logic.</p>
+              </div>
+            </div>
+            <div class="mini-stat"><span>Total annualized trades</span><strong>756</strong></div>
+            <div class="mini-stat"><span>Average holding period</span><strong>11.4 days</strong></div>
+            <div class="mini-stat"><span>Median holding period</span><strong>6.0 days</strong></div>
+            <div class="mini-stat"><span>Lots under 31 days</span><strong>86%</strong></div>
+            <div class="mini-stat"><span>Time-in-market histogram</span><strong>Included</strong></div>
+          </div>
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Monthly evidence trend</h3>
+                <p>Placeholder zone for export-ready charts.</p>
+              </div>
+            </div>
+            <div class="heat">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="subtle" style="margin-top:12px;">Monthly trade counts, active days, and average holding period charts would live here.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="diagnostics">
+        <div class="two-col">
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Diagnostics</h3>
+                <p>Trust surface for parse, ledger, and setup inference.</p>
+              </div>
+              <span class="chip">QA / explainability</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Layer</th>
+                  <th>Status</th>
+                  <th>Coverage</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Adapter parse</td><td class="up">Healthy</td><td>99.8%</td><td>1 unsupported custom multi-leg row</td></tr>
+                <tr><td>FIFO matcher</td><td class="up">Healthy</td><td>100%</td><td>All close events matched</td></tr>
+                <tr><td>Setup classifier</td><td class="flat">Review</td><td>92%</td><td>Some rolls need manual override</td></tr>
+                <tr><td>TTS evidence export</td><td class="up">Healthy</td><td>100%</td><td>PDF/CSV bundle available later</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">
+              <div>
+                <h3>Open issues snapshot</h3>
+                <p>What the MVP team would watch during buildout.</p>
+              </div>
+            </div>
+            <div class="list">
+              <div class="list-item">
+                <strong>Unsupported custom multi-leg line</strong>
+                <div class="tiny">May stay out-of-scope for MVP if vertical/diagonal inference from leg-level rows is sufficient.</div>
+              </div>
+              <div class="list-item">
+                <strong>Assignment/exercise fixture coverage</strong>
+                <div class="tiny">Need explicit regression fixtures from thinkorswim exports.</div>
+              </div>
+              <div class="list-item">
+                <strong>Fidelity adapter contract</strong>
+                <div class="tiny">Manifest + detector should exist in MVP even if parser lands next.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const meta = {
+      overview: {
+        title: "Overview",
+        subtitle: "Default landing page for the MVP system."
+      },
+      imports: {
+        title: "Imports & Connections",
+        subtitle: "Detailed ingestion workflow with adapter-aware import QA."
+      },
+      executions: {
+        title: "Executions (T1)",
+        subtitle: "Canonical execution events created by the ingestion pipeline."
+      },
+      matched: {
+        title: "Matched Lots (T2)",
+        subtitle: "FIFO open-to-close pairs used for accounting and analytics."
+      },
+      setups: {
+        title: "Setups (T3)",
+        subtitle: "Performance summary, win rate, expectancy, and later notes."
+      },
+      tts: {
+        title: "TTS Evidence",
+        subtitle: "Evidence/readiness outputs, not legal qualification logic."
+      },
+      diagnostics: {
+        title: "Diagnostics",
+        subtitle: "Parse trust, ledger health, and inference explainability."
+      }
+    };
+
+    const buttons = document.querySelectorAll('.nav-btn');
+    const screens = document.querySelectorAll('.screen');
+    const screenTitle = document.getElementById('screen-title');
+    const screenSubtitle = document.getElementById('screen-subtitle');
+
+    function showScreen(id){
+      buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.screen === id));
+      screens.forEach(screen => screen.classList.toggle('active', screen.id === id));
+      screenTitle.textContent = meta[id].title;
+      screenSubtitle.textContent = meta[id].subtitle;
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => showScreen(btn.dataset.screen));
+    });
+
+    showScreen('overview');
+  </script>
+</body>
+</html>

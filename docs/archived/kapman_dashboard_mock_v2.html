@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KapMan Dashboard Mock v2</title>
+<style>
+:root{--bg:#0b1020;--panel:#121933;--panel2:#0f1530;--ink:#e9eefb;--muted:#95a2c9;--line:#23305d;--accent:#59d4ff;--accent2:#8effa5;--good:#5eea97;--bad:#ff6d7a;--warn:#ffcb5b;--pill:#1a244a;}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#09101e,#0b1020 18%,#0b1020);color:var(--ink)}
+.shell{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
+.side{border-right:1px solid var(--line);padding:24px 18px;background:rgba(7,11,25,.75);position:sticky;top:0;height:100vh}
+.brand{font-size:22px;font-weight:800;letter-spacing:.2px;margin-bottom:6px} .sub{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:22px}
+.nav a{display:block;padding:11px 12px;margin:6px 0;border:1px solid transparent;border-radius:12px;color:var(--ink);text-decoration:none;background:transparent} .nav a:hover,.nav a.active{background:var(--panel);border-color:var(--line)}
+.content{padding:28px 30px 60px}
+.hero{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:22px} .hero h1{margin:0;font-size:30px} .hero p{margin:8px 0 0;color:var(--muted);max-width:900px;line-height:1.5}
+.badges{display:flex;gap:10px;flex-wrap:wrap} .badge{background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:#cfe0ff;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px} .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.kpi{grid-column:span 3} .kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em} .kpi .value{font-size:30px;font-weight:800;margin-top:8px} .kpi .note{color:var(--muted);font-size:13px;margin-top:6px}
+.neg{color:var(--bad)} .pos{color:var(--good)} .muted{color:var(--muted)}
+.span-6{grid-column:span 6} .span-8{grid-column:span 8} .span-4{grid-column:span 4} .span-12{grid-column:span 12}
+.h2{font-size:17px;font-weight:750;margin:0 0 14px} .copy{color:var(--muted);line-height:1.55;font-size:14px}
+.bar-row{display:grid;grid-template-columns:96px 1fr 110px;gap:10px;align-items:center;margin:10px 0} .bar-label{font-size:13px;color:#d7e3ff} .bar-track{height:10px;background:#0a1127;border:1px solid var(--line);border-radius:999px;overflow:hidden} .bar{height:100%;border-radius:999px} .posbar{background:linear-gradient(90deg,#49df93,#8effa5)} .negbar{background:linear-gradient(90deg,#ff6d7a,#ff9ba3)} .accent{background:linear-gradient(90deg,#59d4ff,#92e3ff)} .accent2{background:linear-gradient(90deg,#6f8bff,#8db1ff)} .bar-val{text-align:right;font-size:12px;color:var(--muted)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px} table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top} th{position:sticky;top:0;background:#0d1430;color:#cfe0ff;font-size:12px;text-transform:uppercase;letter-spacing:.06em} tr:hover td{background:rgba(255,255,255,.02)} td.desc{min-width:420px;color:#c9d4f5}
+.callout{border-left:4px solid var(--accent);padding:14px 14px 14px 16px;background:rgba(89,212,255,.07);border-radius:12px;color:#d9f5ff;line-height:1.5}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px} .pill{background:var(--pill);border:1px solid var(--line);padding:6px 9px;border-radius:999px;color:#d6e6ff;font-size:12px}
+.setup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px} .setup-card{padding:16px;border-radius:16px;border:1px solid var(--line);background:#0d1430} .setup-title{font-weight:750} .setup-sub{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.45}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px} .flow .node{padding:16px;border-radius:16px;border:1px dashed var(--line);background:rgba(255,255,255,.02)} .flow .node strong{display:block;margin-bottom:8px}
+.score{display:grid;grid-template-columns:160px 1fr 72px;gap:12px;align-items:center;margin:14px 0} .meter{height:10px;background:#0a1127;border:1px solid var(--line);border-radius:999px;overflow:hidden} .fill{height:100%;background:linear-gradient(90deg,#59d4ff,#8effa5)}
+.small{font-size:12px} .section{scroll-margin-top:20px}
+@media (max-width:1100px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.kpi{grid-column:span 6}.span-6,.span-8,.span-4{grid-column:span 12}.setup-grid,.flow{grid-template-columns:1fr}}
+@media (max-width:720px){.content{padding:18px}.kpi{grid-column:span 12}.hero{display:block}.bar-row{grid-template-columns:80px 1fr 84px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">KapMan Mock v2</div>
+    <div class="sub">Mock refined around your architecture decisions: FIFO as record, lot-level holding periods, short-option openings, T3 setup grouping, and TTS-first reporting.</div>
+    <nav class="nav">
+      <a class="active" href="#overview">Overview</a>
+      <a href="#tts">TTS Readiness</a>
+      <a href="#lots">Matched Lots</a>
+      <a href="#setups">KapMan Setups</a>
+      <a href="#trade-days">Trade Days</a>
+      <a href="#architecture">Architecture</a>
+    </nav>
+  </aside>
+  <main class="content">
+    <section class="hero section" id="overview">
+      <div>
+        <h1>KapMan trading ledger and TTS dashboard</h1>
+        <p>This mock reframes the app around three grains of data: <strong>T1 execution</strong>, <strong>T2 matched round-trip lot</strong>, and <strong>T3 KapMan setup</strong>. The current numbers are seeded from your two uploaded Schwab paper-trading statements and the normalized trade table already produced.</p>
+      </div>
+      <div class="badges">
+        <div class="badge">2 paper accounts</div>
+        <div class="badge">Aug 2025 → Apr 2026</div>
+        <div class="badge">Fly.io deploy target</div>
+        <div class="badge">Postgres-backed</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card kpi"><div class="label">Total executions</div><div class="value">461</div><div class="note">Every buy or sell fill at T1</div></div>
+      <div class="card kpi"><div class="label">Trade days</div><div class="value">114</div><div class="note">4.04 executions per trade day</div></div>
+      <div class="card kpi"><div class="label">Average time in trade</div><div class="value">17.01d</div><div class="note">Median 13.0d from T2 matched closes</div></div>
+      <div class="card kpi"><div class="label">Closed lots proxy</div><div class="value">215</div><div class="note">Closing executions carrying holding-period data</div></div>
+      <div class="card kpi"><div class="label">Ending paper equity</div><div class="value">$170,333.20</div><div class="note">Starting capital $200,000 across both accounts</div></div>
+      <div class="card kpi"><div class="label">Open positions</div><div class="value">83</div><div class="note">Requires live quote service for NLV mark</div></div>
+      <div class="card span-8">
+        <div class="h2">What changed in this mock</div>
+        <div class="copy">The last prototype leaned heavily into UI views. This version makes the ledger the product. It elevates the matched lot as the canonical drill-down object, separates TTS compliance outputs from discretionary analytics, and treats strategy tagging as deterministic inference with manual override instead of manual journaling first.</div>
+        <div class="pill-row">
+          <span class="pill">FIFO ledger locked</span><span class="pill">LIFO/HIFO scenario compare only</span><span class="pill">per-lot 31-day test</span><span class="pill">short premium supported</span><span class="pill">expiry-to-zero supported</span><span class="pill">assignment/exercise event type</span>
+        </div>
+      </div>
+      <div class="card span-4">
+        <div class="h2">Immediate product thesis</div>
+        <div class="callout">Your moat is not the charting. It is the auditably correct transform from broker statement → execution ledger → matched lots → TTS report → setup intelligence.</div>
+      </div>
+    </section>
+
+    <section class="grid section" id="tts" style="margin-top:16px">
+      <div class="card span-6">
+        <div class="h2">TTS readiness scorecard</div>
+        <div class="score"><div>Avg holding ≤ 31d</div><div class="meter"><div class="fill" style="width:87.4%"></div></div><div class="small">87.4%</div></div>
+        <div class="score"><div>Active weeks ≥ 4 days</div><div class="meter"><div class="fill" style="width:56.2%"></div></div><div class="small">18/32</div></div>
+        <div class="score"><div>Same-day round trips</div><div class="meter"><div class="fill" style="width:14.9%"></div></div><div class="small">8</div></div>
+        <div class="copy" style="margin-top:14px">For the final product, I would present this as a readiness panel, not a legal conclusion. It should generate a dated annual report package for CPA review: trade count by month, active days by week, holding-period distribution, gross proceeds, and lot-level export.</div>
+      </div>
+      <div class="card span-6">
+        <div class="h2">Holding-period distribution</div>
+        <div class='bar-row'><div class='bar-label'>0d</div><div class='bar-track'><div class='bar accent' style='width:12.1%'></div></div><div class='bar-val'>8</div></div><div class='bar-row'><div class='bar-label'>1-7d</div><div class='bar-track'><div class='bar accent' style='width:92.4%'></div></div><div class='bar-val'>61</div></div><div class='bar-row'><div class='bar-label'>8-14d</div><div class='bar-track'><div class='bar accent' style='width:77.3%'></div></div><div class='bar-val'>51</div></div><div class='bar-row'><div class='bar-label'>15-30d</div><div class='bar-track'><div class='bar accent' style='width:100.0%'></div></div><div class='bar-val'>66</div></div><div class='bar-row'><div class='bar-label'>31d</div><div class='bar-track'><div class='bar accent' style='width:3.0%'></div></div><div class='bar-val'>2</div></div><div class='bar-row'><div class='bar-label'>32-60d</div><div class='bar-track'><div class='bar accent' style='width:33.3%'></div></div><div class='bar-val'>22</div></div><div class='bar-row'><div class='bar-label'>60+d</div><div class='bar-track'><div class='bar accent' style='width:7.6%'></div></div><div class='bar-val'>5</div></div>
+      </div>
+      <div class="card span-6">
+        <div class="h2">Monthly cashflow from executions</div>
+        <div class='bar-row'><div class='bar-label'>2025-09</div><div class='bar-track'><div class='bar negbar' style='width:49.3%'></div></div><div class='bar-val neg'>-$27,649.00</div></div><div class='bar-row'><div class='bar-label'>2025-10</div><div class='bar-track'><div class='bar posbar' style='width:100.0%'></div></div><div class='bar-val pos'>$56,055.00</div></div><div class='bar-row'><div class='bar-label'>2025-11</div><div class='bar-track'><div class='bar negbar' style='width:57.4%'></div></div><div class='bar-val neg'>-$32,174.00</div></div><div class='bar-row'><div class='bar-label'>2025-12</div><div class='bar-track'><div class='bar posbar' style='width:58.1%'></div></div><div class='bar-val pos'>$32,562.00</div></div><div class='bar-row'><div class='bar-label'>2026-01</div><div class='bar-track'><div class='bar negbar' style='width:48.0%'></div></div><div class='bar-val neg'>-$26,928.00</div></div><div class='bar-row'><div class='bar-label'>2026-02</div><div class='bar-track'><div class='bar negbar' style='width:21.5%'></div></div><div class='bar-val neg'>-$12,068.00</div></div><div class='bar-row'><div class='bar-label'>2026-03</div><div class='bar-track'><div class='bar negbar' style='width:39.5%'></div></div><div class='bar-val neg'>-$22,143.50</div></div><div class='bar-row'><div class='bar-label'>2026-04</div><div class='bar-track'><div class='bar negbar' style='width:39.0%'></div></div><div class='bar-val neg'>-$21,847.80</div></div>
+      </div>
+      <div class="card span-6">
+        <div class="h2">Most active symbols</div>
+        <div class='bar-row'><div class='bar-label'>VIX</div><div class='bar-track'><div class='bar accent2' style='width:100.0%'></div></div><div class='bar-val'>18 trades</div></div><div class='bar-row'><div class='bar-label'>STRL</div><div class='bar-track'><div class='bar accent2' style='width:100.0%'></div></div><div class='bar-val'>18 trades</div></div><div class='bar-row'><div class='bar-label'>VERTICAL</div><div class='bar-track'><div class='bar accent2' style='width:94.4%'></div></div><div class='bar-val'>17 trades</div></div><div class='bar-row'><div class='bar-label'>GLD</div><div class='bar-track'><div class='bar accent2' style='width:94.4%'></div></div><div class='bar-val'>17 trades</div></div><div class='bar-row'><div class='bar-label'>JPM</div><div class='bar-track'><div class='bar accent2' style='width:83.3%'></div></div><div class='bar-val'>15 trades</div></div><div class='bar-row'><div class='bar-label'>XLE</div><div class='bar-track'><div class='bar accent2' style='width:83.3%'></div></div><div class='bar-val'>15 trades</div></div><div class='bar-row'><div class='bar-label'>BWXT</div><div class='bar-track'><div class='bar accent2' style='width:72.2%'></div></div><div class='bar-val'>13 trades</div></div><div class='bar-row'><div class='bar-label'>GOOG</div><div class='bar-track'><div class='bar accent2' style='width:72.2%'></div></div><div class='bar-val'>13 trades</div></div><div class='bar-row'><div class='bar-label'>RKLB</div><div class='bar-track'><div class='bar accent2' style='width:61.1%'></div></div><div class='bar-val'>11 trades</div></div><div class='bar-row'><div class='bar-label'>ASML</div><div class='bar-track'><div class='bar accent2' style='width:61.1%'></div></div><div class='bar-val'>11 trades</div></div><div class='bar-row'><div class='bar-label'>XLU</div><div class='bar-track'><div class='bar accent2' style='width:61.1%'></div></div><div class='bar-val'>11 trades</div></div><div class='bar-row'><div class='bar-label'>SLV</div><div class='bar-track'><div class='bar accent2' style='width:61.1%'></div></div><div class='bar-val'>11 trades</div></div>
+      </div>
+    </section>
+
+    <section class="grid section" id="lots" style="margin-top:16px">
+      <div class="card span-12">
+        <div class="h2">Matched lot explorer (T2)</div>
+        <div class="copy" style="margin-bottom:14px">In the real app this becomes the primary investigative surface. Each row should represent a matched open→close lot, with expandable children showing the underlying T1 executions on both sides of the match. This mock uses recent closing executions as a stand-in because the current extracted CSV stores holding days on the closing row.</div>
+        <div class="table-wrap"><table><thead><tr><th>Closed at</th><th>Account</th><th>Symbol</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Qty</th><th>Cash impact</th><th>Hold</th><th>Description</th></tr></thead><tbody><tr><td>2026-03-31 14:53:48</td><td>D-68011053</td><td>XLE</td><td>CALL</td><td>55.0</td><td>2026-06-18</td><td>1</td><td>$720.00</td><td>41.0d</td><td class='desc'>SOLD -1 XLE 100 18 JUN 26 55 CALL @7.20</td></tr><tr><td>2026-03-30 14:25:49</td><td>D-68011053</td><td>VIX</td><td>STOCK</td><td></td><td>nan</td><td>20</td><td>$120.00</td><td>14.0d</td><td class='desc'>SOLD -20 VIX 100 15 APR 26 [AM] 18 PUT @.06</td></tr><tr><td>2026-03-30 14:25:02</td><td>D-68011053</td><td>MRNA</td><td>CALL</td><td>55.0</td><td>2026-06-18</td><td>4</td><td>$1,700.00</td><td>25.0d</td><td class='desc'>SOLD -4 MRNA 100 18 JUN 26 55 CALL @4.25</td></tr><tr><td>2026-03-30 14:24:49</td><td>D-68011053</td><td>PANW</td><td>CALL</td><td>165.0</td><td>2026-05-15</td><td>2</td><td>$1,170.00</td><td>13.0d</td><td class='desc'>SOLD -2 PANW 100 15 MAY 26 165 CALL @5.85</td></tr><tr><td>2026-03-30 14:22:36</td><td>D-68011053</td><td>INTU</td><td>CALL</td><td>450.0</td><td>2026-05-15</td><td>1</td><td>$2,005.00</td><td>13.0d</td><td class='desc'>SOLD -1 INTU 100 15 MAY 26 450 CALL @20.05</td></tr><tr><td>2026-03-30 14:19:32</td><td>D-68011053</td><td>PLTR</td><td>CALL</td><td>155.0</td><td>2026-05-15</td><td>2</td><td>$1,240.00</td><td>13.0d</td><td class='desc'>SOLD -2 PLTR 100 15 MAY 26 155 CALL @6.20</td></tr><tr><td>2026-03-30 14:17:21</td><td>D-68011053</td><td>EQT</td><td>CALL</td><td>65.0</td><td>2026-04-17</td><td>3</td><td>$663.00</td><td>18.0d</td><td class='desc'>SOLD -3 EQT 100 17 APR 26 65 CALL @2.21</td></tr><tr><td>2026-03-30 12:17:49</td><td>D-68011053</td><td>EPD</td><td>CALL</td><td>36.0</td><td>2026-06-18</td><td>1</td><td>$395.00</td><td>25.0d</td><td class='desc'>SOLD -1 EPD 100 18 JUN 26 36 CALL @3.95</td></tr><tr><td>2026-03-27 11:00:39</td><td>D-68011053</td><td>VERTICAL</td><td>STOCK</td><td></td><td>nan</td><td>4</td><td>$252.00</td><td>62.0d</td><td class='desc'>SOLD -4 VERTICAL SPY 100 17 APR 26 685/700 CALL @.63</td></tr><tr><td>2026-03-27 10:04:46</td><td>D-68011053</td><td>VIX</td><td>STOCK</td><td></td><td>nan</td><td>5</td><td>$1,875.00</td><td>16.0d</td><td class='desc'>SOLD -5 VIX 100 19 MAY 26 [AM] 28 CALL @3.75</td></tr><tr><td>2026-03-26 14:11:43</td><td>D-68011053</td><td>EPD</td><td>CALL</td><td>36.0</td><td>2026-06-18</td><td>2</td><td>$730.00</td><td>21.0d</td><td class='desc'>tIP SOLD -2 EPD 100 18 JUN 26 36 CALL @3.65</td></tr><tr><td>2026-03-25 11:17:49</td><td>D-68011053</td><td>STM</td><td>CALL</td><td>30.0</td><td>2026-05-15</td><td>3</td><td>$1,410.00</td><td>35.0d</td><td class='desc'>SOLD -3 STM 100 15 MAY 26 30 CALL @4.70</td></tr><tr><td>2026-03-24 13:57:39</td><td>D-68011053</td><td>CRWD</td><td>CALL</td><td>440.0</td><td>2026-05-15</td><td>2</td><td>$2,230.00</td><td>8.0d</td><td class='desc'>SOLD -2 CRWD 100 15 MAY 26 440 CALL @11.15</td></tr><tr><td>2026-03-24 13:56:32</td><td>D-68011053</td><td>CRCL</td><td>CALL</td><td>130.0</td><td>2026-06-18</td><td>2</td><td>$1,550.00</td><td>1.0d</td><td class='desc'>SOLD -2 CRCL 100 18 JUN 26 130 CALL @7.75</td></tr><tr><td>2026-03-24 11:51:25</td><td>D-68011053</td><td>EQT</td><td>CALL</td><td>65.0</td><td>2026-04-17</td><td>2</td><td>$690.00</td><td>12.0d</td><td class='desc'>SOLD -2 EQT 100 17 APR 26 65 CALL @3.45</td></tr><tr><td>2026-03-18 09:59:25</td><td>D-68011053</td><td>KGC</td><td>CALL</td><td>35.0</td><td>2026-05-15</td><td>2</td><td>$202.00</td><td>22.0d</td><td class='desc'>tIP SOLD -2 KGC 100 15 MAY 26 35 CALL @1.01</td></tr><tr><td>2026-03-17 10:32:23</td><td>D-68011053</td><td>XLE</td><td>CALL</td><td>55.0</td><td>2026-06-18</td><td>1</td><td>$550.00</td><td>27.0d</td><td class='desc'>SOLD -1 XLE 100 18 JUN 26 55 CALL @5.50</td></tr><tr><td>2026-03-17 10:24:52</td><td>D-68011053</td><td>VERTICAL</td><td>STOCK</td><td></td><td>nan</td><td>2</td><td>$536.00</td><td>61.0d</td><td class='desc'>SOLD -2 VERTICAL HON 100 17 APR 26 240/250 CALL @2.68</td></tr><tr><td>2026-03-13 13:31:06</td><td>D-68011053</td><td>AVGO</td><td>CALL</td><td>340.0</td><td>2026-05-15</td><td>2</td><td>$4,040.00</td><td>3.0d</td><td class='desc'>SOLD -2 AVGO 100 15 MAY 26 340 CALL @20.20</td></tr><tr><td>2026-03-13 13:30:52</td><td>D-68011053</td><td>SLB</td><td>CALL</td><td>50.0</td><td>2026-05-15</td><td>2</td><td>$256.00</td><td>46.0d</td><td class='desc'>SOLD -2 SLB 100 15 MAY 26 50 CALL @1.28</td></tr></tbody></table></div>
+      </div>
+      <div class="card span-12">
+        <div class="h2">Open positions queue</div>
+        <div class="copy" style="margin-bottom:14px">This table should eventually combine <strong>open lot age</strong>, <strong>unrealized mark</strong>, <strong>strategy tag</strong>, and <strong>risk bucket</strong>. For now it confirms the ledger still has 83 open lots requiring mark-to-market or carry-forward valuation.</div>
+        <div class="table-wrap"><table><thead><tr><th>Account</th><th>Symbol</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Side</th><th>Qty</th><th>Open date</th><th>Days held</th><th>Open price</th></tr></thead><tbody><tr><td>D-68011053</td><td>SDS</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>200</td><td>2025-09-18</td><td>200d</td><td>$14.87</td></tr><tr><td>D-68011053</td><td>META</td><td>CALL</td><td>690.0</td><td>2025-12-19</td><td>LONG</td><td>1</td><td>2025-10-09</td><td>179d</td><td>$71.25</td></tr><tr><td>D-68011053</td><td>QQQ</td><td>PUT</td><td>440.0</td><td>2025-11-21</td><td>LONG</td><td>10</td><td>2025-10-13</td><td>175d</td><td>$0.57</td></tr><tr><td>D-68011053</td><td>URA</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>50</td><td>2025-10-24</td><td>164d</td><td>$51.70</td></tr><tr><td>D-68011053</td><td>META</td><td>CALL</td><td>780.0</td><td>2025-12-19</td><td>SHORT</td><td>1</td><td>2025-10-29</td><td>159d</td><td>$31.85</td></tr><tr><td>D-68011053</td><td>COMBO</td><td>CALL</td><td>410.0</td><td>2025-12-19</td><td>LONG</td><td>1</td><td>2025-10-30</td><td>158d</td><td>$nan</td></tr><tr><td>D-68011053</td><td>DIAGONAL</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>10</td><td>2025-11-03</td><td>154d</td><td>$0.93</td></tr><tr><td>D-68011053</td><td>SDS</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>100</td><td>2025-11-07</td><td>150d</td><td>$14.67</td></tr><tr><td>D-68011053</td><td>QQQ</td><td>PUT</td><td>500.0</td><td>2025-12-19</td><td>SHORT</td><td>5</td><td>2025-11-07</td><td>150d</td><td>$2.16</td></tr><tr><td>D-68011053</td><td>QQQ</td><td>PUT</td><td>500.0</td><td>2025-12-19</td><td>SHORT</td><td>5</td><td>2025-11-07</td><td>150d</td><td>$2.16</td></tr><tr><td>D-68011053</td><td>NUKZ</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>100</td><td>2025-11-11</td><td>146d</td><td>$68.37</td></tr><tr><td>D-68011053</td><td>STRL</td><td>PUT</td><td>410.0</td><td>2025-12-19</td><td>LONG</td><td>1</td><td>2025-11-12</td><td>145d</td><td>$39.90</td></tr><tr><td>D-68011053</td><td>STRL</td><td>CALL</td><td>410.0</td><td>2025-12-19</td><td>SHORT</td><td>1</td><td>2025-11-13</td><td>144d</td><td>$5.30</td></tr><tr><td>D-68011053</td><td>XLE</td><td>CALL</td><td>90.0</td><td>2026-01-16</td><td>LONG</td><td>2</td><td>2025-11-14</td><td>143d</td><td>$4.30</td></tr><tr><td>D-68011053</td><td>DIAGONAL</td><td>STOCK</td><td></td><td>nan</td><td>LONG</td><td>4</td><td>2025-11-17</td><td>140d</td><td>$1.73</td></tr><tr><td>D-68011053</td><td>QQQ</td><td>PUT</td><td>500.0</td><td>2025-12-19</td><td>SHORT</td><td>5</td><td>2025-11-20</td><td>137d</td><td>$2.61</td></tr><tr><td>D-68011053</td><td>QQQ</td><td>PUT</td><td>500.0</td><td>2025-12-19</td><td>SHORT</td><td>5</td><td>2025-11-20</td><td>137d</td><td>$2.61</td></tr><tr><td>D-68011053</td><td>WFC</td><td>CALL</td><td>90.0</td><td>2025-12-19</td><td>LONG</td><td>4</td><td>2025-11-28</td><td>129d</td><td>$0.73</td></tr><tr><td>D-68011053</td><td>WFC</td><td>STOCK</td><td></td><td>nan</td><td>SHORT</td><td>4</td><td>2025-11-28</td><td>129d</td><td>$3.20</td></tr><tr><td>D-68011053</td><td>XLU</td><td>CALL</td><td>90.0</td><td>2026-01-16</td><td>SHORT</td><td>1</td><td>2025-12-04</td><td>123d</td><td>$0.82</td></tr></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="grid section" id="setups" style="margin-top:16px">
+      <div class="card span-12">
+        <div class="h2">KapMan setup layer (T3)</div>
+        <div class="copy" style="margin-bottom:14px">This layer is where the product becomes yours. A setup is not the tax record. It is the business-intelligence grouping you review to decide what edge exists, what to repeat, and what to stop. The key is letting inferred tags do the first pass, then allowing you to override without breaking the underlying lot ledger.</div>
+        <div class="setup-grid">
+<div class="setup-card"><div class="setup-title">Covered Call Engine</div><div class="setup-sub">Grouped from long stock + short calls, same underlying</div><div class="pill-row"><span class="pill">T3 setup</span><span class="pill">manual override ready</span><span class="pill">assignment aware</span></div></div>
+<div class="setup-card"><div class="setup-title">Cash-Secured Put Engine</div><div class="setup-sub">Short puts, premium-ledger first, expiry-to-zero supported</div><div class="pill-row"><span class="pill">T3 setup</span><span class="pill">FIFO close</span><span class="pill">TTS relevant</span></div></div>
+<div class="setup-card"><div class="setup-title">Vertical Spread Engine</div><div class="setup-sub">Same expiry, same type, different strikes; infer bull/bear automatically</div><div class="pill-row"><span class="pill">auto-tag</span><span class="pill">roll detection</span><span class="pill">drill T3 → T2 → T1</span></div></div>
+</div>
+      </div>
+      <div class="card span-12">
+        <div class="h2">Drill-down path</div>
+        <div class="flow">
+          <div class="node"><strong>T3 — Setup</strong>Named thesis, setup family, or campaign. Example: NVDA bull vertical roll chain.<div class="pill-row"><span class="pill">edge analysis</span><span class="pill">win rate</span></div></div>
+          <div class="node"><strong>T2 — Matched lot</strong>Canonical taxable event. Open timestamp, close timestamp, hold days, realized P&amp;L, fees, scenario compare overlay.<div class="pill-row"><span class="pill">IRS record</span><span class="pill">31-day metric</span></div></div>
+          <div class="node"><strong>T1 — Execution</strong>Raw fill from statement ingest, with import lineage and broker reference id.<div class="pill-row"><span class="pill">audit trail</span><span class="pill">dedupe key</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid section" id="trade-days" style="margin-top:16px">
+      <div class="card span-6">
+        <div class="h2">Busiest trade days</div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Executions</th><th>Net cash</th><th>End portfolio balance</th></tr></thead><tbody><tr><td>2026-01-05</td><td>16</td><td class='neg'>-$11,817.00</td><td>$235,242.64</td></tr><tr><td>2026-01-26</td><td>16</td><td class='neg'>-$7,772.00</td><td>$220,696.42</td></tr><tr><td>2025-11-03</td><td>15</td><td class='neg'>-$3,875.00</td><td>$224,381.77</td></tr><tr><td>2025-10-06</td><td>11</td><td class='pos'>$22,257.00</td><td>$187,874.38</td></tr><tr><td>2026-03-05</td><td>11</td><td class='neg'>-$1,668.00</td><td>$223,284.48</td></tr><tr><td>2025-10-30</td><td>10</td><td class='pos'>$1,885.00</td><td>$219,126.89</td></tr><tr><td>2026-03-12</td><td>10</td><td class='pos'>$3,970.00</td><td>$228,415.22</td></tr><tr><td>2025-12-03</td><td>9</td><td class='pos'>$23,007.00</td><td>$226,096.87</td></tr><tr><td>2026-03-30</td><td>9</td><td class='pos'>$7,878.00</td><td>$232,274.44</td></tr><tr><td>2025-10-09</td><td>8</td><td class='neg'>-$50,805.00</td><td>$179,933.28</td></tr><tr><td>2025-11-28</td><td>8</td><td class='pos'>$843.00</td><td>$223,539.96</td></tr><tr><td>2025-12-11</td><td>7</td><td class='neg'>-$2,465.00</td><td>$243,472.09</td></tr><tr><td>2026-01-28</td><td>7</td><td class='pos'>$4,655.00</td><td>$209,846.49</td></tr><tr><td>2026-02-18</td><td>7</td><td class='neg'>-$21,625.00</td><td>$208,480.98</td></tr><tr><td>2026-03-02</td><td>7</td><td class='pos'>$4,230.00</td><td>$218,736.59</td></tr></tbody></table></div>
+      </div>
+      <div class="card span-6">
+        <div class="h2">Month-by-month trade density</div>
+        <div class="table-wrap"><table><thead><tr><th>Month</th><th>Executions</th><th>Net cash</th></tr></thead><tbody><tr><td>2025-09</td><td>30</td><td class='neg'>-$27,649.00</td></tr><tr><td>2025-10</td><td>70</td><td class='pos'>$56,055.00</td></tr><tr><td>2025-11</td><td>80</td><td class='neg'>-$32,174.00</td></tr><tr><td>2025-12</td><td>67</td><td class='pos'>$32,562.00</td></tr><tr><td>2026-01</td><td>79</td><td class='neg'>-$26,928.00</td></tr><tr><td>2026-02</td><td>41</td><td class='neg'>-$12,068.00</td></tr><tr><td>2026-03</td><td>86</td><td class='neg'>-$22,143.50</td></tr><tr><td>2026-04</td><td>8</td><td class='neg'>-$21,847.80</td></tr></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="grid section" id="architecture" style="margin-top:16px">
+      <div class="card span-12">
+        <div class="h2">Architecture I would spec next</div>
+        <div class="flow">
+          <div class="node"><strong>Ingest</strong>Upload raw statements, checksum them, store original file, parse broker-specific rows into a normalized execution staging table.</div>
+          <div class="node"><strong>Ledger engine</strong>Deterministic FIFO matching service. Special event handlers for expiry, assignment, exercise, partial fills, and rolled short premium.</div>
+          <div class="node"><strong>Analytics API</strong>Serve TTS metrics, matched-lot explorer, setup summaries, daily equity, and scenario compare outputs.</div>
+        </div>
+        <div class="copy" style="margin-top:14px">Repo shape: frontend React app, backend API, Postgres, worker or service for recomputation, Docker Compose locally, Fly.io for deploy. The issue plan should stay under ten stories and sequence the irreversible parts first: schema, ingest, matching, analytics, then UI.</div>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,107 @@
+# KapMan Trading Journal — Project Rules
+
+## What this project is
+A containerized Next.js trading journal that ingests thinkorswim broker CSVs,
+runs FIFO lot matching, and displays a multi-screen analytics dashboard.
+
+## Stack (pinned versions — do not deviate)
+- Next.js 14.2.x with App Router
+- TypeScript 5.4.x strict mode
+- Tailwind CSS 3.4.x
+- Prisma 5.14.x + PostgreSQL
+- TanStack Table 8.17.x
+- Recharts 2.12.x
+- Zod 3.23.x
+- Docker + docker-compose
+
+## Architecture rules
+- All DB access goes through Prisma only — no raw SQL
+- All API route types shared via /types/api.ts
+- Adapters only detect/parse/normalize — no FIFO or analytics logic inside adapters
+- FIFO matching lives in /src/lib/ledger/ only
+- Setup inference lives in /src/lib/analytics/ only
+
+## File structure
+- /src/app/ — Next.js App Router pages
+- /src/lib/adapters/ — broker adapter registry
+- /src/lib/ledger/ — FIFO engine
+- /src/lib/analytics/ — setup classifier
+- /types/api.ts — shared API contracts
+- /fixtures/ — sample CSV files (use for all parser tests)
+- /design/ — dashboard mock HTML (visual target)
+- /docs/ — build spec and issues (read before generating code)
+
+## Required environment variables
+- DATABASE_URL
+- NODE_ENV
+- NEXT_TELEMETRY_DISABLED=1
+
+A `.env.example` file must exist and match runtime requirements.
+
+## Build order
+1. Scaffold app shell, routes, Docker, Prisma schema, env template
+2. Implement shared API contracts
+3. Implement import/upload flow and persistence
+4. Implement thinkorswim adapter parser
+5. Implement executions table
+6. Implement FIFO matching engine
+7. Implement matched lots table
+8. Implement setup inference and setups pages
+9. Implement overview, TTS evidence, diagnostics
+10. Add deployment config and health check
+
+## Coding rules
+- Named exports only — no default exports except Next.js page components
+- Every page handles three states: loading, empty (with CTA), and populated
+- No TODO comments unless the feature is in the Non-goals list in the build spec
+- Every API route has a shared type in /types/api.ts
+- List responses: { data, meta: { total, page, pageSize } }
+- Detail responses: { data }
+- Error responses: { error: { code, message, details[] } }
+
+## CSV parsing rules (critical)
+- The thinkorswim CSV has a leading empty column on every Trade History row
+- Multi-leg spread rows have blank Exec Time on continuation legs
+- Continuation legs may also have blank Order Type
+- Net Price field may contain "DEBIT" or "CREDIT" — treat as non-numeric
+- Price field may be "~" — treat as null, do not crash
+- Spread types in real data: SINGLE, STOCK, VERTICAL, DIAGONAL, CALENDAR, COMBO, CUSTOM
+- Unknown spread types must emit warnings, not be silently dropped
+- Expirations do NOT appear in Account Trade History — infer from ledger only
+- Account ID must be parsed from the first line of the file
+- Fees are sourced from Cash Balance rows via REF #
+- BAL rows populate daily_account_snapshots
+- Emit one canonical execution per leg and assign shared spread_group_id for grouped spreads
+
+## Multi-account rules
+- The app must support multiple accounts
+- Each uploaded CSV belongs to one account parsed from file metadata
+- Imports, executions, matched lots, and setups must support account filtering
+
+## Import workflow requirements
+- Upload must show progress
+- Show broker detection result before commit
+- Show parse preview before commit
+- Commit result must report parsed, persisted, and skipped rows
+- Import history must show filename, broker, account, status, and row counts
+
+## Diagnostics rules
+- Synthetic expiration closes must be flagged as EXPIRATION_INFERRED
+- Parser anomalies must surface on the Diagnostics page
+- Tag inference failures must be counted as uncategorized
+- Unknown spread types, COMBO, and CUSTOM rows must log warnings
+
+## Definition of done
+- `docker compose up` starts app and db successfully
+- App is available at `http://localhost:3000`
+- Prisma migrations run successfully
+- Fixture data is seeded automatically in dev
+- Parser tests pass against files in `/fixtures/`
+- All nav pages render without runtime errors
+
+## Off-limits
+- No raw SQL
+- No default exports on non-page files
+- No TODO deferral of features that are in the build spec
+- Do not merge spread legs inside the adapter
+- Do not ask clarifying questions — make the conservative assumption and document it
