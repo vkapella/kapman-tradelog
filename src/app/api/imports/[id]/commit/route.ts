@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
 import { prisma } from "@/lib/db/prisma";
+import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
+import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { CommitImportResponse } from "@/types/api";
 
 export async function POST(_request: Request, context: { params: { id: string } }) {
@@ -62,6 +64,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
     eventType: execution.eventType,
     assetClass: execution.assetClass,
     symbol: execution.symbol,
+    instrumentKey: deriveInstrumentKeyFromNormalizedExecution(execution),
     side: execution.side,
     quantity: execution.quantity,
     price: execution.price,
@@ -77,11 +80,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
     rawRowJson: execution.rawRowJson,
   }));
 
-  const warningsJson = parsed.warnings as unknown as Prisma.InputJsonValue;
-
-  let updated;
+  let transactionResult;
   try {
-    updated = await prisma.$transaction(async (tx) => {
+    transactionResult = await prisma.$transaction(async (tx) => {
       await tx.execution.deleteMany({ where: { importId: existingImport.id } });
 
       if (executionData.length > 0) {
@@ -90,7 +91,18 @@ export async function POST(_request: Request, context: { params: { id: string } 
         });
       }
 
-      return tx.import.update({
+      const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
+      const combinedWarnings = [
+        ...parsed.warnings,
+        ...rebuildResult.warnings.map((warning) => ({
+          code: warning.code,
+          message: warning.message,
+          rowRef: warning.rowRef,
+        })),
+      ];
+      const warningsJson = combinedWarnings as unknown as Prisma.InputJsonValue;
+
+      const updatedImport = await tx.import.update({
         where: { id: importId },
         data: {
           status: "COMMITTED",
@@ -100,6 +112,11 @@ export async function POST(_request: Request, context: { params: { id: string } 
           warnings: warningsJson,
         },
       });
+
+      return {
+        updatedImport,
+        combinedWarnings,
+      };
     });
   } catch (error) {
     await prisma.import.update({
@@ -116,11 +133,11 @@ export async function POST(_request: Request, context: { params: { id: string } 
   }
 
   const payload: CommitImportResponse = {
-    importId: updated.id,
-    parsedRows: updated.parsedRows,
-    persistedRows: updated.persistedRows,
-    skippedRows: updated.skippedRows,
-    warnings: parsed.warnings.map((warning) => `${warning.code}: ${warning.message}`),
+    importId: transactionResult.updatedImport.id,
+    parsedRows: transactionResult.updatedImport.parsedRows,
+    persistedRows: transactionResult.updatedImport.persistedRows,
+    skippedRows: transactionResult.updatedImport.skippedRows,
+    warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
 
   return detailResponse(payload);
