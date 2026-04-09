@@ -31,12 +31,27 @@ export async function POST(_request: Request, context: { params: { id: string } 
     ]);
   }
 
-  const parsed = matched.adapter.parse({
-    name: existingImport.filename,
-    content: existingImport.sourceFileText,
-    mimeType: "text/csv",
-    size: existingImport.sourceFileText.length,
-  });
+  let parsed;
+  try {
+    parsed = matched.adapter.parse({
+      name: existingImport.filename,
+      content: existingImport.sourceFileText,
+      mimeType: "text/csv",
+      size: existingImport.sourceFileText.length,
+    });
+  } catch (error) {
+    await prisma.import.update({
+      where: { id: importId },
+      data: {
+        status: "FAILED",
+        warnings: [{ code: "PARSE_ERROR", message: error instanceof Error ? error.message : "Unknown parse error" }],
+      },
+    });
+
+    return errorResponse("PARSE_ERROR", "Import parsing failed.", [
+      error instanceof Error ? error.message : "Unknown parse error",
+    ]);
+  }
 
   const executionData = parsed.executions.map((execution) => ({
     importId: existingImport.id,
@@ -64,26 +79,41 @@ export async function POST(_request: Request, context: { params: { id: string } 
 
   const warningsJson = parsed.warnings as unknown as Prisma.InputJsonValue;
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.execution.deleteMany({ where: { importId: existingImport.id } });
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await tx.execution.deleteMany({ where: { importId: existingImport.id } });
 
-    if (executionData.length > 0) {
-      await tx.execution.createMany({
-        data: executionData,
+      if (executionData.length > 0) {
+        await tx.execution.createMany({
+          data: executionData,
+        });
+      }
+
+      return tx.import.update({
+        where: { id: importId },
+        data: {
+          status: "COMMITTED",
+          parsedRows: parsed.parsedRows,
+          persistedRows: executionData.length,
+          skippedRows: parsed.skippedRows,
+          warnings: warningsJson,
+        },
       });
-    }
-
-    return tx.import.update({
+    });
+  } catch (error) {
+    await prisma.import.update({
       where: { id: importId },
       data: {
-        status: "COMMITTED",
-        parsedRows: parsed.parsedRows,
-        persistedRows: executionData.length,
-        skippedRows: parsed.skippedRows,
-        warnings: warningsJson,
+        status: "FAILED",
+        warnings: [{ code: "COMMIT_ERROR", message: error instanceof Error ? error.message : "Unknown commit error" }],
       },
     });
-  });
+
+    return errorResponse("COMMIT_ERROR", "Import commit failed without persisting partial data.", [
+      error instanceof Error ? error.message : "Unknown commit error",
+    ]);
+  }
 
   const payload: CommitImportResponse = {
     importId: updated.id,

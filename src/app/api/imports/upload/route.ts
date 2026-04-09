@@ -96,6 +96,15 @@ export async function POST(request: Request) {
           rowRef: warning.rowRef,
         })),
       },
+      previewRows: parsed.executions.slice(0, 10).map((row) => ({
+        eventTimestamp: row.eventTimestamp.toISOString(),
+        symbol: row.symbol,
+        side: row.side,
+        quantity: row.quantity,
+        price: row.price,
+        spread: row.spread,
+        openingClosingEffect: row.openingClosingEffect,
+      })),
     };
 
     return detailResponse(payload);

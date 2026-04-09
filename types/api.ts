@@ -47,6 +47,7 @@ export interface UploadImportResponse {
     reason: string;
     warnings: AdapterWarningRecord[];
   };
+  previewRows: ExecutionPreviewRow[];
 }
 
 export interface CommitImportResponse {
@@ -74,6 +75,16 @@ export interface ExecutionRecord {
   quantity: string;
   price: string | null;
   importId: string;
+}
+
+export interface ExecutionPreviewRow {
+  eventTimestamp: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  price: number | null;
+  spread: string;
+  openingClosingEffect: string;
 }
 
 export interface ExecutionsListQuery {

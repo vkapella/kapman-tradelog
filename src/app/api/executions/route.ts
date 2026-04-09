@@ -6,8 +6,27 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
   const symbol = url.searchParams.get("symbol") ?? undefined;
+  const account = url.searchParams.get("account") ?? undefined;
+  const importId = url.searchParams.get("import") ?? undefined;
+  const dateFrom = url.searchParams.get("date_from");
+  const dateTo = url.searchParams.get("date_to");
 
-  const where = symbol ? { symbol: { equals: symbol, mode: "insensitive" as const } } : {};
+  const where: Record<string, unknown> = {};
+  if (symbol) {
+    where.symbol = { equals: symbol, mode: "insensitive" as const };
+  }
+  if (importId) {
+    where.importId = importId;
+  }
+  if (account) {
+    where.account = { accountId: { equals: account, mode: "insensitive" as const } };
+  }
+  if (dateFrom || dateTo) {
+    where.tradeDate = {
+      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+      ...(dateTo ? { lte: new Date(dateTo) } : {}),
+    };
+  }
 
   const [total, rows] = await Promise.all([
     prisma.execution.count({ where }),
