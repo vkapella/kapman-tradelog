@@ -265,3 +265,132 @@ Work is not complete unless all of the following are true:
 - No silent dropping of malformed or unknown rows without warning
 - No merging of spread legs into a single execution record
 - No clarifying-question loops when a conservative implementation path exists
+
+---
+
+## v7 refactor scope
+
+This section activates when working on the v7 UX refactor.
+The v7 work is fully defined in three files under `/docs/`:
+- `docs/kapman_build_spec_v7.md` — product and architecture spec
+- `docs/kapman_codex_master_prompt_v7.md` — agent instructions and phase order
+- `docs/kapman_github_issues_v7.md` — 35 issues with acceptance criteria
+
+Read all three before writing any v7 code.
+
+## v7 frozen boundaries
+
+These files and layers must not be modified under any circumstances during v7:
+- Anything in `prisma/` — schema and migrations are frozen
+- Any existing API route handler logic or Prisma query
+- FIFO matching logic in `/src/lib/ledger/`
+- T3 setup inference logic in `/src/lib/analytics/`
+- The thinkorswim adapter in `/src/lib/adapters/`
+- Any existing test file — new tests may be added, existing ones may not be modified
+
+If a change appears to require touching frozen files, write a note to `CHANGES.md`
+describing the conflict and skip the change. Do not make it.
+
+## v7 new environment variables
+
+Add these to `.env.example` with empty values and a comment marking them as
+optional (required only for live quote features):
+- `SCHWAB_CLIENT_ID`
+- `SCHWAB_CLIENT_SECRET`
+- `SCHWAB_REFRESH_TOKEN`
+
+The app must remain fully functional for all non-quote features when these
+variables are absent. Quote proxy routes must return `{ "error": "unavailable" }`
+with HTTP 200 — not a 4xx/5xx — when credentials are missing.
+
+## v7 new file locations
+
+Follow the existing repository layout. New v7 files belong here:
+
+| Type | Location |
+|---|---|
+| New Next.js pages | `src/app/{route}/page.tsx` |
+| New API routes | `src/app/api/{route}/route.ts` |
+| Shared components | `src/components/` |
+| Widget components | `src/components/widgets/` |
+| React hooks | `src/hooks/` |
+| Server utilities | `src/lib/` |
+| Schwab auth module | `src/lib/schwab-auth.ts` |
+| Widget registry | `src/lib/widget-registry.ts` |
+| New shared API types | `/types/api.ts` (append, do not overwrite) |
+
+## v7 design tokens
+
+Update `globals.css` and `tailwind.config` with these tokens before building
+any new components:
+
+```css
+:root {
+  --bg:       #090f1e;
+  --panel:    #121933;
+  --panel-2:  #182145;
+  --muted:    #9ca9c9;
+  --text:     #eef3ff;
+  --accent:   #67a3ff;
+  --accent-2: #7ef0c6;
+  --border:   rgba(255, 255, 255, 0.1);
+}
+body {
+  background: radial-gradient(circle at 0% 0%, #152245 0%, #090f1e 42%, #050913 100%);
+}
+```
+
+All new components must use these CSS variables. Never use hardcoded hex values
+in new component files.
+
+## v7 additional coding rules
+
+- All new components use CSS variables — never hardcoded hex values
+- All charts use Recharts (already installed) — do not add another chart library
+- Dashboard drag-and-drop uses `@dnd-kit/core` — document in `CHANGES.md` when added
+- All new API routes have shared response types in `/types/api.ts`
+- Widget layout persists to `localStorage` under key `kapman_dashboard_layout`
+- Table select-all preference persists to `localStorage` under key `kapman_table_{name}_showAll`
+- No hardcoded account names, aliases, or labels anywhere in rendered output
+- No "Paper money", "paper trading", "MVP routing shell", or "Placeholder" strings in rendered UI
+
+## v7 phase execution order
+
+Execute in this exact order. Do not start a phase until `npm run typecheck &&
+npm run lint` passes clean and all existing tests pass.
+
+1. **Phase 1 — Foundation:** KM-031, KM-003, KM-002, KM-034, KM-035
+2. **Phase 2 — Navigation and shell:** KM-032, KM-033, KM-001, KM-004, KM-006
+3. **Phase 3 — Schwab quotes and open positions:** KM-028, KM-025, KM-026, KM-022, KM-023, KM-027
+4. **Phase 4 — Dashboard and widgets:** KM-007, KM-021, KM-008, KM-009, KM-010, KM-011, KM-012, KM-013, KM-014, KM-015, KM-016, KM-017, KM-018, KM-019, KM-020, KM-024
+5. **Phase 5 — Analytics and polish:** KM-005, KM-029, KM-030
+
+## v7 progress tracking
+
+After each phase completes, append a line to `CHANGES.md`:
+`Phase N complete — issues KM-XXX through KM-XXX done — typecheck clean — tests pass`
+
+If context runs low before a phase finishes, write `RESUME.md` to the project
+root before stopping. RESUME.md must contain:
+- Which phase was in progress
+- Which issues within that phase are complete
+- The exact next issue to continue from
+- Any assumption made that deviated from the spec
+
+When all 35 issues are complete, write `DONE.md` to the project root listing
+all completed issues and pointing to any assumptions in `CHANGES.md`.
+
+## v7 definition of done
+
+v7 work is not complete unless all of the following are true:
+
+- `docker compose up` starts app and database identically to v6
+- Root route `/` redirects to `/dashboard` and the dashboard renders
+- Account selector dropdown populates from real `accountId` values — no hardcoded labels
+- All 15 dashboard widgets render with live data from existing APIs
+- `/positions` page lists all open positions with correct cost basis
+- `/trade-records` renders T1, T2, and T3 in tabs with all existing filters preserved
+- Every paginated table has a working select-all / scrollable-list toggle
+- No "Placeholder", "Paper money", or "MVP routing shell" strings appear in rendered UI
+- `npm run typecheck` passes clean with no new errors
+- All v6 tests still pass
