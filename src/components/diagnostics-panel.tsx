@@ -34,7 +34,13 @@ export function DiagnosticsPanel() {
     void loadDiagnostics();
   }, []);
 
-  const hasData = Boolean(data && (data.warningsCount > 0 || data.unsupportedRowCount > 0 || data.syntheticExpirationCount > 0));
+  const hasData = Boolean(
+    data &&
+      (data.warningsCount > 0 ||
+        data.unsupportedRowCount > 0 ||
+        data.syntheticExpirationCount > 0 ||
+        data.setupInference.setupInferenceTotal > 0),
+  );
 
   return (
     <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
@@ -83,6 +89,37 @@ export function DiagnosticsPanel() {
               <p className="text-xs text-slate-400">Synthetic Expiration Closes</p>
               <p className="text-lg font-semibold text-slate-100">{data.syntheticExpirationCount}</p>
             </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Setup Inference Total</p>
+              <p className="text-lg font-semibold text-slate-100">{data.setupInference.setupInferenceTotal}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Short Call Standalone</p>
+              <p className="text-lg font-semibold text-slate-100">{data.setupInference.setupInferenceShortCallStandaloneTotal}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Short Call Paired</p>
+              <p className="text-lg font-semibold text-slate-100">{data.setupInference.setupInferenceShortCallPairedTotal}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Pair Outcomes</p>
+              <p className="text-sm text-slate-100">
+                V {data.setupInference.setupInferencePairVerticalTotal} · C {data.setupInference.setupInferencePairCalendarTotal} · D{" "}
+                {data.setupInference.setupInferencePairDiagonalTotal}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Pair Failures</p>
+              <p className="text-sm text-slate-100">
+                No overlap {data.setupInference.setupInferencePairFailNoOverlapLongCallTotal} · No exp{" "}
+                {data.setupInference.setupInferencePairFailNoEligibleExpTotal} · Missing meta{" "}
+                {data.setupInference.setupInferencePairFailMissingMetadataTotal}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <p className="text-xs text-slate-400">Pair Ambiguities</p>
+              <p className="text-lg font-semibold text-slate-100">{data.setupInference.setupInferencePairAmbiguousTotal}</p>
+            </div>
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
@@ -93,6 +130,21 @@ export function DiagnosticsPanel() {
               <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-200">
                 {data.warningSamples.map((warning, index) => (
                   <li key={`${warning}-${index}`}>{warning}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
+            <h3 className="text-sm font-semibold text-slate-100">Setup Inference Samples</h3>
+            {data.setupInference.setupInferenceSamples.length === 0 ? (
+              <p className="mt-2 text-xs text-slate-400">No setup inference samples available.</p>
+            ) : (
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-100">
+                {data.setupInference.setupInferenceSamples.map((sample, index) => (
+                  <li key={`${sample.code}-${index}`}>
+                    [{sample.code}] {sample.underlyingSymbol}: {sample.message}
+                  </li>
                 ))}
               </ul>
             )}

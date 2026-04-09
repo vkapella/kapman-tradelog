@@ -39,6 +39,7 @@ const defaultFilters: SetupFilters = {
 };
 
 const tagOptions = [
+  "stock",
   "long_call",
   "long_put",
   "covered_call",
@@ -48,6 +49,7 @@ const tagOptions = [
   "diagonal",
   "calendar",
   "roll",
+  "short_call",
   "uncategorized",
 ];
 
@@ -359,6 +361,18 @@ export function SetupsAnalyticsPanel() {
               <p className="text-xs text-slate-300">
                 {detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}
               </p>
+              <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
+                <h4 className="text-xs font-semibold text-slate-100">Inference Notes</h4>
+                {detail.inference.reasons.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-400">No inference notes available.</p>
+                ) : (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-300">
+                    {detail.inference.reasons.map((reason, index) => (
+                      <li key={`${reason}-${index}`}>{reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <div className="overflow-auto rounded border border-slate-700">
                 <table className="min-w-full text-xs">
                   <thead className="bg-slate-900 text-slate-300">

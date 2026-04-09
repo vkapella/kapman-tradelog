@@ -35,6 +35,7 @@ export async function rebuildAccountSetups(
     optionType: lot.openExecution.optionType,
     strike: lot.openExecution.strike ? Number(lot.openExecution.strike) : null,
     expirationDate: lot.openExecution.expirationDate,
+    openSpreadGroupId: lot.openExecution.spreadGroupId,
   }));
 
   const inferred = inferSetupGroups(inferenceLots);

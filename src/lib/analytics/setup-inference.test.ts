@@ -20,6 +20,7 @@ function lot(overrides: Partial<SetupInferenceLot>): SetupInferenceLot {
     optionType: "CALL",
     strike: 500,
     expirationDate: day("2026-03-20T00:00:00.000Z"),
+    openSpreadGroupId: null,
   };
 
   return { ...base, ...overrides };
@@ -27,107 +28,200 @@ function lot(overrides: Partial<SetupInferenceLot>): SetupInferenceLot {
 
 describe("inferSetupGroups", () => {
   it("infers long_call for a single bought call lot", () => {
-    const result = inferSetupGroups([lot({ id: "long-call" })]);
+    const result = inferSetupGroups([lot({ id: "single-long-call" })]);
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0]?.tag).toBe("long_call");
   });
 
-  it("infers bull_vertical for same-expiry call spread", () => {
-    const first = lot({
-      id: "vertical-1",
+  it("infers long_call for multi-lot bought call groups", () => {
+    const first = lot({ id: "call-1", strike: 500, openTradeDate: day("2026-01-01T00:00:00.000Z") });
+    const second = lot({ id: "call-2", strike: 510, openTradeDate: day("2026-01-03T00:00:00.000Z") });
+
+    const result = inferSetupGroups([first, second]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("long_call");
+  });
+
+  it("infers long_put for multi-lot bought puts", () => {
+    const first = lot({ id: "put-1", optionType: "PUT", openTradeDate: day("2026-01-01T00:00:00.000Z") });
+    const second = lot({ id: "put-2", optionType: "PUT", openTradeDate: day("2026-01-02T00:00:00.000Z") });
+
+    const result = inferSetupGroups([first, second]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("long_put");
+  });
+
+  it("infers cash_secured_put for multi-lot short puts", () => {
+    const first = lot({ id: "csp-1", optionType: "PUT", openSide: "SELL" });
+    const second = lot({ id: "csp-2", optionType: "PUT", openSide: "SELL", openTradeDate: day("2026-01-02T00:00:00.000Z") });
+
+    const result = inferSetupGroups([first, second]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("cash_secured_put");
+  });
+
+  it("pairs a late short call leg to a long call anchor as vertical even beyond grouping window", () => {
+    const longCall = lot({
+      id: "anchor-long",
       strike: 500,
-      optionType: "CALL",
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-01-21T00:00:00.000Z"),
+    });
+    const shortCall = lot({
+      id: "late-short",
+      openSide: "SELL",
+      strike: 520,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-12T00:00:00.000Z"),
+      closeTradeDate: day("2026-01-15T00:00:00.000Z"),
+      realizedPnl: -10,
+    });
+
+    const result = inferSetupGroups([longCall, shortCall], { groupingWindowDays: 5 });
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("bull_vertical");
+    expect(result.diagnostics.setupInferenceShortCallPairedTotal).toBe(1);
+    expect(result.diagnostics.setupInferencePairVerticalTotal).toBe(1);
+  });
+
+  it("pairs to diagonal when long call expiration is later than short call", () => {
+    const longCall = lot({
+      id: "long-diagonal",
+      strike: 500,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-02-15T00:00:00.000Z"),
+    });
+    const shortCall = lot({
+      id: "short-diagonal",
+      openSide: "SELL",
+      strike: 530,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+      closeTradeDate: day("2026-01-25T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([longCall, shortCall]);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("diagonal");
+    expect(result.diagnostics.setupInferencePairDiagonalTotal).toBe(1);
+  });
+
+  it("uses deterministic tie-breakers and records ambiguous candidate diagnostics", () => {
+    const anchorAlpha = lot({
+      id: "anchor-alpha",
+      strike: 500,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-10T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+    });
+    const anchorBeta = lot({
+      id: "anchor-beta",
+      strike: 500,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-10T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+    });
+    const shortCall = lot({
+      id: "short-ambiguous",
+      openSide: "SELL",
+      strike: 520,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([anchorAlpha, anchorBeta, shortCall]);
+
+    expect(result.groups).toHaveLength(2);
+    const diagonalGroup = result.groups.find((group) => group.tag === "diagonal");
+    expect(diagonalGroup).toBeDefined();
+    expect(diagonalGroup?.lotIds).toContain("anchor-alpha");
+    expect(diagonalGroup?.lotIds).toContain("short-ambiguous");
+    expect(result.diagnostics.setupInferencePairAmbiguousTotal).toBe(1);
+  });
+
+  it("falls back to short_call when no overlapping long-call anchor exists", () => {
+    const shortCall = lot({
+      id: "standalone-short",
+      openSide: "SELL",
+      strike: 520,
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([shortCall]);
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("short_call");
+    expect(result.diagnostics.setupInferencePairFailNoOverlapLongCallTotal).toBe(1);
+    expect(result.diagnostics.setupInferenceShortCallStandaloneTotal).toBe(1);
+  });
+
+  it("reports no-eligible-exp failure when overlap exists but expiration rules fail", () => {
+    const longCall = lot({
+      id: "long-exp-too-soon",
+      strike: 500,
+      expirationDate: day("2026-02-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+    });
+    const shortCall = lot({
+      id: "short-fail-exp",
+      openSide: "SELL",
+      strike: 520,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([longCall, shortCall]);
+
+    expect(result.groups).toHaveLength(2);
+    expect(result.groups.map((group) => group.tag).sort()).toEqual(["long_call", "short_call"]);
+    expect(result.diagnostics.setupInferencePairFailNoEligibleExpTotal).toBe(1);
+  });
+
+  it("infers covered_call when stock and short_call atoms are in the same setup window", () => {
+    const stockLot = lot({
+      id: "stock-1",
+      openAssetClass: "EQUITY",
+      optionType: null,
+      strike: null,
+      expirationDate: null,
       openSide: "BUY",
-      expirationDate: day("2026-04-17T00:00:00.000Z"),
+    });
+    const shortCall = lot({
+      id: "cc-short",
+      openSide: "SELL",
+      optionType: "CALL",
+      strike: 520,
+      openTradeDate: day("2026-01-02T00:00:00.000Z"),
+      closeTradeDate: day("2026-01-04T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([stockLot, shortCall]);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.tag).toBe("covered_call");
+  });
+
+  it("does not force spread classification for same-side spread_group_id lots", () => {
+    const first = lot({
+      id: "put-group-1",
+      optionType: "PUT",
+      openSide: "BUY",
+      openSpreadGroupId: "spread-same-side",
     });
     const second = lot({
-      id: "vertical-2",
-      strike: 510,
-      optionType: "CALL",
-      openSide: "SELL",
-      expirationDate: day("2026-04-17T00:00:00.000Z"),
-      realizedPnl: -20,
+      id: "put-group-2",
+      optionType: "PUT",
+      openSide: "BUY",
+      openTradeDate: day("2026-01-02T00:00:00.000Z"),
+      openSpreadGroupId: "spread-same-side",
     });
 
     const result = inferSetupGroups([first, second]);
     expect(result.groups).toHaveLength(1);
-    expect(result.groups[0]?.tag).toBe("bull_vertical");
-  });
-
-  it("infers calendar for same strike and different expirations", () => {
-    const first = lot({
-      id: "calendar-1",
-      strike: 500,
-      optionType: "CALL",
-      openSide: "BUY",
-      expirationDate: day("2026-03-20T00:00:00.000Z"),
-    });
-    const second = lot({
-      id: "calendar-2",
-      strike: 500,
-      optionType: "CALL",
-      openSide: "SELL",
-      expirationDate: day("2026-04-17T00:00:00.000Z"),
-    });
-
-    const result = inferSetupGroups([first, second]);
-    expect(result.groups[0]?.tag).toBe("calendar");
-  });
-
-  it("infers roll when a closed lot reopens within 5 days", () => {
-    const first = lot({
-      id: "roll-1",
-      symbol: "QQQ",
-      underlyingSymbol: "QQQ",
-      openTradeDate: day("2026-01-01T00:00:00.000Z"),
-      closeTradeDate: day("2026-01-10T00:00:00.000Z"),
-      optionType: null,
-      strike: null,
-      expirationDate: null,
-      openAssetClass: "OTHER",
-      openSide: "BUY",
-    });
-    const second = lot({
-      id: "roll-2",
-      symbol: "QQQ",
-      underlyingSymbol: "QQQ",
-      openTradeDate: day("2026-01-12T00:00:00.000Z"),
-      closeTradeDate: day("2026-01-15T00:00:00.000Z"),
-      optionType: null,
-      strike: null,
-      expirationDate: null,
-      openAssetClass: "OTHER",
-      openSide: "BUY",
-    });
-
-    const result = inferSetupGroups([first, second]);
-    expect(result.groups[0]?.tag).toBe("roll");
-  });
-
-  it("tracks uncategorized setup group count", () => {
-    const uncategorizedStock = lot({
-      id: "stock-1",
-      symbol: "AAPL",
-      underlyingSymbol: "AAPL",
-      openAssetClass: "EQUITY",
-      optionType: null,
-      strike: null,
-      expirationDate: null,
-    });
-    const secondCluster = lot({
-      id: "stock-2",
-      symbol: "AAPL",
-      underlyingSymbol: "AAPL",
-      openTradeDate: day("2026-01-20T00:00:00.000Z"),
-      closeTradeDate: day("2026-01-21T00:00:00.000Z"),
-      openAssetClass: "EQUITY",
-      optionType: null,
-      strike: null,
-      expirationDate: null,
-    });
-
-    const result = inferSetupGroups([uncategorizedStock, secondCluster]);
-    expect(result.groups).toHaveLength(2);
-    expect(result.uncategorizedCount).toBe(2);
+    expect(result.groups[0]?.tag).toBe("long_put");
   });
 });
