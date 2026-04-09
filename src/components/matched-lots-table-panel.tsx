@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
 
@@ -44,6 +45,8 @@ const defaultFilters: MatchedLotFilters = {
   dateTo: "",
 };
 
+const SHOW_ALL_STORAGE_KEY = "kapman_table_matched-lots_showAll";
+
 function sortMatchedLots(rows: MatchedLotRecord[], column: SortColumn, direction: SortDirection): MatchedLotRecord[] {
   const sorted = [...rows].sort((left, right) => {
     if (column === "closeTradeDate") {
@@ -74,11 +77,20 @@ export function MatchedLotsTablePanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 50 });
+  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
+  const [showAll, setShowAll] = useState(false);
   const [draftFilters, setDraftFilters] = useState<MatchedLotFilters>(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState<MatchedLotFilters>(defaultFilters);
   const [sortColumn, setSortColumn] = useState<SortColumn>("closeTradeDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  useEffect(() => {
+    try {
+      setShowAll(window.localStorage.getItem(SHOW_ALL_STORAGE_KEY) === "1");
+    } catch {
+      setShowAll(false);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadImports() {
@@ -100,8 +112,8 @@ export function MatchedLotsTablePanel() {
       setError(null);
 
       const query = new URLSearchParams({
-        page: String(page),
-        pageSize: String(meta.pageSize),
+        page: String(showAll ? 1 : page),
+        pageSize: String(showAll ? 1000 : 25),
       });
 
       if (appliedFilters.symbol.trim()) {
@@ -138,7 +150,7 @@ export function MatchedLotsTablePanel() {
     }
 
     void loadMatchedLots();
-  }, [appliedFilters, page, meta.pageSize]);
+  }, [appliedFilters, page, showAll]);
 
   const accountOptions = useMemo(() => {
     return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();
@@ -177,6 +189,17 @@ export function MatchedLotsTablePanel() {
   const hasRows = sortedRows.length > 0;
   const canGoBack = meta.page > 1;
   const canGoForward = meta.page * meta.pageSize < meta.total;
+
+  function toggleShowAll() {
+    const next = !showAll;
+    setShowAll(next);
+    setPage(1);
+    try {
+      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // Ignore localStorage errors.
+    }
+  }
 
   return (
     <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
@@ -256,6 +279,9 @@ export function MatchedLotsTablePanel() {
         >
           Reset
         </button>
+        <button type="button" onClick={toggleShowAll} className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200">
+          {showAll ? "Show pages" : `Show all ${meta.total}`}
+        </button>
       </div>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
@@ -273,7 +299,10 @@ export function MatchedLotsTablePanel() {
 
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
-          <div className="overflow-auto rounded border border-slate-700">
+          <div
+            className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+            style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
+          >
             <table className="min-w-full text-xs">
               <thead className="bg-slate-900 text-slate-300">
                 <tr>
@@ -313,7 +342,15 @@ export function MatchedLotsTablePanel() {
                       {row.realizedPnl}
                     </td>
                     <td className="px-2 py-2 text-right">{row.holdingDays}</td>
-                    <td className="px-2 py-2">{row.outcome}</td>
+                    <td className="px-2 py-2">
+                      {row.outcome === "WIN" ? (
+                        <Badge variant="win">WIN</Badge>
+                      ) : row.outcome === "LOSS" ? (
+                        <Badge variant="loss">LOSS</Badge>
+                      ) : (
+                        <Badge variant="flat">FLAT</Badge>
+                      )}
+                    </td>
                     <td className="px-2 py-2">
                       <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
                         {row.openExecutionId.slice(0, 8)}...
@@ -334,29 +371,33 @@ export function MatchedLotsTablePanel() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-300">
-            <p>
-              Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={!canGoBack}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                disabled={!canGoForward}
-                onClick={() => setPage((current) => current + 1)}
-                className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-              >
-                Next
-              </button>
+          {showAll ? (
+            <p className="text-xs text-slate-300">Showing all {meta.total} records</p>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <p>
+                Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!canGoBack}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  disabled={!canGoForward}
+                  onClick={() => setPage((current) => current + 1)}
+                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : null}
     </section>
