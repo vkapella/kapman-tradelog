@@ -39,10 +39,13 @@ export interface ImportRecord {
 export interface UploadImportResponse {
   importId: string;
   detection: {
+    adapterId: BrokerId;
     broker: BrokerId;
     confidence: number;
     formatVersion: string;
     rowEstimate: number;
+    reason: string;
+    warnings: AdapterWarningRecord[];
   };
 }
 
@@ -157,6 +160,28 @@ export interface HealthResponse {
   db: "connected" | "disconnected";
 }
 
+export interface AdapterWarningRecord {
+  code: string;
+  message: string;
+  rowRef?: string;
+}
+
+export interface AdapterCoverageRecord {
+  equities: boolean;
+  options: boolean;
+  multiLeg: boolean;
+  snapshots: boolean;
+  feesFromCashBalance: boolean;
+  notes: string;
+}
+
+export interface AdapterSummaryRecord {
+  id: BrokerId;
+  displayName: string;
+  status: "active" | "stub";
+  coverage: AdapterCoverageRecord;
+}
+
 export type ImportsListApiResponse = ApiListResponse<ImportRecord> | ApiErrorResponse;
 export type UploadImportApiResponse = ApiDetailResponse<UploadImportResponse> | ApiErrorResponse;
 export type CommitImportApiResponse = ApiDetailResponse<CommitImportResponse> | ApiErrorResponse;
@@ -168,3 +193,4 @@ export type OverviewSummaryApiResponse = ApiDetailResponse<OverviewSummaryRespon
 export type TtsEvidenceApiResponse = ApiDetailResponse<TtsEvidenceResponse> | ApiErrorResponse;
 export type DiagnosticsApiResponse = ApiDetailResponse<DiagnosticsResponse> | ApiErrorResponse;
 export type HealthApiResponse = ApiDetailResponse<HealthResponse>;
+export type AdapterListApiResponse = ApiListResponse<AdapterSummaryRecord> | ApiErrorResponse;

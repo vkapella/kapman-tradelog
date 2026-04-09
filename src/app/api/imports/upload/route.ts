@@ -1,6 +1,6 @@
 import { detailResponse, errorResponse } from "@/lib/api/responses";
+import { detectAdapter } from "@/lib/adapters/registry";
 import { prisma } from "@/lib/db/prisma";
-import { parseAccountMetadataFromCsv } from "@/lib/accounts/parse-account-metadata";
 import type { UploadImportResponse } from "@/types/api";
 
 export async function POST(request: Request) {
@@ -12,28 +12,47 @@ export async function POST(request: Request) {
   }
 
   const csvText = await file.text();
+  const matched = detectAdapter({
+    name: file.name,
+    content: csvText,
+    mimeType: file.type || "text/csv",
+    size: file.size,
+  });
+
+  if (!matched) {
+    return errorResponse("UNSUPPORTED_BROKER", "No registered adapter matched this file.", [
+      "Detection failed for all registered adapters.",
+    ]);
+  }
 
   try {
-    const metadata = parseAccountMetadataFromCsv(csvText);
+    const parsed = matched.adapter.parse({
+      name: file.name,
+      content: csvText,
+      mimeType: file.type || "text/csv",
+      size: file.size,
+    });
+
+    const broker = matched.adapter.id === "fidelity" ? "FIDELITY" : "SCHWAB_THINKORSWIM";
     const account = await prisma.account.upsert({
-      where: { accountId: metadata.accountId },
+      where: { accountId: parsed.accountMetadata.accountId },
       update: {
-        label: metadata.label,
-        broker: metadata.broker,
-        paperMoney: metadata.paperMoney,
+        label: parsed.accountMetadata.label,
+        broker,
+        paperMoney: parsed.accountMetadata.paperMoney,
       },
       create: {
-        accountId: metadata.accountId,
-        label: metadata.label,
-        broker: metadata.broker,
-        paperMoney: metadata.paperMoney,
+        accountId: parsed.accountMetadata.accountId,
+        label: parsed.accountMetadata.label,
+        broker,
+        paperMoney: parsed.accountMetadata.paperMoney,
       },
     });
 
     const createdImport = await prisma.import.create({
       data: {
         filename: file.name,
-        broker: metadata.broker,
+        broker,
         status: "UPLOADED",
         accountId: account.id,
       },
@@ -42,10 +61,17 @@ export async function POST(request: Request) {
     const payload: UploadImportResponse = {
       importId: createdImport.id,
       detection: {
-        broker: "schwab_thinkorswim",
-        confidence: 1,
-        formatVersion: "tos-account-statement-v1",
+        adapterId: matched.adapter.id,
+        broker: matched.adapter.id,
+        confidence: matched.detection.confidence,
+        formatVersion: matched.detection.formatVersion,
         rowEstimate: csvText.split(/\r?\n/).length,
+        reason: matched.detection.reason,
+        warnings: [...matched.detection.warnings, ...parsed.warnings].map((warning) => ({
+          code: warning.code,
+          message: warning.message,
+          rowRef: warning.rowRef,
+        })),
       },
     };
 
