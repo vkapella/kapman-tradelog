@@ -166,6 +166,18 @@ export interface OverviewSummaryResponse {
   setupCount: number;
   averageHoldDays: string;
   snapshotCount: number;
+  importQuality: {
+    totalImports: number;
+    committedImports: number;
+    failedImports: number;
+    parsedRows: number;
+    skippedRows: number;
+  };
+  snapshotSeries: Array<{
+    accountId: string;
+    snapshotDate: string;
+    balance: string;
+  }>;
 }
 
 export interface TtsEvidenceResponse {
@@ -175,6 +187,10 @@ export interface TtsEvidenceResponse {
   medianHoldingPeriodDays: number;
   annualizedTradeCount: number;
   grossProceedsProxy: string;
+  holdingPeriodDistribution: Array<{
+    bucket: string;
+    count: number;
+  }>;
 }
 
 export interface DiagnosticsResponse {
@@ -183,6 +199,8 @@ export interface DiagnosticsResponse {
   matchingCoverage: number;
   uncategorizedCount: number;
   warningsCount: number;
+  syntheticExpirationCount: number;
+  warningSamples: string[];
 }
 
 export interface HealthResponse {
