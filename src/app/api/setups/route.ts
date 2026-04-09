@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { SetupSummaryRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -6,14 +7,21 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
   const tag = url.searchParams.get("tag") ?? undefined;
+  const account = url.searchParams.get("account") ?? undefined;
 
-  const where = tag ? { tag: { equals: tag, mode: "insensitive" as const } } : {};
+  const where: Prisma.SetupGroupWhereInput = {};
+  if (tag) {
+    where.tag = { equals: tag, mode: "insensitive" };
+  }
+  if (account) {
+    where.account = { accountId: { equals: account, mode: "insensitive" } };
+  }
 
   const [total, rows] = await Promise.all([
     prisma.setupGroup.count({ where }),
     prisma.setupGroup.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ realizedPnl: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

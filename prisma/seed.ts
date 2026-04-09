@@ -4,6 +4,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { parseCashBalanceSnapshots } from "../src/lib/adapters/thinkorswim/cash-balance";
 import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
 import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
+import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
 import { deriveInstrumentKeyFromNormalizedExecution } from "../src/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "../src/lib/ledger/rebuild-account-ledger";
 
@@ -121,10 +122,22 @@ async function main() {
 
     await prisma.$transaction(async (tx) => {
       const rebuilt = await rebuildAccountLedger(tx, account.id, new Date());
+      const setupResult = await rebuildAccountSetups(tx, account.id);
       await tx.import.update({
         where: { id: seededImport.id },
         data: {
-          warnings: [...parsedTradeHistory.warnings, ...rebuilt.warnings] as unknown as Prisma.InputJsonValue,
+          warnings: [
+            ...parsedTradeHistory.warnings,
+            ...rebuilt.warnings,
+            ...(setupResult.uncategorizedCount > 0
+              ? [
+                  {
+                    code: "SETUP_UNCATEGORIZED_COUNT",
+                    message: `${setupResult.uncategorizedCount} setup groups were inferred as uncategorized.`,
+                  },
+                ]
+              : []),
+          ] as unknown as Prisma.InputJsonValue,
         },
       });
     });

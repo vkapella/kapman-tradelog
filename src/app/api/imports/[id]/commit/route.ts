@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
+import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
@@ -92,6 +93,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
       }
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
+      const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);
       const combinedWarnings = [
         ...parsed.warnings,
         ...rebuildResult.warnings.map((warning) => ({
@@ -99,6 +101,14 @@ export async function POST(_request: Request, context: { params: { id: string } 
           message: warning.message,
           rowRef: warning.rowRef,
         })),
+        ...(setupResult.uncategorizedCount > 0
+          ? [
+              {
+                code: "SETUP_UNCATEGORIZED_COUNT",
+                message: `${setupResult.uncategorizedCount} setup groups were inferred as uncategorized.`,
+              },
+            ]
+          : []),
       ];
       const warningsJson = combinedWarnings as unknown as Prisma.InputJsonValue;
 
