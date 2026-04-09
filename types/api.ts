@@ -240,5 +240,5 @@ export type SetupDetailApiResponse = ApiDetailResponse<SetupDetailResponse> | Ap
 export type OverviewSummaryApiResponse = ApiDetailResponse<OverviewSummaryResponse> | ApiErrorResponse;
 export type TtsEvidenceApiResponse = ApiDetailResponse<TtsEvidenceResponse> | ApiErrorResponse;
 export type DiagnosticsApiResponse = ApiDetailResponse<DiagnosticsResponse> | ApiErrorResponse;
-export type HealthApiResponse = ApiDetailResponse<HealthResponse>;
+export type HealthApiResponse = HealthResponse;
 export type AdapterListApiResponse = ApiListResponse<AdapterSummaryRecord> | ApiErrorResponse;

@@ -50,6 +50,25 @@ Seed logic parses `Cash Balance` `BAL` rows from fixture account statements and 
 - `npm run prisma:migrate`
 - `npm run db:seed`
 
-## Fly.io scaffold
+## Fly.io deployment
 
-A baseline `fly.toml` is included for later deployment hardening.
+1. Authenticate and initialize the app:
+
+```bash
+fly auth login
+fly launch
+```
+
+2. Set runtime database connection (Fly secrets or managed Postgres):
+
+```bash
+fly secrets set DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<db>?sslmode=require
+```
+
+3. Deploy:
+
+```bash
+fly deploy
+```
+
+`fly.toml` is configured for region `iad` with an HTTP health check on `/api/health`.

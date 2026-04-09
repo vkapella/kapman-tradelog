@@ -1,4 +1,4 @@
-app = "kapman-tradelog"
+app = "kapman-tradelog-APP_NAME_PLACEHOLDER"
 primary_region = "iad"
 
 [build]
