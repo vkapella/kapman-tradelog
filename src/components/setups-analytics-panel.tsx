@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { ImportRecord, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
 
@@ -51,6 +52,9 @@ const tagOptions = [
 ];
 
 export function SetupsAnalyticsPanel() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 50 });
@@ -63,6 +67,12 @@ export function SetupsAnalyticsPanel() {
   const [selectedSetupId, setSelectedSetupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SetupDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const setupFromQuery = searchParams.get("setup");
+    setSelectedSetupId((current) => (current === setupFromQuery ? current : setupFromQuery));
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadImports() {
@@ -116,20 +126,30 @@ export function SetupsAnalyticsPanel() {
     async function loadSetupDetail() {
       if (!selectedSetupId) {
         setDetail(null);
+        setDetailError(null);
         return;
       }
 
       setDetailLoading(true);
-      const response = await fetch(`/api/setups/${selectedSetupId}`, { cache: "no-store" });
-      if (!response.ok) {
-        setDetail(null);
-        setDetailLoading(false);
-        return;
-      }
+      setDetailError(null);
 
-      const payload = (await response.json()) as SetupDetailPayload;
-      setDetail(payload.data);
-      setDetailLoading(false);
+      try {
+        const response = await fetch(`/api/setups/${selectedSetupId}`, { cache: "no-store" });
+        if (!response.ok) {
+          setDetail(null);
+          setDetailError("Unable to load setup detail right now.");
+          setDetailLoading(false);
+          return;
+        }
+
+        const payload = (await response.json()) as SetupDetailPayload;
+        setDetail(payload.data);
+        setDetailLoading(false);
+      } catch {
+        setDetail(null);
+        setDetailError("Unable to load setup detail right now.");
+        setDetailLoading(false);
+      }
     }
 
     void loadSetupDetail();
@@ -288,9 +308,9 @@ export function SetupsAnalyticsPanel() {
                     <td className="px-2 py-2 text-right">{row.expectancy ?? "0.00"}</td>
                     <td className="px-2 py-2 text-right">{row.averageHoldDays ?? "0.00"}</td>
                     <td className="px-2 py-2">
-                      <button type="button" onClick={() => setSelectedSetupId(row.id)} className="text-blue-300 underline">
+                      <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
                         View detail
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -325,14 +345,15 @@ export function SetupsAnalyticsPanel() {
       ) : null}
 
       {selectedSetupId ? (
-        <section className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+        <section id="setup-detail" className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-slate-100">Setup Detail Drill-through</h3>
-            <button type="button" onClick={() => setSelectedSetupId(null)} className="text-xs text-slate-300 underline">
+            <button type="button" onClick={() => router.push(pathname, { scroll: false })} className="text-xs text-slate-300 underline">
               Close
             </button>
           </div>
           {detailLoading ? <LoadingSkeleton lines={4} /> : null}
+          {!detailLoading && detailError ? <p className="text-xs text-red-200">{detailError}</p> : null}
           {!detailLoading && detail ? (
             <div className="space-y-3">
               <p className="text-xs text-slate-300">
