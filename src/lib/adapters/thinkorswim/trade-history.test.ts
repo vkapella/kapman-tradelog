@@ -16,6 +16,10 @@ describe("parseThinkorswimTradeHistory", () => {
     expect(resultTwo.executions.length).toBeGreaterThan(0);
     expect(resultSynthetic.executions.length).toBeGreaterThan(0);
 
+    expect(resultOne.snapshots.length).toBeGreaterThan(0);
+    expect(resultTwo.snapshots.length).toBeGreaterThan(0);
+    expect(Array.isArray(resultSynthetic.snapshots)).toBe(true);
+
     const spreads = new Set(resultOne.executions.map((row) => row.spread));
     expect(spreads.has("CALENDAR")).toBe(true);
     expect(spreads.has("COMBO")).toBe(true);

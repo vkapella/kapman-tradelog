@@ -4,6 +4,7 @@ import { detectAdapter } from "@/lib/adapters/registry";
 import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
 import { replaceImportExecutions } from "@/lib/imports/replace-import-executions";
+import { replaceImportSnapshots } from "@/lib/imports/replace-import-snapshots";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { CommitImportResponse } from "@/types/api";
@@ -89,11 +90,20 @@ export async function POST(_request: Request, context: { params: { id: string } 
   try {
     transactionResult = await prisma.$transaction(async (tx) => {
       const ingestResult = await replaceImportExecutions(tx, importId, executionData);
+      const snapshotResult = await replaceImportSnapshots(tx, importId, existingImport.accountId, parsed.snapshots);
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
       const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);
       const combinedWarnings = [
         ...parsed.warnings,
+        ...(matched.adapter.coverage().snapshots && snapshotResult.parsed === 0
+          ? [
+              {
+                code: "NO_SNAPSHOT_ROWS",
+                message: "No Cash Balance BAL rows were parsed into daily snapshots for this import.",
+              },
+            ]
+          : []),
         ...ingestResult.failures.map((message, index) => ({
           code: "INGEST_ROW_FAILED",
           message,

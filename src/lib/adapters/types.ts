@@ -35,10 +35,16 @@ export interface ParsedAccountMetadata {
   paperMoney: boolean;
 }
 
+export interface NormalizedDailyAccountSnapshot {
+  snapshotDate: Date;
+  balance: number;
+}
+
 export interface ParseResult {
   warnings: AdapterWarning[];
   accountMetadata: ParsedAccountMetadata;
   executions: NormalizedExecution[];
+  snapshots: NormalizedDailyAccountSnapshot[];
   parsedRows: number;
   skippedRows: number;
 }
