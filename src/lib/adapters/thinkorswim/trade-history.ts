@@ -1,4 +1,5 @@
 import { parseAccountMetadataFromCsv } from "../../accounts/parse-account-metadata";
+import { parseCashBalanceSnapshots } from "./cash-balance";
 import type { AdapterWarning, NormalizedExecution, ParseResult } from "../types";
 
 const TRADE_HISTORY_HEADER = ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type";
@@ -308,6 +309,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     },
     warnings,
     executions,
+    snapshots: parseCashBalanceSnapshots(csvText),
     parsedRows,
     skippedRows,
   };

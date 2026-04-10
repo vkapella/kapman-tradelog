@@ -3,18 +3,19 @@ import { prisma } from "@/lib/db/prisma";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 export async function GET() {
-  const [executionCount, matchedLots, setupCount, imports, snapshots] = await Promise.all([
+  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots] = await Promise.all([
     prisma.execution.count(),
     prisma.matchedLot.findMany({ select: { realizedPnl: true, holdingDays: true } }),
     prisma.setupGroup.count(),
     prisma.import.findMany({ select: { status: true, parsedRows: true, skippedRows: true } }),
+    prisma.dailyAccountSnapshot.count(),
     prisma.dailyAccountSnapshot.findMany({
       include: {
         account: {
           select: { accountId: true },
         },
       },
-      orderBy: [{ snapshotDate: "asc" }, { id: "asc" }],
+      orderBy: [{ snapshotDate: "desc" }, { id: "desc" }],
       take: 500,
     }),
   ]);
@@ -35,7 +36,7 @@ export async function GET() {
     matchedLotCount: matchedLots.length,
     setupCount,
     averageHoldDays: avgHold.toFixed(2),
-    snapshotCount: snapshots.length,
+    snapshotCount,
     importQuality: {
       totalImports: imports.length,
       committedImports,
