@@ -1,6 +1,7 @@
 import { parseAccountMetadataFromCsv } from "../../accounts/parse-account-metadata";
+import { parseThinkorswimAccountSummary } from "./account-summary";
 import { parseCashBalanceSnapshots } from "./cash-balance";
-import type { AdapterWarning, NormalizedExecution, ParseResult } from "../types";
+import type { AdapterWarning, NormalizedDailyAccountSnapshot, NormalizedExecution, ParseResult } from "../types";
 
 const TRADE_HISTORY_HEADER = ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type";
 const KNOWN_SPREADS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
@@ -123,6 +124,41 @@ function hasContinuation(lines: string[], lineIndex: number): boolean {
   const nextColumns = splitCsvLine(nextLine);
   const nextExecTime = (nextColumns[1] ?? "").trim();
   return nextExecTime === "";
+}
+
+function utcDateKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function applyAccountSummaryToSnapshots(
+  snapshots: NormalizedDailyAccountSnapshot[],
+  csvText: string,
+): NormalizedDailyAccountSnapshot[] {
+  const summary = parseThinkorswimAccountSummary(csvText);
+  const summaryDate = summary.statementDate;
+
+  if (!summaryDate || summary.totalCash === null) {
+    return snapshots;
+  }
+
+  const statementDateKey = utcDateKey(summaryDate);
+  const nextSnapshots = snapshots.map((snapshot) => ({ ...snapshot }));
+  const existing = nextSnapshots.find((snapshot) => utcDateKey(snapshot.snapshotDate) === statementDateKey);
+
+  if (existing) {
+    existing.totalCash = summary.totalCash;
+    existing.brokerNetLiquidationValue = summary.netLiquidatingValue;
+    return nextSnapshots;
+  }
+
+  nextSnapshots.push({
+    snapshotDate: summaryDate,
+    balance: summary.totalCash,
+    totalCash: summary.totalCash,
+    brokerNetLiquidationValue: summary.netLiquidatingValue,
+  });
+
+  return nextSnapshots.sort((left, right) => left.snapshotDate.getTime() - right.snapshotDate.getTime());
 }
 
 export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
@@ -309,7 +345,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     },
     warnings,
     executions,
-    snapshots: parseCashBalanceSnapshots(csvText),
+    snapshots: applyAccountSummaryToSnapshots(parseCashBalanceSnapshots(csvText), csvText),
     parsedRows,
     skippedRows,
   };

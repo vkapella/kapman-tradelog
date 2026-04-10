@@ -8,18 +8,26 @@ import { formatCurrency } from "@/components/widgets/utils";
 
 function AccountBalanceRow({ accountId, displayAccountId, refreshSeed }: { accountId: string; displayAccountId: string; refreshSeed: number }) {
   void refreshSeed;
-  const { nlv, cash, lastUpdated, loading } = useNetLiquidationValue(accountId);
+  const { nlv, cash, cashAsOf, marksAsOf, loading } = useNetLiquidationValue(accountId);
 
   const value = nlv ?? cash;
   const progress = Math.max(0, Math.min(100, (value / 100_000) * 100));
+  const staleCash = cashAsOf ? Date.now() - cashAsOf.getTime() > 24 * 60 * 60 * 1000 : false;
 
   return (
-    <div className="rounded-lg border border-border bg-panel-2 p-3">
+    <div className={["rounded-lg border bg-panel-2 p-3", staleCash ? "border-amber-400/70" : "border-border"].join(" ")}>
       <div className="flex items-center justify-between">
         <p className="font-mono text-xs text-text">{displayAccountId}</p>
-        <p className="text-[11px] text-muted">{loading ? "Updating..." : lastUpdated ? lastUpdated.toLocaleTimeString() : "Quotes unavailable"}</p>
+        <p className="text-[11px] text-muted">{loading ? "Updating..." : marksAsOf ? marksAsOf.toLocaleTimeString() : "Quotes unavailable"}</p>
       </div>
       <p className="mt-1 text-xs text-muted">Cash: {formatCurrency(cash)}</p>
+      <p className="text-[11px] text-muted">Cash as of: {cashAsOf ? cashAsOf.toISOString().slice(0, 10) : "unknown"}</p>
+      <p className="text-[11px] text-muted">Marks as of: {marksAsOf ? marksAsOf.toLocaleTimeString() : "unavailable"}</p>
+      {staleCash ? (
+        <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
+          Cash snapshot is stale (more than 1 day old).
+        </p>
+      ) : null}
       <p className="text-sm font-semibold text-text">{nlv === null ? "NLV unavailable" : "NLV: " + formatCurrency(nlv)}</p>
       <div className="mt-2 h-2 rounded bg-panel">
         <div className="h-2 rounded bg-accent" style={{ width: `${progress}%` }} />

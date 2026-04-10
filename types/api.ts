@@ -186,6 +186,8 @@ export interface OverviewSummaryResponse {
     accountId: string;
     snapshotDate: string;
     balance: string;
+    totalCash: string | null;
+    brokerNetLiquidationValue: string | null;
   }>;
 }
 
@@ -302,6 +304,8 @@ export interface OpenPosition {
 export interface NlvResult {
   nlv: number | null;
   cash: number;
+  cashAsOf: Date | null;
+  marksAsOf: Date | null;
   lastUpdated: Date | null;
   loading: boolean;
 }

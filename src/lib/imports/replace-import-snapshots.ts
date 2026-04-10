@@ -34,12 +34,16 @@ export async function replaceImportSnapshots(
       },
       update: {
         balance: snapshot.balance,
+        totalCash: snapshot.totalCash ?? null,
+        brokerNetLiquidationValue: snapshot.brokerNetLiquidationValue ?? null,
         sourceRef: importId,
       },
       create: {
         accountId,
         snapshotDate: snapshot.snapshotDate,
         balance: snapshot.balance,
+        totalCash: snapshot.totalCash ?? null,
+        brokerNetLiquidationValue: snapshot.brokerNetLiquidationValue ?? null,
         sourceRef: importId,
       },
     });
@@ -52,4 +56,3 @@ export async function replaceImportSnapshots(
     deleted: deleted.count,
   };
 }
-
