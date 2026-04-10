@@ -50,11 +50,14 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
         }
 
         const summaryPayload = (await summaryResponse.json()) as OverviewPayload;
-        const latestSnapshot = [...summaryPayload.data.snapshotSeries]
+        const accountSnapshots = [...summaryPayload.data.snapshotSeries]
           .filter((snapshot) => snapshot.accountId === externalAccountId)
-          .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime())[0];
+          .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime());
 
-        const latestCash = Number(latestSnapshot?.balance ?? 0);
+        const latestSnapshot = accountSnapshots[0];
+        const latestStatementSnapshot = accountSnapshots.find((snapshot) => snapshot.totalCash !== null);
+
+        const latestCash = Number(latestStatementSnapshot?.totalCash ?? latestSnapshot?.balance ?? 0);
         if (!cancelled) {
           setCash(latestCash);
         }
