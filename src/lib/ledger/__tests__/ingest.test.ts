@@ -106,12 +106,17 @@ describe("computeBrokerTxId", () => {
   const baseInput = {
     accountId: "account-1",
     eventTimestamp: "2026-03-01T14:30:00.000Z",
+    eventType: "TRADE" as const,
+    assetClass: "OPTION" as const,
+    instrumentKey: "SPY|CALL|500|2026-03-20",
     symbol: "SPY",
     side: "BUY" as const,
     quantity: 1,
     rawPrice: "100.00",
-    spreadGroupId: null,
-    sourceRowRef: "1",
+    openingClosingEffect: "TO_OPEN" as const,
+    optionType: "CALL",
+    strike: 500,
+    expirationDate: "2026-03-20T00:00:00.000Z",
   };
 
   it("is stable across identical input", () => {
@@ -152,26 +157,37 @@ describe("computeBrokerTxId", () => {
     const hashA = computeBrokerTxId({
       accountId: a.accountId,
       eventTimestamp: a.eventTimestamp,
+      eventType: a.eventType,
+      assetClass: a.assetClass,
+      instrumentKey: a.instrumentKey,
       symbol: a.symbol,
       side: a.side,
       quantity: a.quantity,
       rawPrice: typeof a.rawRowJson === "object" && a.rawRowJson && !Array.isArray(a.rawRowJson) ? String(a.rawRowJson.price ?? "") : "",
-      spreadGroupId: a.spreadGroupId,
-      sourceRowRef: a.sourceRowRef,
+      openingClosingEffect: a.openingClosingEffect,
+      optionType: a.optionType,
+      strike: a.strike,
+      expirationDate: a.expirationDate,
     });
     const hashB = computeBrokerTxId({
       accountId: b.accountId,
       eventTimestamp: b.eventTimestamp,
+      eventType: b.eventType,
+      assetClass: b.assetClass,
+      instrumentKey: b.instrumentKey,
       symbol: b.symbol,
       side: b.side,
       quantity: b.quantity,
       rawPrice: typeof b.rawRowJson === "object" && b.rawRowJson && !Array.isArray(b.rawRowJson) ? String(b.rawRowJson.price ?? "") : "",
-      spreadGroupId: b.spreadGroupId,
-      sourceRowRef: b.sourceRowRef,
+      openingClosingEffect: b.openingClosingEffect,
+      optionType: b.optionType,
+      strike: b.strike,
+      expirationDate: b.expirationDate,
     });
 
     expect(hashA).toBe(hashB);
   });
+
 });
 
 describe("ingestExecutions fixtures", () => {
@@ -194,6 +210,16 @@ describe("ingestExecutions fixtures", () => {
     expect(result.failed).toBe(0);
   });
 
+  it("keeps the original import lineage when duplicates are skipped", async () => {
+    const store = new InMemoryExecutionStore();
+    await ingestExecutions(store.tx as never, asLedgerExecutions(fixtureA));
+    await ingestExecutions(store.tx as never, asLedgerExecutions(fixtureB));
+
+    const rows = Array.from((store as unknown as { rowsById: Map<string, StoredExecution> }).rowsById.values());
+    expect(rows).toHaveLength(4);
+    expect(rows.every((row) => row.importId === "import-a")).toBe(true);
+  });
+
   it("Fixture C after A: 2 inserted, 2 skipped_duplicate", async () => {
     const store = new InMemoryExecutionStore();
     await ingestExecutions(store.tx as never, asLedgerExecutions(fixtureA));
@@ -212,5 +238,47 @@ describe("ingestExecutions fixtures", () => {
     expect(result.inserted).toBe(2);
     expect(result.skipped_duplicate).toBe(2);
     expect(result.failed).toBe(0);
+  });
+
+  it("skips duplicates when only source_row_ref and spread_group_id differ", async () => {
+    const store = new InMemoryExecutionStore();
+    const execution: LedgerIngestExecution = {
+      importId: "import-a",
+      accountId: "account-1",
+      broker: "SCHWAB_THINKORSWIM",
+      eventTimestamp: new Date("2026-03-01T14:30:00.000Z"),
+      tradeDate: new Date("2026-03-01T00:00:00.000Z"),
+      eventType: "TRADE",
+      assetClass: "OPTION",
+      symbol: "SPY",
+      instrumentKey: "SPY|CALL|500|2026-03-20",
+      side: "BUY",
+      quantity: 1,
+      price: 100,
+      grossAmount: 100,
+      netAmount: 100,
+      openingClosingEffect: "TO_OPEN",
+      underlyingSymbol: "SPY",
+      optionType: "CALL",
+      strike: 500,
+      expirationDate: new Date("2026-03-20T00:00:00.000Z"),
+      spreadGroupId: "account-1-100",
+      sourceRowRef: "100",
+      rawRowJson: { price: "100.00" },
+    };
+
+    const first = await ingestExecutions(store.tx as never, [execution]);
+    const second = await ingestExecutions(store.tx as never, [
+      {
+        ...execution,
+        importId: "import-b",
+        spreadGroupId: "account-1-129",
+        sourceRowRef: "129",
+      },
+    ]);
+
+    expect(first.inserted).toBe(1);
+    expect(second.inserted).toBe(0);
+    expect(second.skipped_duplicate).toBe(1);
   });
 });

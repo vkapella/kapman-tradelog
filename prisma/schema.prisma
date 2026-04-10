@@ -82,7 +82,6 @@ model Import {
 
   executions Execution[]
 
-  @@unique([accountId, filename])
   @@index([accountId])
   @@map("imports")
 }
@@ -125,10 +124,10 @@ model Execution {
   openMatchedLots  MatchedLot[] @relation("open_execution")
   closeMatchedLots MatchedLot[] @relation("close_execution")
 
+  @@unique([accountId, brokerTxId])
   @@index([accountId])
   @@index([importId])
   @@index([symbol])
-  @@unique([accountId, brokerTxId])
   @@map("executions")
 }
 
