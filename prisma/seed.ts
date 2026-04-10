@@ -16,6 +16,58 @@ const seedFiles = [
   "fixtures/2026-04-06-AccountStatement-2.csv",
 ];
 
+async function seedCorporateActionAdjustments(accountInternalId: string, externalAccountId: string) {
+  if (externalAccountId !== "D-68011053") {
+    return;
+  }
+
+  const entries = [
+    {
+      symbol: "SDS",
+      effectiveDate: "2025-11-20T00:00:00.000Z",
+      payload: { from: 5, to: 1 },
+      reason: "ProShares 1-for-5 reverse split effective 2025-11-20",
+      evidenceRef: "https://www.proshares.com/press-releases/proshares-announces-etf-share-splits5",
+    },
+    {
+      symbol: "XLU",
+      effectiveDate: "2025-12-05T00:00:00.000Z",
+      payload: { from: 1, to: 2 },
+      reason: "State Street 2-for-1 forward split effective 2025-12-05",
+      evidenceRef:
+        "https://investors.statestreet.com/investor-news-events/press-releases/news-details/2025/State-Street-Investment-Management-Announces-Share-Splits-for-Five-Select-Sector-SPDR-ETFs/default.aspx",
+    },
+  ] as const;
+
+  for (const entry of entries) {
+    const existing = await prisma.manualAdjustment.findFirst({
+      where: {
+        accountId: accountInternalId,
+        symbol: entry.symbol,
+        adjustmentType: "SPLIT",
+        effectiveDate: new Date(entry.effectiveDate),
+        status: "ACTIVE",
+      },
+    });
+
+    if (!existing) {
+      await prisma.manualAdjustment.create({
+        data: {
+          createdBy: "seed",
+          accountId: accountInternalId,
+          symbol: entry.symbol,
+          effectiveDate: new Date(entry.effectiveDate),
+          adjustmentType: "SPLIT",
+          payloadJson: entry.payload as unknown as Prisma.InputJsonValue,
+          reason: entry.reason,
+          evidenceRef: entry.evidenceRef,
+          status: "ACTIVE",
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   for (const fixturePath of seedFiles) {
     const csvText = readFileSync(join(process.cwd(), fixturePath), "utf8");
@@ -154,6 +206,8 @@ async function main() {
         },
       });
     });
+
+    await seedCorporateActionAdjustments(account.id, metadata.accountId);
   }
 }
 

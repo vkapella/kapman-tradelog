@@ -310,6 +310,89 @@ export interface NlvResult {
   loading: boolean;
 }
 
+export type AdjustmentType = "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION";
+export type AdjustmentStatus = "ACTIVE" | "REVERSED";
+
+export interface SplitPayload {
+  from: number;
+  to: number;
+}
+
+export interface QtyOverridePayload {
+  instrumentKey: string;
+  overrideQty: number;
+}
+
+export interface PriceOverridePayload {
+  instrumentKey: string;
+  overridePrice: number;
+}
+
+export interface AddPositionPayload {
+  instrumentKey: string;
+  assetClass: "EQUITY" | "OPTION";
+  netQty: number;
+  costBasis: number;
+  optionType?: "CALL" | "PUT";
+  strike?: string;
+  expirationDate?: string;
+}
+
+export interface RemovePositionPayload {
+  instrumentKey: string;
+}
+
+export type ManualAdjustmentPayload = SplitPayload | QtyOverridePayload | PriceOverridePayload | AddPositionPayload | RemovePositionPayload;
+
+export interface ManualAdjustmentRecord {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  accountId: string;
+  accountExternalId: string;
+  symbol: string;
+  effectiveDate: string;
+  adjustmentType: AdjustmentType;
+  payload: ManualAdjustmentPayload;
+  reason: string;
+  evidenceRef: string | null;
+  status: AdjustmentStatus;
+  reversedByAdjustmentId: string | null;
+}
+
+export interface CreateManualAdjustmentRequest {
+  createdBy?: string;
+  accountId: string;
+  symbol: string;
+  effectiveDate: string;
+  adjustmentType: AdjustmentType;
+  payload: ManualAdjustmentPayload;
+  reason: string;
+  evidenceRef?: string;
+}
+
+export interface ReverseManualAdjustmentResponse {
+  reversedId: string;
+  reversalId: string;
+}
+
+export interface AdjustmentPreviewResponse {
+  symbol: string;
+  adjustmentType: AdjustmentType;
+  before: {
+    openQty: number;
+    costBasisPerShare: number | null;
+    grossCost: number;
+  };
+  after: {
+    openQty: number;
+    costBasisPerShare: number | null;
+    grossCost: number;
+  };
+  affectedExecutionCount: number;
+  effectiveDate: string;
+}
+
 export interface StreakSummaryResponse {
   currentStreak: number;
   currentStreakType: "WIN" | "LOSS" | null;
@@ -329,3 +412,7 @@ export type TtsEvidenceApiResponse = ApiDetailResponse<TtsEvidenceResponse> | Ap
 export type DiagnosticsApiResponse = ApiDetailResponse<DiagnosticsResponse> | ApiErrorResponse;
 export type HealthApiResponse = HealthResponse;
 export type AdapterListApiResponse = ApiListResponse<AdapterSummaryRecord> | ApiErrorResponse;
+export type AdjustmentsListApiResponse = ApiListResponse<ManualAdjustmentRecord> | ApiErrorResponse;
+export type AdjustmentCreateApiResponse = ApiDetailResponse<ManualAdjustmentRecord> | ApiErrorResponse;
+export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjustmentResponse> | ApiErrorResponse;
+export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;

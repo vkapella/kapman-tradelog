@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ExecutionRecord, MatchedLotRecord, OpenPosition } from "@/types/api";
+import type { ExecutionRecord, ManualAdjustmentRecord, OpenPosition, AdjustmentsListApiResponse, MatchedLotRecord } from "@/types/api";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 
 interface ExecutionsPayload {
@@ -10,6 +10,10 @@ interface ExecutionsPayload {
 
 interface MatchedLotsPayload {
   data: MatchedLotRecord[];
+}
+
+interface AdjustmentsPayload {
+  data: ManualAdjustmentRecord[];
 }
 
 export function useOpenPositions(): { positions: OpenPosition[]; loading: boolean; error: string | null } {
@@ -36,8 +40,20 @@ export function useOpenPositions(): { positions: OpenPosition[]; loading: boolea
 
         const executionsPayload = (await executionResponse.json()) as ExecutionsPayload;
         const matchedLotsPayload = (await matchedLotsResponse.json()) as MatchedLotsPayload;
+        let manualAdjustments: ManualAdjustmentRecord[] = [];
+        try {
+          const adjustmentsResponse = await fetch("/api/adjustments?page=1&pageSize=1000&status=ACTIVE", { cache: "no-store" });
+          if (adjustmentsResponse.ok) {
+            const adjustmentsPayload = (await adjustmentsResponse.json()) as AdjustmentsPayload | AdjustmentsListApiResponse;
+            if ("data" in adjustmentsPayload && Array.isArray(adjustmentsPayload.data)) {
+              manualAdjustments = adjustmentsPayload.data as ManualAdjustmentRecord[];
+            }
+          }
+        } catch {
+          manualAdjustments = [];
+        }
 
-        const openPositions = computeOpenPositions(executionsPayload.data, matchedLotsPayload.data);
+        const openPositions = computeOpenPositions(executionsPayload.data, matchedLotsPayload.data, manualAdjustments);
 
         if (!cancelled) {
           setPositions(openPositions);
