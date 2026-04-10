@@ -95,4 +95,93 @@ describe("market-data MCP adapter", () => {
 
     expect(result).toBeNull();
   });
+
+  it("retries VIX option chain lookup using $VIX fallback symbol", async () => {
+    marketDataMocks.callMcpTool
+      .mockResolvedValueOnce({
+        callExpDateMap: {
+          "2026-06-17:68": {},
+        },
+      })
+      .mockResolvedValueOnce({
+        callExpDateMap: {
+          "2026-06-17:68": {
+            "25.0": [
+              {
+                mark: 2.15,
+                bid: 0.1,
+                ask: 4.2,
+                delta: 0.648,
+                theta: -0.059,
+                volatility: 55.977,
+                daysToExpiration: 68,
+                inTheMoney: false,
+              },
+            ],
+          },
+        },
+      });
+
+    const { getOptionQuote } = await import("./market-data");
+    const result = await getOptionQuote("VIX", 25, "2026-06-17", "CALL");
+
+    expect(result).toEqual({
+      mark: 2.15,
+      bid: 0.1,
+      ask: 4.2,
+      delta: 0.648,
+      theta: -0.059,
+      iv: 55.977,
+      dte: 68,
+      inTheMoney: false,
+    });
+    expect(marketDataMocks.callMcpTool).toHaveBeenNthCalledWith(
+      1,
+      "get_option_chain",
+      expect.objectContaining({ symbol: "VIX" }),
+    );
+    expect(marketDataMocks.callMcpTool).toHaveBeenNthCalledWith(
+      2,
+      "get_option_chain",
+      expect.objectContaining({ symbol: "$VIX" }),
+    );
+  });
+
+  it("continues to $VIX fallback when VIX call fails", async () => {
+    marketDataMocks.callMcpTool
+      .mockRejectedValueOnce(new marketDataMocks.MockMcpUnavailableError("VIX unavailable"))
+      .mockResolvedValueOnce({
+        callExpDateMap: {
+          "2026-06-17:68": {
+            "25.0": [
+              {
+                mark: 2.15,
+                bid: 0.1,
+                ask: 4.2,
+                delta: 0.648,
+                theta: -0.059,
+                volatility: 55.977,
+                daysToExpiration: 68,
+                inTheMoney: false,
+              },
+            ],
+          },
+        },
+      });
+
+    const { getOptionQuote } = await import("./market-data");
+    const result = await getOptionQuote("VIX", 25, "2026-06-17", "CALL");
+
+    expect(result).toEqual({
+      mark: 2.15,
+      bid: 0.1,
+      ask: 4.2,
+      delta: 0.648,
+      theta: -0.059,
+      iv: 55.977,
+      dte: 68,
+      inTheMoney: false,
+    });
+    expect(marketDataMocks.callMcpTool).toHaveBeenCalledTimes(2);
+  });
 });

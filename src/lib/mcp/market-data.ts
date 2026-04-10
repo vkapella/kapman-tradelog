@@ -72,6 +72,31 @@ function pickOptionExpMap(payload: unknown, contractType: "CALL" | "PUT"): Optio
   return expMap && typeof expMap === "object" ? (expMap as OptionContractMap) : null;
 }
 
+function mapOptionContract(contract: Record<string, unknown>): OptionQuoteRecord | null {
+  const mark = numberOrNull(contract.mark) ?? numberOrNull(contract.markChange) ?? numberOrNull(contract.last);
+  const bid = numberOrNull(contract.bid);
+  const ask = numberOrNull(contract.ask);
+  const delta = numberOrNull(contract.delta);
+  const theta = numberOrNull(contract.theta);
+  const iv = numberOrNull(contract.volatility);
+  const dte = numberOrNull(contract.daysToExpiration);
+
+  if (mark === null || bid === null || ask === null || delta === null || theta === null || iv === null || dte === null) {
+    return null;
+  }
+
+  return {
+    mark,
+    bid,
+    ask,
+    delta,
+    theta,
+    iv,
+    dte,
+    inTheMoney: Boolean(contract.inTheMoney),
+  };
+}
+
 export async function getEquityQuotes(symbols: string[]): Promise<Record<string, EquityQuoteRecord> | null> {
   try {
     const result = await callMcpTool<unknown>("get_quotes", {
@@ -105,45 +130,52 @@ export async function getOptionQuote(
   contractType: "CALL" | "PUT",
 ): Promise<OptionQuoteRecord | null> {
   try {
-    const chainResult = await callMcpTool<unknown>("get_option_chain", {
-      symbol,
-      strikeCount: 50,
-      fromDate: expDate,
-      toDate: expDate,
-      contractType,
-    });
-    const expMap = pickOptionExpMap(chainResult, contractType);
-    if (!expMap) {
+    const symbolCandidates = symbol === "VIX" ? ["VIX", "$VIX"] : [symbol];
+    let mappedQuote: OptionQuoteRecord | null = null;
+
+    for (let index = 0; index < symbolCandidates.length; index += 1) {
+      const symbolCandidate = symbolCandidates[index];
+      const hasMoreCandidates = index < symbolCandidates.length - 1;
+
+      let chainResult: unknown;
+      try {
+        chainResult = await callMcpTool<unknown>("get_option_chain", {
+          symbol: symbolCandidate,
+          contract_type: contractType,
+          strike_count: 50,
+          include_quotes: true,
+          from_date: expDate,
+          to_date: expDate,
+        });
+      } catch (error) {
+        if (error instanceof McpUnavailableError && hasMoreCandidates) {
+          continue;
+        }
+
+        throw error;
+      }
+
+      const expMap = pickOptionExpMap(chainResult, contractType);
+      if (!expMap) {
+        continue;
+      }
+
+      const contract = getOptionContract(expMap, expDate, strike);
+      if (!contract) {
+        continue;
+      }
+
+      mappedQuote = mapOptionContract(contract);
+      if (mappedQuote) {
+        break;
+      }
+    }
+
+    if (!mappedQuote) {
       return null;
     }
 
-    const contract = getOptionContract(expMap, expDate, strike);
-    if (!contract) {
-      return null;
-    }
-
-    const mark = numberOrNull(contract.mark) ?? numberOrNull(contract.markChange) ?? numberOrNull(contract.last);
-    const bid = numberOrNull(contract.bid);
-    const ask = numberOrNull(contract.ask);
-    const delta = numberOrNull(contract.delta);
-    const theta = numberOrNull(contract.theta);
-    const iv = numberOrNull(contract.volatility);
-    const dte = numberOrNull(contract.daysToExpiration);
-
-    if (mark === null || bid === null || ask === null || delta === null || theta === null || iv === null || dte === null) {
-      return null;
-    }
-
-    return {
-      mark,
-      bid,
-      ask,
-      delta,
-      theta,
-      iv,
-      dte,
-      inTheMoney: Boolean(contract.inTheMoney),
-    };
+    return mappedQuote;
   } catch (error) {
     if (error instanceof McpUnavailableError) {
       return null;

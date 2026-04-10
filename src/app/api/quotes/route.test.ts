@@ -78,4 +78,35 @@ describe("GET /api/quotes", () => {
 
     expect(quotesRouteMocks.getEquityQuotes).toHaveBeenCalledTimes(2);
   });
+
+  it("falls back to cached quotes when refresh lookup is unavailable", async () => {
+    quotesRouteMocks.getEquityQuotes
+      .mockResolvedValueOnce({
+        SPY: {
+          mark: 100,
+          bid: 99.9,
+          ask: 100.1,
+          last: 100,
+          netChange: 1,
+          netPctChange: 1,
+        },
+      })
+      .mockResolvedValueOnce(null);
+    const { GET } = await import("./route");
+
+    await GET(new Request("http://localhost/api/quotes?symbols=SPY"));
+    const refreshed = await GET(new Request("http://localhost/api/quotes?symbols=SPY&refresh=1"));
+
+    await expect(refreshed.json()).resolves.toEqual({
+      SPY: {
+        mark: 100,
+        bid: 99.9,
+        ask: 100.1,
+        last: 100,
+        netChange: 1,
+        netPctChange: 1,
+      },
+    });
+    expect(quotesRouteMocks.getEquityQuotes).toHaveBeenCalledTimes(2);
+  });
 });

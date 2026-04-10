@@ -100,4 +100,42 @@ describe("GET /api/option-quote", () => {
 
     expect(optionRouteMocks.getOptionQuote).toHaveBeenCalledTimes(2);
   });
+
+  it("falls back to cached option quote when refresh lookup is unavailable", async () => {
+    optionRouteMocks.getOptionQuote
+      .mockResolvedValueOnce({
+        mark: 3.1,
+        bid: 3.0,
+        ask: 3.2,
+        delta: 0.45,
+        theta: -0.04,
+        iv: 22.5,
+        dte: 252,
+        inTheMoney: false,
+      })
+      .mockResolvedValueOnce(null);
+    const { GET } = await import("./route");
+
+    const cachedRequest = new Request(
+      "http://localhost/api/option-quote?symbol=SPY&strike=500&expDate=2026-12-18&contractType=CALL",
+    );
+    const refreshRequest = new Request(
+      "http://localhost/api/option-quote?symbol=SPY&strike=500&expDate=2026-12-18&contractType=CALL&refresh=1",
+    );
+
+    await GET(cachedRequest);
+    const refreshed = await GET(refreshRequest);
+
+    await expect(refreshed.json()).resolves.toEqual({
+      mark: 3.1,
+      bid: 3.0,
+      ask: 3.2,
+      delta: 0.45,
+      theta: -0.04,
+      iv: 22.5,
+      dte: 252,
+      inTheMoney: false,
+    });
+    expect(optionRouteMocks.getOptionQuote).toHaveBeenCalledTimes(2);
+  });
 });
