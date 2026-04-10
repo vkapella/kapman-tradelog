@@ -14,6 +14,15 @@ interface OverviewPayload {
   data: OverviewSummaryResponse;
 }
 
+function sanitizeStoredLayout(value: unknown, validWidgetIds: ReadonlySet<string>): string[] {
+  if (!Array.isArray(value)) {
+    return DEFAULT_DASHBOARD_LAYOUT;
+  }
+
+  const filtered = value.filter((item): item is string => typeof item === "string" && validWidgetIds.has(item));
+  return filtered.length > 0 ? filtered : DEFAULT_DASHBOARD_LAYOUT;
+}
+
 function reorder<T>(items: T[], from: number, to: number): T[] {
   const next = [...items];
   const [moved] = next.splice(from, 1);
@@ -68,7 +77,9 @@ function DashboardTile({
 
 export default function Page() {
   const widgetMap = useMemo(() => new Map(WIDGET_REGISTRY.map((widget) => [widget.id, widget])), []);
+  const validWidgetIds = useMemo(() => new Set(WIDGET_REGISTRY.map((widget) => widget.id)), []);
   const [layout, setLayout] = useState<string[]>(DEFAULT_DASHBOARD_LAYOUT);
+  const [layoutHydrated, setLayoutHydrated] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -79,26 +90,28 @@ export default function Page() {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
-      if (!stored) {
-        return;
-      }
-
-      const parsed = JSON.parse(stored) as string[];
-      if (Array.isArray(parsed) && parsed.every((value) => typeof value === "string") && parsed.length > 0) {
-        setLayout(parsed);
+      if (stored) {
+        const parsed = JSON.parse(stored) as unknown;
+        setLayout(sanitizeStoredLayout(parsed, validWidgetIds));
       }
     } catch {
       setLayout(DEFAULT_DASHBOARD_LAYOUT);
+    } finally {
+      setLayoutHydrated(true);
     }
-  }, []);
+  }, [validWidgetIds]);
 
   useEffect(() => {
+    if (!layoutHydrated) {
+      return;
+    }
+
     try {
       window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
     } catch {
       // Ignore localStorage errors.
     }
-  }, [layout]);
+  }, [layout, layoutHydrated]);
 
   useEffect(() => {
     let cancelled = false;
