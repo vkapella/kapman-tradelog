@@ -44,6 +44,19 @@ enum OpeningClosingEffect {
   UNKNOWN
 }
 
+enum AdjustmentType {
+  SPLIT
+  QTY_OVERRIDE
+  PRICE_OVERRIDE
+  ADD_POSITION
+  REMOVE_POSITION
+}
+
+enum AdjustmentStatus {
+  ACTIVE
+  REVERSED
+}
+
 model Account {
   id         String   @id @default(cuid())
   accountId  String   @unique @map("account_id")
@@ -56,6 +69,7 @@ model Account {
   imports     Import[]
   executions  Execution[]
   snapshots   DailyAccountSnapshot[]
+  adjustments ManualAdjustment[]
   setupGroups SetupGroup[]
   matchedLots MatchedLot[]
 
@@ -206,4 +220,28 @@ model DailyAccountSnapshot {
   @@unique([accountId, snapshotDate])
   @@index([snapshotDate])
   @@map("daily_account_snapshots")
+}
+
+model ManualAdjustment {
+  id                     String           @id @default(cuid())
+  createdAt              DateTime         @default(now()) @map("created_at")
+  createdBy              String           @map("created_by")
+  symbol                 String
+  effectiveDate          DateTime         @map("effective_date")
+  adjustmentType         AdjustmentType   @map("adjustment_type")
+  payloadJson            Json             @map("payload_json")
+  reason                 String
+  evidenceRef            String?          @map("evidence_ref")
+  status                 AdjustmentStatus @default(ACTIVE)
+  reversedByAdjustmentId String?          @map("reversed_by_adjustment_id")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  reversedBy ManualAdjustment?  @relation("ReversalChain", fields: [reversedByAdjustmentId], references: [id], onDelete: SetNull)
+  reversals  ManualAdjustment[] @relation("ReversalChain")
+
+  @@index([accountId, symbol, effectiveDate])
+  @@index([status, effectiveDate])
+  @@map("manual_adjustments")
 }

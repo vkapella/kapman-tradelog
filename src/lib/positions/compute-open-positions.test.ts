@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ExecutionRecord, MatchedLotRecord } from "@/types/api";
+import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 import { computeOpenPositions } from "./compute-open-positions";
 
 function execution(overrides: Partial<ExecutionRecord> & Pick<ExecutionRecord, "id" | "symbol" | "accountId">): ExecutionRecord {
@@ -89,5 +89,43 @@ describe("computeOpenPositions", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.netQty).toBe(-1);
     expect(result[0]?.costBasis).toBeCloseTo(-198, 6);
+  });
+
+  it("applies split adjustments to quantity and price while preserving gross basis", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "open-sds",
+        accountId: "account-1",
+        symbol: "SDS",
+        quantity: "200",
+        price: "14.87",
+        instrumentKey: "SDS",
+        tradeDate: "2025-11-01T00:00:00.000Z",
+        eventTimestamp: "2025-11-01T14:00:00.000Z",
+      }),
+    ];
+
+    const adjustments: ManualAdjustmentRecord[] = [
+      {
+        id: "split-sds",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        createdBy: "tester",
+        accountId: "account-1",
+        accountExternalId: "D-68011053",
+        symbol: "SDS",
+        effectiveDate: "2025-11-20T00:00:00.000Z",
+        adjustmentType: "SPLIT",
+        payload: { from: 5, to: 1 },
+        reason: "reverse split",
+        evidenceRef: null,
+        status: "ACTIVE",
+        reversedByAdjustmentId: null,
+      },
+    ];
+
+    const result = computeOpenPositions(executions, [], adjustments);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.netQty).toBeCloseTo(40, 6);
+    expect(result[0]?.costBasis).toBeCloseTo(2974, 6);
   });
 });

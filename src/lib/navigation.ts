@@ -31,6 +31,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/tts-evidence", label: "TTS Evidence" },
       { href: "/diagnostics", label: "Diagnostics" },
+      { href: "/adjustments", label: "Adjustments" },
     ],
   },
 ];
@@ -67,6 +68,10 @@ export function getTopbarContextTags(pathname: string): string[] {
 
   if (pathname.startsWith("/analytics")) {
     return ["Derived metrics"];
+  }
+
+  if (pathname.startsWith("/adjustments")) {
+    return ["Audit trail", "Overrides"];
   }
 
   return [];
