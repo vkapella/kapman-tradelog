@@ -61,6 +61,25 @@ Inspected implementation paths:
 | Diagnostics page | `/api/page-stats`, `/api/diagnostics` | `Import`, `Execution`, `MatchedLot`, rerun setup inference |
 | Quotes | `/api/quotes`, `/api/option-quote` | `src/lib/mcp/market-data.ts` -> MCP market-data tools |
 
+## Glossary
+
+### T1, T2, T3
+
+- `T1` = `Executions`: the normalized broker event layer. One row means one execution or execution-like event after parsing and normalization.
+- `T2` = `Matched Lots`: the FIFO accounting layer. It pairs opening and closing executions into realized lot records with P&L and holding days.
+- `T3` = `Setups`: the analytics layer. It groups matched lots into higher-level trading setups or strategy tags such as `long_call`, `bull_vertical`, or `calendar`.
+
+### How the layers relate
+
+- `T1` answers: what exactly happened?
+- `T2` answers: what open quantity got matched and what was realized?
+- `T3` answers: what kind of trade or setup was this?
+
+### Cardinality
+
+- many `T1` rows can feed one or more `T2` matched lots
+- many `T2` matched lots can roll up into one `T3` setup
+
 ## Cross-Cutting As-Built Notes
 
 ### 1. Account IDs are mixed internally and externally
@@ -1078,4 +1097,3 @@ Use the v7 docs set this way:
 - `docs/kapman_github_issues_v7.md`: implementation backlog and acceptance criteria
 - `docs/kapman_codex_master_prompt_v7.md`: execution instructions
 - `docs/kapman_v7_as_built_inventory.md`: actual shipped behavior and current caveats
-
