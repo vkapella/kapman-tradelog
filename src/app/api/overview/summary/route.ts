@@ -15,8 +15,7 @@ export async function GET() {
           select: { accountId: true },
         },
       },
-      orderBy: [{ snapshotDate: "desc" }, { id: "desc" }],
-      take: 500,
+      orderBy: [{ snapshotDate: "asc" }, { id: "asc" }],
     }),
   ]);
 
@@ -47,7 +46,7 @@ export async function GET() {
     snapshotSeries: snapshots.map((snapshot) => ({
       accountId: snapshot.account.accountId,
       snapshotDate: snapshot.snapshotDate.toISOString(),
-      balance: snapshot.balance.toString(),
+      balance: (snapshot.totalCash ?? snapshot.balance).toString(),
       totalCash: snapshot.totalCash !== null ? snapshot.totalCash.toString() : null,
       brokerNetLiquidationValue:
         snapshot.brokerNetLiquidationValue !== null ? snapshot.brokerNetLiquidationValue.toString() : null,
