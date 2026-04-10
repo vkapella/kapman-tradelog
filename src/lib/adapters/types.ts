@@ -38,6 +38,8 @@ export interface ParsedAccountMetadata {
 export interface NormalizedDailyAccountSnapshot {
   snapshotDate: Date;
   balance: number;
+  totalCash?: number | null;
+  brokerNetLiquidationValue?: number | null;
 }
 
 export interface ParseResult {
