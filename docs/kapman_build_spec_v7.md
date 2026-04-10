@@ -1,5 +1,10 @@
 # KapMan Build Spec v7
 
+## As-built companion
+
+For the current implementation audit and data-lineage inventory, see `docs/kapman_v7_as_built_inventory.md`.
+This build spec remains the target-state definition; the companion doc records actual shipped behavior and current deltas.
+
 ## Product statement
 
 v7 is a full UX refactor of the KapMan Trading Journal MVP (v6).
