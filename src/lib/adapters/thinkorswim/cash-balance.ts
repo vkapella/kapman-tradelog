@@ -1,7 +1,4 @@
-export interface CashBalanceSnapshot {
-  snapshotDate: Date;
-  balance: number;
-}
+import type { NormalizedDailyAccountSnapshot } from "../types";
 
 function splitCsvLine(line: string): string[] {
   const columns: string[] = [];
@@ -63,9 +60,9 @@ function parseCurrency(value: string): number | null {
   return parsed;
 }
 
-export function parseCashBalanceSnapshots(csvText: string): CashBalanceSnapshot[] {
+export function parseCashBalanceSnapshots(csvText: string): NormalizedDailyAccountSnapshot[] {
   const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
-  const snapshots: CashBalanceSnapshot[] = [];
+  const snapshots: NormalizedDailyAccountSnapshot[] = [];
 
   let inCashBalanceSection = false;
 
