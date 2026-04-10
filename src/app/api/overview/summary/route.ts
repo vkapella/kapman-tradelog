@@ -47,9 +47,9 @@ export async function GET() {
       accountId: snapshot.account.accountId,
       snapshotDate: snapshot.snapshotDate.toISOString(),
       balance: (snapshot.totalCash ?? snapshot.balance).toString(),
-      totalCash: snapshot.totalCash !== null ? snapshot.totalCash.toString() : null,
+      totalCash: snapshot.totalCash != null ? snapshot.totalCash.toString() : null,
       brokerNetLiquidationValue:
-        snapshot.brokerNetLiquidationValue !== null ? snapshot.brokerNetLiquidationValue.toString() : null,
+        snapshot.brokerNetLiquidationValue != null ? snapshot.brokerNetLiquidationValue.toString() : null,
     })),
   };
 
