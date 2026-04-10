@@ -35,6 +35,7 @@ export async function replaceImportSnapshots(
       update: {
         balance: snapshot.balance,
         totalCash: snapshot.totalCash ?? null,
+        brokerNetLiquidationValue: snapshot.brokerNetLiquidationValue ?? null,
         sourceRef: importId,
       },
       create: {
@@ -42,6 +43,7 @@ export async function replaceImportSnapshots(
         snapshotDate: snapshot.snapshotDate,
         balance: snapshot.balance,
         totalCash: snapshot.totalCash ?? null,
+        brokerNetLiquidationValue: snapshot.brokerNetLiquidationValue ?? null,
         sourceRef: importId,
       },
     });

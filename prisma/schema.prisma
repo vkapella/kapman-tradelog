@@ -195,6 +195,7 @@ model DailyAccountSnapshot {
   snapshotDate DateTime @map("snapshot_date")
   balance      Decimal  @db.Decimal(20, 6)
   totalCash    Decimal? @map("total_cash") @db.Decimal(20, 6)
+  brokerNetLiquidationValue Decimal? @map("broker_net_liquidation_value") @db.Decimal(20, 6)
   sourceRef    String?  @map("source_ref")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

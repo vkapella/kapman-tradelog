@@ -186,6 +186,8 @@ export interface OverviewSummaryResponse {
     accountId: string;
     snapshotDate: string;
     balance: string;
+    totalCash: string | null;
+    brokerNetLiquidationValue: string | null;
   }>;
 }
 
