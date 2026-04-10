@@ -21,6 +21,16 @@ Required variables:
 - `NODE_ENV`
 - `NEXT_TELEMETRY_DISABLED=1`
 
+Live quote variables (optional for non-quote flows):
+- `MCP_SERVER_URL` (required only for live quote features)
+- `MCP_BEARER_TOKEN` (optional bearer token when the MCP endpoint requires auth)
+
+When MCP variables are not configured or MCP is unreachable, quote endpoints degrade to:
+- `GET /api/quotes` -> `{ "error": "unavailable" }`
+- `GET /api/option-quote` -> `{ "error": "unavailable" }`
+
+All non-quote application features continue to work without MCP configuration.
+
 ## Local development
 
 1. Install dependencies:
