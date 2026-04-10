@@ -80,12 +80,18 @@ export async function rebuildAccountLedger(
         const brokerTxId = computeBrokerTxId({
           accountId: execution.accountId,
           eventTimestamp: execution.eventTimestamp,
+          eventType: execution.eventType,
+          assetClass: execution.assetClass,
+          instrumentKey: execution.instrumentKey,
+          dedupeDiscriminator: execution.sourceRowRef,
           symbol: execution.symbol,
           side: execution.side,
           quantity: execution.quantity,
           rawPrice: execution.price.toString(),
-          spreadGroupId: null,
-          sourceRowRef: execution.sourceRowRef,
+          openingClosingEffect: execution.openingClosingEffect,
+          optionType: execution.optionType,
+          strike: execution.strike,
+          expirationDate: execution.expirationDate,
         });
 
         return {

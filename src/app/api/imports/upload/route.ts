@@ -52,25 +52,8 @@ export async function POST(request: Request) {
 
     const warningsJson = [...matched.detection.warnings, ...parsed.warnings] as unknown as Prisma.InputJsonValue;
 
-    const createdImport = await prisma.import.upsert({
-      where: {
-        accountId_filename: {
-          accountId: account.id,
-          filename: file.name,
-        },
-      },
-      update: {
-        broker,
-        status: "UPLOADED",
-        parsedRows: 0,
-        persistedRows: 0,
-        skippedRows: 0,
-        skippedDuplicateRows: 0,
-        failedRows: 0,
-        warnings: warningsJson,
-        sourceFileText: csvText,
-      },
-      create: {
+    const createdImport = await prisma.import.create({
+      data: {
         filename: file.name,
         broker,
         status: "UPLOADED",

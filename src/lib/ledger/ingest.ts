@@ -30,12 +30,18 @@ export interface LedgerIngestExecution {
 export interface BrokerTxHashInput {
   accountId: string;
   eventTimestamp: Date | string;
+  eventType: EventType | `${EventType}`;
+  assetClass: AssetClass | `${AssetClass}`;
+  instrumentKey: string | null;
+  dedupeDiscriminator?: string | null;
   symbol: string;
   side: Side | "BUY" | "SELL";
   quantity: number | string;
   rawPrice: string | null;
-  spreadGroupId: string | null;
-  sourceRowRef: string | null;
+  openingClosingEffect: OpeningClosingEffect | `${OpeningClosingEffect}` | null;
+  optionType: string | null;
+  strike: number | string | null;
+  expirationDate: Date | string | null;
 }
 
 export interface IngestExecutionsResult {
@@ -93,6 +99,31 @@ function normalizeSymbol(symbol: string): string {
   return normalized;
 }
 
+function normalizeToken(value: string | null | undefined): string {
+  return value?.trim().toUpperCase() ?? "";
+}
+
+function normalizeStrike(value: number | string | null): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return String(value).trim().toUpperCase();
+  }
+
+  return parsed.toString();
+}
+
+function normalizeExpirationDate(value: Date | string | null): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return new Date(value).toISOString();
+}
+
 function normalizeSide(side: string): "BUY" | "SELL" {
   const normalized = side.trim().toUpperCase();
   if (normalized !== "BUY" && normalized !== "SELL") {
@@ -121,12 +152,18 @@ export function computeBrokerTxId(input: BrokerTxHashInput): string {
   const canonicalFields = [
     input.accountId.trim(),
     new Date(input.eventTimestamp).toISOString(),
+    normalizeToken(input.eventType),
+    normalizeToken(input.assetClass),
+    normalizeToken(input.instrumentKey),
     normalizeSymbol(input.symbol),
     normalizeSide(input.side),
     normalizeQuantity(input.quantity),
     normalizePriceRaw(input.rawPrice),
-    input.spreadGroupId?.trim() ?? "",
-    input.sourceRowRef?.trim() ?? "",
+    normalizeToken(input.openingClosingEffect),
+    normalizeToken(input.optionType),
+    normalizeStrike(input.strike),
+    normalizeExpirationDate(input.expirationDate),
+    normalizeToken(input.dedupeDiscriminator),
   ];
 
   return createHash("sha256").update(canonicalFields.join("|")).digest("hex");
@@ -149,12 +186,17 @@ export async function ingestExecutions(
       const brokerTxId = computeBrokerTxId({
         accountId: execution.accountId,
         eventTimestamp: execution.eventTimestamp,
+        eventType: execution.eventType,
+        assetClass: execution.assetClass,
+        instrumentKey: execution.instrumentKey,
         symbol: execution.symbol,
         side: execution.side,
         quantity: execution.quantity,
         rawPrice: resolveRawPriceFromExecution(execution),
-        spreadGroupId: execution.spreadGroupId,
-        sourceRowRef: execution.sourceRowRef,
+        openingClosingEffect: execution.openingClosingEffect,
+        optionType: execution.optionType,
+        strike: execution.strike,
+        expirationDate: execution.expirationDate,
       });
 
       const existing = await tx.execution.findFirst({
@@ -166,13 +208,6 @@ export async function ingestExecutions(
       });
 
       if (existing) {
-        await tx.execution.update({
-          where: { id: existing.id },
-          data: {
-            importId: execution.importId,
-            rawRowJson: toPrismaRawRowJson(execution.rawRowJson),
-          },
-        });
         result.skipped_duplicate += 1;
         continue;
       }
@@ -206,6 +241,11 @@ export async function ingestExecutions(
       });
       result.inserted += 1;
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        result.skipped_duplicate += 1;
+        continue;
+      }
+
       result.failed += 1;
       result.failures.push(error instanceof Error ? error.message : "Unknown ingest failure");
     }

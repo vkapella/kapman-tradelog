@@ -5,8 +5,8 @@ import { parseCashBalanceSnapshots } from "../src/lib/adapters/thinkorswim/cash-
 import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
 import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
+import { replaceImportExecutions } from "../src/lib/imports/replace-import-executions";
 import { deriveInstrumentKeyFromNormalizedExecution } from "../src/lib/ledger/instrument-key";
-import { ingestExecutions } from "../src/lib/ledger/ingest";
 import { rebuildAccountLedger } from "../src/lib/ledger/rebuild-account-ledger";
 
 const prisma = new PrismaClient();
@@ -38,25 +38,25 @@ async function main() {
     });
 
     const filename = fixturePath.split("/").pop() ?? fixturePath;
-    const seededImport = await prisma.import.upsert({
+    const existingSeedImports = await prisma.import.findMany({
       where: {
-        accountId_filename: {
-          accountId: account.id,
-          filename,
+        accountId: account.id,
+        filename,
+      },
+      select: { id: true },
+    });
+    if (existingSeedImports.length > 0) {
+      await prisma.import.deleteMany({
+        where: {
+          id: {
+            in: existingSeedImports.map((row) => row.id),
+          },
         },
-      },
-      update: {
-        broker: metadata.broker,
-        status: "COMMITTED",
-        parsedRows: 0,
-        persistedRows: 0,
-        skippedRows: parsedTradeHistory.skippedRows,
-        skippedDuplicateRows: 0,
-        failedRows: 0,
-        sourceFileText: csvText,
-        warnings: parsedTradeHistory.warnings as unknown as Prisma.InputJsonValue,
-      },
-      create: {
+      });
+    }
+
+    const seededImport = await prisma.import.create({
+      data: {
         filename,
         broker: metadata.broker,
         status: "COMMITTED",
@@ -95,8 +95,9 @@ async function main() {
     }
 
     await prisma.$transaction(async (tx) => {
-      const ingestResult = await ingestExecutions(
+      const ingestResult = await replaceImportExecutions(
         tx,
+        seededImport.id,
         parsedTradeHistory.executions.map((execution) => ({
           importId: seededImport.id,
           accountId: account.id,

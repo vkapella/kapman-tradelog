@@ -35,6 +35,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<UploadImportResponse | null>(null);
   const [commitResult, setCommitResult] = useState<CommitImportResponse | null>(null);
+  const [committing, setCommitting] = useState(false);
   const [history, setHistory] = useState<ImportRecord[]>([]);
   const [historyMeta, setHistoryMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [historyPage, setHistoryPage] = useState(1);
@@ -43,7 +44,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [error, setError] = useState<string | null>(null);
   const [accountFilter, setAccountFilter] = useState("");
 
-  const canCommit = Boolean(uploadResult && !uploading);
+  const canCommit = Boolean(uploadResult && !uploading && !committing && !commitResult);
 
   const loadHistory = useCallback(async (accountId = "", page = historyPage) => {
     setHistoryLoading(true);
@@ -133,19 +134,24 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     }
 
     setError(null);
+    setCommitting(true);
 
-    const response = await fetch(`/api/imports/${uploadResult.importId}/commit`, {
-      method: "POST",
-    });
+    try {
+      const response = await fetch(`/api/imports/${uploadResult.importId}/commit`, {
+        method: "POST",
+      });
 
-    if (!response.ok) {
-      setError("Commit failed. Import remains recoverable and can be retried.");
-      return;
+      if (!response.ok) {
+        setError("Commit failed. Import remains recoverable and can be retried.");
+        return;
+      }
+
+      const payload = (await response.json()) as CommitPayload;
+      setCommitResult(payload.data);
+      await loadHistory(accountFilter);
+    } finally {
+      setCommitting(false);
     }
-
-    const payload = (await response.json()) as CommitPayload;
-    setCommitResult(payload.data);
-    await loadHistory(accountFilter);
   }
 
   const commitSummary = useMemo(() => {
@@ -259,7 +265,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                   disabled={!canCommit}
                   className="rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-4 py-2 text-sm text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Commit Import
+                  {committing ? "Committing..." : commitResult ? "Committed" : "Commit Import"}
                 </button>
                 {commitSummary && <p className="text-xs text-slate-200">{commitSummary}</p>}
               </div>
