@@ -39,6 +39,18 @@ function isOptionQuoteUnavailable(payload: OptionQuoteResponse): payload is { er
   return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
 }
 
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    return (await response.json()) as T;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export default function Page() {
   const { positions, loading, error } = useOpenPositions();
   const { selectedAccounts } = useAccountFilterContext();
@@ -82,6 +94,7 @@ export default function Page() {
       try {
         const nextMap: Record<string, number | null> = {};
         let unavailable = false;
+        const timeoutMs = 8_000;
         const forceRefreshParam = refreshCounter > 0 ? "&refresh=1" : "";
 
         const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
@@ -89,8 +102,10 @@ export default function Page() {
 
         if (equityPositions.length > 0) {
           const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-          const equityResponse = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbols)}${forceRefreshParam}`, { cache: "no-store" });
-          const equityPayload = (await equityResponse.json()) as QuotesResponse;
+          const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(
+            `/api/quotes?symbols=${encodeURIComponent(symbols)}${forceRefreshParam}`,
+            timeoutMs,
+          );
 
           if (isQuoteUnavailable(equityPayload)) {
             unavailable = true;
@@ -103,39 +118,47 @@ export default function Page() {
           }
         }
 
-        if (!unavailable && optionPositions.length > 0) {
+        if (optionPositions.length > 0) {
           const optionResults = await Promise.all(
             optionPositions.map(async (position) => {
+              const key = positionKey(position);
               const expDate = position.expirationDate?.slice(0, 10);
               if (!position.optionType || !position.strike || !expDate) {
                 return {
-                  key: positionKey(position),
+                  key,
                   mark: null,
                   unavailable: true,
                 };
               }
 
-              const response = await fetch(
-                `/api/option-quote?symbol=${encodeURIComponent(position.underlyingSymbol)}&strike=${encodeURIComponent(
-                  position.strike,
-                )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}${forceRefreshParam}`,
-                { cache: "no-store" },
-              );
+              try {
+                const payload = await fetchJsonWithTimeout<OptionQuoteResponse>(
+                  `/api/option-quote?symbol=${encodeURIComponent(position.underlyingSymbol)}&strike=${encodeURIComponent(
+                    position.strike,
+                  )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}${forceRefreshParam}`,
+                  timeoutMs,
+                );
 
-              const payload = (await response.json()) as OptionQuoteResponse;
-              if (isOptionQuoteUnavailable(payload)) {
+                if (isOptionQuoteUnavailable(payload)) {
+                  return {
+                    key,
+                    mark: null,
+                    unavailable: true,
+                  };
+                }
+
                 return {
-                  key: positionKey(position),
+                  key,
+                  mark: payload.mark,
+                  unavailable: false,
+                };
+              } catch {
+                return {
+                  key,
                   mark: null,
                   unavailable: true,
                 };
               }
-
-              return {
-                key: positionKey(position),
-                mark: payload.mark,
-                unavailable: false,
-              };
             }),
           );
 
@@ -148,9 +171,10 @@ export default function Page() {
         }
 
         if (!cancelled) {
+          const hasAnyLiveMarks = Object.values(nextMap).some((mark) => mark !== null);
           setMarkMap(nextMap);
-          setQuoteUnavailable(unavailable);
-          setLastQuoted(unavailable ? null : new Date());
+          setQuoteUnavailable(unavailable || !hasAnyLiveMarks);
+          setLastQuoted(hasAnyLiveMarks ? new Date() : null);
         }
       } catch {
         if (!cancelled) {
