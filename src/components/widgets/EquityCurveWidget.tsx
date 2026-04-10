@@ -12,7 +12,7 @@ interface OverviewPayload {
 }
 
 export function EquityCurveWidget() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const { isSelectedAccount } = useAccountFilterContext();
   const [viewMode, setViewMode] = useState<"combined" | "accounts">("combined");
   const [data, setData] = useState<OverviewSummaryResponse["snapshotSeries"]>([]);
 
@@ -39,14 +39,14 @@ export function EquityCurveWidget() {
   }, []);
 
   const accounts = useMemo(() => {
-    return Array.from(new Set(data.map((point) => point.accountId).filter((accountId) => selectedAccounts.includes(accountId)))).sort();
-  }, [data, selectedAccounts]);
+    return Array.from(new Set(data.map((point) => point.accountId).filter((accountId) => isSelectedAccount(accountId)))).sort();
+  }, [data, isSelectedAccount]);
 
   const chartRows = useMemo(() => {
     const rowsByDate = new Map<string, Record<string, number | string>>();
 
     for (const point of data) {
-      if (!selectedAccounts.includes(point.accountId)) {
+      if (!isSelectedAccount(point.accountId)) {
         continue;
       }
 
@@ -59,7 +59,7 @@ export function EquityCurveWidget() {
     }
 
     return Array.from(rowsByDate.values()).sort((left, right) => String(left.date).localeCompare(String(right.date)));
-  }, [data, selectedAccounts]);
+  }, [data, isSelectedAccount]);
 
   return (
     <WidgetCard
