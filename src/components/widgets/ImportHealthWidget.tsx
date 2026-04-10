@@ -11,7 +11,7 @@ interface ImportsPayload {
 }
 
 export function ImportHealthWidget() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const { isSelectedAccount } = useAccountFilterContext();
   const [rows, setRows] = useState<ImportRecord[]>([]);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function ImportHealthWidget() {
   }, []);
 
   const summary = useMemo(() => {
-    const filtered = rows.filter((row) => selectedAccounts.includes(row.accountId));
+    const filtered = rows.filter((row) => isSelectedAccount(row.accountId));
     const committed = filtered.filter((row) => row.status === "COMMITTED").length;
     const failed = filtered.filter((row) => row.status === "FAILED").length;
     const parsedRows = filtered.reduce((sum, row) => sum + row.parsedRows, 0);
@@ -50,7 +50,7 @@ export function ImportHealthWidget() {
       parsedRows,
       skippedRows,
     };
-  }, [rows, selectedAccounts]);
+  }, [rows, isSelectedAccount]);
 
   const healthy = summary.failedImports === 0 && summary.skippedRows === 0;
 

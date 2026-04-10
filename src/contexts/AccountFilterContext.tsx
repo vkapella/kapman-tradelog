@@ -25,6 +25,8 @@ interface AccountFilterContextValue {
   availableAccounts: string[];
   selectedAccounts: string[];
   setSelectedAccounts: (ids: string[]) => void;
+  isSelectedAccount: (accountId: string) => boolean;
+  toExternalAccountId: (accountId: string) => string;
 }
 
 const AccountFilterContext = createContext<AccountFilterContextValue | null>(null);
@@ -36,34 +38,52 @@ function uniqueSorted(values: string[]): string[] {
 export function AccountFilterContextProvider({ children }: { children: React.ReactNode }) {
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [selectedAccounts, setSelectedAccountsState] = useState<string[]>([]);
+  const [externalByInternal, setExternalByInternal] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAccounts() {
       try {
-        const executionResponse = await fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" });
+        const [executionResponse, importResponse] = await Promise.all([
+          fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" }),
+          fetch("/api/imports?page=1&pageSize=1000", { cache: "no-store" }),
+        ]);
         let accountIds: string[] = [];
+        let executionRows: ExecutionRecord[] = [];
+        let importRows: ImportRecord[] = [];
 
         if (executionResponse.ok) {
           const payload = (await executionResponse.json()) as ExecutionListPayload;
-          accountIds = payload.data.map((row) => row.accountId);
+          executionRows = payload.data;
+          accountIds = executionRows.map((row) => row.accountId);
+        }
+
+        if (importResponse.ok) {
+          const payload = (await importResponse.json()) as ImportListPayload;
+          importRows = payload.data;
         }
 
         // Fallback to imports so the selector still hydrates before executions exist.
         if (accountIds.length === 0) {
-          const importResponse = await fetch("/api/imports?page=1&pageSize=1000", { cache: "no-store" });
-          if (importResponse.ok) {
-            const payload = (await importResponse.json()) as ImportListPayload;
-            accountIds = payload.data.map((row) => row.accountId);
-          }
+          accountIds = importRows.map((row) => row.accountId);
         }
 
         if (cancelled) {
           return;
         }
 
+        const externalByInternalNext: Record<string, string> = {};
+        const importById = new Map(importRows.map((row) => [row.id, row.accountId]));
+        for (const executionRow of executionRows) {
+          const externalAccountId = importById.get(executionRow.importId);
+          if (externalAccountId) {
+            externalByInternalNext[executionRow.accountId] = externalAccountId;
+          }
+        }
+
         const uniqueAccounts = uniqueSorted(accountIds);
+        setExternalByInternal(externalByInternalNext);
         setAvailableAccounts(uniqueAccounts);
         setSelectedAccountsState((current) => {
           if (current.length === 0) {
@@ -75,6 +95,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         });
       } catch {
         if (!cancelled) {
+          setExternalByInternal({});
           setAvailableAccounts([]);
           setSelectedAccountsState([]);
         }
@@ -89,6 +110,9 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   }, []);
 
   const value = useMemo<AccountFilterContextValue>(() => {
+    const selectedSet = new Set(selectedAccounts);
+    const selectedExternalSet = new Set(selectedAccounts.map((accountId) => externalByInternal[accountId] ?? accountId));
+
     return {
       availableAccounts,
       selectedAccounts,
@@ -97,8 +121,17 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         const valid = unique.filter((accountId) => availableAccounts.includes(accountId));
         setSelectedAccountsState(valid.length === 0 ? availableAccounts : valid);
       },
+      toExternalAccountId: (accountId: string) => externalByInternal[accountId] ?? accountId,
+      isSelectedAccount: (accountId: string) => {
+        if (selectedSet.has(accountId) || selectedExternalSet.has(accountId)) {
+          return true;
+        }
+
+        const externalAccountId = externalByInternal[accountId];
+        return externalAccountId ? selectedExternalSet.has(externalAccountId) : false;
+      },
     };
-  }, [availableAccounts, selectedAccounts]);
+  }, [availableAccounts, selectedAccounts, externalByInternal]);
 
   return <AccountFilterContext.Provider value={value}>{children}</AccountFilterContext.Provider>;
 }

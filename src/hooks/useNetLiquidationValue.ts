@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
 import type {
   NlvResult,
@@ -20,6 +21,7 @@ function isUnavailable(value: unknown): value is QuoteUnavailableResponse {
 }
 
 export function useNetLiquidationValue(accountId: string): NlvResult {
+  const { toExternalAccountId } = useAccountFilterContext();
   const { positions, loading: positionsLoading } = useOpenPositions();
 
   const [nlv, setNlv] = useState<number | null>(null);
@@ -28,6 +30,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
   const [loading, setLoading] = useState(true);
 
   const accountPositions = useMemo(() => positions.filter((position) => position.accountId === accountId), [accountId, positions]);
+  const externalAccountId = useMemo(() => toExternalAccountId(accountId), [accountId, toExternalAccountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +51,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
 
         const summaryPayload = (await summaryResponse.json()) as OverviewPayload;
         const latestSnapshot = [...summaryPayload.data.snapshotSeries]
-          .filter((snapshot) => snapshot.accountId === accountId)
+          .filter((snapshot) => snapshot.accountId === externalAccountId)
           .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime())[0];
 
         const latestCash = Number(latestSnapshot?.balance ?? 0);
@@ -156,7 +159,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
     return () => {
       cancelled = true;
     };
-  }, [accountId, accountPositions, positionsLoading]);
+  }, [accountId, accountPositions, externalAccountId, positionsLoading]);
 
   return {
     nlv,

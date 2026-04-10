@@ -6,7 +6,7 @@ import { useNetLiquidationValue } from "@/hooks/useNetLiquidationValue";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCurrency } from "@/components/widgets/utils";
 
-function AccountBalanceRow({ accountId, refreshSeed }: { accountId: string; refreshSeed: number }) {
+function AccountBalanceRow({ accountId, displayAccountId, refreshSeed }: { accountId: string; displayAccountId: string; refreshSeed: number }) {
   void refreshSeed;
   const { nlv, cash, lastUpdated, loading } = useNetLiquidationValue(accountId);
 
@@ -16,7 +16,7 @@ function AccountBalanceRow({ accountId, refreshSeed }: { accountId: string; refr
   return (
     <div className="rounded-lg border border-border bg-panel-2 p-3">
       <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-text">{accountId}</p>
+        <p className="font-mono text-xs text-text">{displayAccountId}</p>
         <p className="text-[11px] text-muted">{loading ? "Updating..." : lastUpdated ? lastUpdated.toLocaleTimeString() : "Quotes unavailable"}</p>
       </div>
       <p className="mt-1 text-xs text-muted">Cash: {formatCurrency(cash)}</p>
@@ -29,7 +29,7 @@ function AccountBalanceRow({ accountId, refreshSeed }: { accountId: string; refr
 }
 
 export function AccountBalancesWidget() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, toExternalAccountId } = useAccountFilterContext();
   const [refreshSeed, setRefreshSeed] = useState(0);
 
   const action = useMemo(
@@ -50,7 +50,12 @@ export function AccountBalancesWidget() {
       <div className="space-y-2">
         {selectedAccounts.length === 0 ? <p className="text-xs text-muted">No accounts selected.</p> : null}
         {selectedAccounts.map((accountId) => (
-          <AccountBalanceRow key={`${accountId}-${refreshSeed}`} accountId={accountId} refreshSeed={refreshSeed} />
+          <AccountBalanceRow
+            key={`${accountId}-${refreshSeed}`}
+            accountId={accountId}
+            displayAccountId={toExternalAccountId(accountId)}
+            refreshSeed={refreshSeed}
+          />
         ))}
       </div>
     </WidgetCard>
