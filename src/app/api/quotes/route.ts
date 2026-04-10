@@ -32,8 +32,8 @@ export async function GET(request: Request) {
 
   const cacheKey = symbols.join(",");
   const now = Date.now();
+  const cached = quoteCache.get(cacheKey);
   if (!forceRefresh) {
-    const cached = quoteCache.get(cacheKey);
     if (cached && cached.expiresAtMs > now) {
       return NextResponse.json(cached.value);
     }
@@ -42,8 +42,11 @@ export async function GET(request: Request) {
   try {
     const responsePayload = await getEquityQuotes(symbols);
     if (responsePayload === null) {
-      const payload = unavailable();
-      return NextResponse.json(payload);
+      if (cached) {
+        return NextResponse.json(cached.value);
+      }
+
+      return NextResponse.json(unavailable());
     }
 
     quoteCache.set(cacheKey, {
@@ -53,6 +56,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(responsePayload);
   } catch {
+    if (cached) {
+      return NextResponse.json(cached.value);
+    }
+
     return NextResponse.json(unavailable());
   }
 }

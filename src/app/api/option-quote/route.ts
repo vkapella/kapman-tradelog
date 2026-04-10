@@ -28,8 +28,8 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const cacheKey = [symbol, String(strike), expDate, contractType].join("|");
+  const cached = optionQuoteCache.get(cacheKey);
   if (!forceRefresh) {
-    const cached = optionQuoteCache.get(cacheKey);
     if (cached && cached.expiresAtMs > now) {
       return NextResponse.json(cached.value);
     }
@@ -38,6 +38,10 @@ export async function GET(request: Request) {
   try {
     const responsePayload = await getOptionQuote(symbol, strike, expDate, contractType);
     if (responsePayload === null) {
+      if (cached) {
+        return NextResponse.json(cached.value);
+      }
+
       return NextResponse.json(unavailable());
     }
 
@@ -48,6 +52,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(responsePayload);
   } catch {
+    if (cached) {
+      return NextResponse.json(cached.value);
+    }
+
     return NextResponse.json(unavailable());
   }
 }
