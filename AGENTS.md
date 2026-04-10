@@ -66,7 +66,7 @@ Primary local workflow:
 4. Ensure fixture data is seeded automatically in development
 
 App target:
-- `http://localhost:3000`
+- `http://localhost:3002` (host mapping for Docker compose app service; container still serves on port 3000)
 
 ## Build order
 Implement in this order unless an existing repo state clearly requires a smaller targeted fix:
@@ -247,7 +247,7 @@ Before considering work complete, run the most relevant available checks, includ
 Work is not complete unless all of the following are true:
 
 - `docker compose up` starts app and database successfully
-- app is reachable at `http://localhost:3000`
+- app is reachable at `http://localhost:3002`
 - Prisma migrations run successfully
 - development fixture data is seeded automatically
 - parser tests pass against `/fixtures/`
