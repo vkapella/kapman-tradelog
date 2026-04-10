@@ -69,9 +69,17 @@ export async function callMcpTool<Result>(name: string, args: Record<string, unk
     throw new McpUnavailableError("MCP tool call failed.", { cause: error });
   } finally {
     if (client) {
-      await client.close().catch(() => undefined);
+      try {
+        await client.close();
+      } catch {
+        // Ignore cleanup errors.
+      }
     } else if (transport) {
-      await transport.close().catch(() => undefined);
+      try {
+        await transport.close();
+      } catch {
+        // Ignore cleanup errors.
+      }
     }
   }
 }
