@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   const strikeRaw = (url.searchParams.get("strike") ?? "").trim();
   const expDate = (url.searchParams.get("expDate") ?? "").trim();
   const contractType = (url.searchParams.get("contractType") ?? "").trim().toUpperCase();
+  const forceRefresh = url.searchParams.get("refresh") === "1";
   const strike = Number(strikeRaw);
 
   if (!symbol || !expDate || !Number.isFinite(strike) || (contractType !== "CALL" && contractType !== "PUT")) {
@@ -27,9 +28,11 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const cacheKey = [symbol, String(strike), expDate, contractType].join("|");
-  const cached = optionQuoteCache.get(cacheKey);
-  if (cached && cached.expiresAtMs > now) {
-    return NextResponse.json(cached.value);
+  if (!forceRefresh) {
+    const cached = optionQuoteCache.get(cacheKey);
+    if (cached && cached.expiresAtMs > now) {
+      return NextResponse.json(cached.value);
+    }
   }
 
   try {
