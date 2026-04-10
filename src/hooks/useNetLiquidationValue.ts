@@ -26,6 +26,8 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
 
   const [nlv, setNlv] = useState<number | null>(null);
   const [cash, setCash] = useState(0);
+  const [cashAsOf, setCashAsOf] = useState<Date | null>(null);
+  const [marksAsOf, setMarksAsOf] = useState<Date | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,8 +60,10 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
         const latestStatementSnapshot = accountSnapshots.find((snapshot) => snapshot.totalCash !== null);
 
         const latestCash = Number(latestStatementSnapshot?.totalCash ?? latestSnapshot?.balance ?? 0);
+        const latestCashAsOfIso = latestStatementSnapshot?.snapshotDate ?? latestSnapshot?.snapshotDate ?? null;
         if (!cancelled) {
           setCash(latestCash);
+          setCashAsOf(latestCashAsOfIso ? new Date(latestCashAsOfIso) : null);
         }
 
         const equityPositions = accountPositions.filter((position) => position.assetClass === "EQUITY");
@@ -140,17 +144,22 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
 
         if (quoteUnavailable) {
           setNlv(null);
+          setMarksAsOf(null);
           setLastUpdated(null);
           setLoading(false);
           return;
         }
 
+        const marksTimestamp = new Date();
         setNlv(latestCash + equityValue + optionValue);
-        setLastUpdated(new Date());
+        setMarksAsOf(marksTimestamp);
+        setLastUpdated(marksTimestamp);
         setLoading(false);
       } catch {
         if (!cancelled) {
           setNlv(null);
+          setCashAsOf(null);
+          setMarksAsOf(null);
           setLastUpdated(null);
           setLoading(false);
         }
@@ -167,6 +176,8 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
   return {
     nlv,
     cash,
+    cashAsOf,
+    marksAsOf,
     lastUpdated,
     loading,
   };
