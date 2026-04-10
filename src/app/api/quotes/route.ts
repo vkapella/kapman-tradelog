@@ -16,6 +16,7 @@ function unavailable(): QuoteUnavailableResponse {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const symbolsRaw = url.searchParams.get("symbols") ?? "";
+  const forceRefresh = url.searchParams.get("refresh") === "1";
   const symbols = Array.from(
     new Set(
       symbolsRaw
@@ -31,9 +32,11 @@ export async function GET(request: Request) {
 
   const cacheKey = symbols.join(",");
   const now = Date.now();
-  const cached = quoteCache.get(cacheKey);
-  if (cached && cached.expiresAtMs > now) {
-    return NextResponse.json(cached.value);
+  if (!forceRefresh) {
+    const cached = quoteCache.get(cacheKey);
+    if (cached && cached.expiresAtMs > now) {
+      return NextResponse.json(cached.value);
+    }
   }
 
   try {

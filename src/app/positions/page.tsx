@@ -82,13 +82,14 @@ export default function Page() {
       try {
         const nextMap: Record<string, number | null> = {};
         let unavailable = false;
+        const forceRefreshParam = refreshCounter > 0 ? "&refresh=1" : "";
 
         const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
         const optionPositions = filteredPositions.filter((position) => position.assetClass === "OPTION");
 
         if (equityPositions.length > 0) {
           const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-          const equityResponse = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
+          const equityResponse = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbols)}${forceRefreshParam}`, { cache: "no-store" });
           const equityPayload = (await equityResponse.json()) as QuotesResponse;
 
           if (isQuoteUnavailable(equityPayload)) {
@@ -117,7 +118,7 @@ export default function Page() {
               const response = await fetch(
                 `/api/option-quote?symbol=${encodeURIComponent(position.underlyingSymbol)}&strike=${encodeURIComponent(
                   position.strike,
-                )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}`,
+                )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}${forceRefreshParam}`,
                 { cache: "no-store" },
               );
 
