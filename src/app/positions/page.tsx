@@ -95,15 +95,21 @@ export default function Page() {
         const nextMap: Record<string, number | null> = {};
         let unavailable = false;
         const timeoutMs = 8_000;
-        const forceRefreshParam = refreshCounter > 0 ? "&refresh=1" : "";
+        const shouldForceRefresh = refreshCounter > 0;
+        const refreshNonce = String(refreshCounter);
 
         const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
         const optionPositions = filteredPositions.filter((position) => position.assetClass === "OPTION");
 
         if (equityPositions.length > 0) {
           const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
+          const quoteParams = new URLSearchParams({ symbols });
+          if (shouldForceRefresh) {
+            quoteParams.set("refresh", "1");
+            quoteParams.set("nonce", refreshNonce);
+          }
           const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(
-            `/api/quotes?symbols=${encodeURIComponent(symbols)}${forceRefreshParam}`,
+            `/api/quotes?${quoteParams.toString()}`,
             timeoutMs,
           );
 
@@ -133,9 +139,13 @@ export default function Page() {
 
               try {
                 const payload = await fetchJsonWithTimeout<OptionQuoteResponse>(
-                  `/api/option-quote?symbol=${encodeURIComponent(position.underlyingSymbol)}&strike=${encodeURIComponent(
-                    position.strike,
-                  )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}${forceRefreshParam}`,
+                  `/api/option-quote?${new URLSearchParams({
+                    symbol: position.underlyingSymbol,
+                    strike: position.strike,
+                    expDate,
+                    contractType: position.optionType,
+                    ...(shouldForceRefresh ? { refresh: "1", nonce: refreshNonce } : {}),
+                  }).toString()}`,
                   timeoutMs,
                 );
 
@@ -246,9 +256,10 @@ export default function Page() {
           <button
             type="button"
             onClick={() => setRefreshCounter((current) => current + 1)}
+            disabled={markLoading}
             className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text"
           >
-            Refresh Quotes
+            {markLoading ? "Refreshing..." : "Refresh Quotes"}
           </button>
           <button type="button" onClick={toggleShowAll} className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text">
             {showAll ? "Show pages" : `Show all ${total}`}
