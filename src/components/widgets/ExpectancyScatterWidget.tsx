@@ -71,15 +71,15 @@ export function ExpectancyScatterWidget() {
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart>
-            <XAxis dataKey="x" name="Average Hold" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-            <YAxis dataKey="y" name="Expectancy" tick={{ fill: "var(--muted)", fontSize: 10 }} />
+            <XAxis dataKey="x" name="Average Hold (days)" tick={{ fill: "var(--muted)", fontSize: 10 }} />
+            <YAxis dataKey="y" name="Expectancy ($ / lot)" tick={{ fill: "var(--muted)", fontSize: 10 }} />
             <ZAxis dataKey="z" range={[40, 260]} />
             <Tooltip
               cursor={{ strokeDasharray: "3 3" }}
               contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }}
               formatter={(_value, _name, item) => {
                 const row = item.payload.row as SetupSummaryRecord;
-                return [formatCurrency(safeNumber(row.realizedPnl)), row.overrideTag ?? row.tag];
+                return [`${formatCurrency(safeNumber(row.expectancy))} / lot`, `Expectancy · ${row.overrideTag ?? row.tag}`];
               }}
             />
             {Array.from(grouped.entries()).map(([tag, points]) => (

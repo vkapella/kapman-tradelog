@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
 
 interface SetupsPayload {
@@ -61,6 +62,7 @@ export function SetupsAnalyticsPanel() {
   const searchParams = useSearchParams();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
+  const [summaryRows, setSummaryRows] = useState<SetupSummaryRecord[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [page, setPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
@@ -136,6 +138,32 @@ export function SetupsAnalyticsPanel() {
   }, [appliedFilters, page, showAll]);
 
   useEffect(() => {
+    async function loadSummaryRows() {
+      const query = new URLSearchParams({
+        page: "1",
+        pageSize: "1000",
+      });
+
+      if (appliedFilters.account.trim()) {
+        query.set("account", appliedFilters.account.trim());
+      }
+      if (appliedFilters.tag.trim()) {
+        query.set("tag", appliedFilters.tag.trim());
+      }
+
+      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as SetupsPayload;
+      setSummaryRows(payload.data);
+    }
+
+    void loadSummaryRows();
+  }, [appliedFilters]);
+
+  useEffect(() => {
     async function loadSetupDetail() {
       if (!selectedSetupId) {
         setDetail(null);
@@ -173,27 +201,35 @@ export function SetupsAnalyticsPanel() {
   }, [imports]);
 
   const summary = useMemo(() => {
-    if (rows.length === 0) {
+    if (summaryRows.length === 0) {
       return {
-        totalPnl: "0.00",
-        averageWinRate: "0.00",
-        averageExpectancy: "0.00",
-        averageHoldDays: "0.00",
+        totalPnl: 0,
+        averageWinRate: null as number | null,
+        averageExpectancy: 0,
+        averageHoldDays: 0,
       };
     }
 
-    const totalPnl = rows.reduce((sum, row) => sum + Number(row.realizedPnl ?? 0), 0);
-    const averageWinRate = rows.reduce((sum, row) => sum + Number(row.winRate ?? 0), 0) / rows.length;
-    const averageExpectancy = rows.reduce((sum, row) => sum + Number(row.expectancy ?? 0), 0) / rows.length;
-    const averageHoldDays = rows.reduce((sum, row) => sum + Number(row.averageHoldDays ?? 0), 0) / rows.length;
+    const totalPnl = summaryRows.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);
+
+    const winRates = summaryRows
+      .map((row) => (row.winRate === null ? null : safeNumber(row.winRate)))
+      .filter((value): value is number => value !== null);
+    const averageWinRateRatio = winRates.length > 0 ? winRates.reduce((sum, value) => sum + value, 0) / winRates.length : null;
+
+    const expectancies = summaryRows.map((row) => safeNumber(row.expectancy));
+    const averageExpectancy = expectancies.length > 0 ? expectancies.reduce((sum, value) => sum + value, 0) / expectancies.length : 0;
+
+    const holdDays = summaryRows.map((row) => safeNumber(row.averageHoldDays));
+    const averageHoldDays = holdDays.length > 0 ? holdDays.reduce((sum, value) => sum + value, 0) / holdDays.length : 0;
 
     return {
-      totalPnl: totalPnl.toFixed(2),
-      averageWinRate: averageWinRate.toFixed(2),
-      averageExpectancy: averageExpectancy.toFixed(2),
-      averageHoldDays: averageHoldDays.toFixed(2),
+      totalPnl,
+      averageWinRate: averageWinRateRatio === null ? null : averageWinRateRatio * 100,
+      averageExpectancy,
+      averageHoldDays,
     };
-  }, [rows]);
+  }, [summaryRows]);
 
   const hasRows = rows.length > 0;
   const canGoBack = meta.page > 1;
@@ -230,20 +266,24 @@ export function SetupsAnalyticsPanel() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400">Performance Summary</p>
-          <p className={`text-lg font-semibold ${Number(summary.totalPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>{summary.totalPnl}</p>
+          <p className="text-xs text-slate-400">Performance Summary ($)</p>
+          <p className={`text-lg font-semibold ${summary.totalPnl >= 0 ? "text-emerald-300" : "text-red-300"}`}>{formatCurrency(summary.totalPnl)}</p>
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400">Win Rate</p>
-          <p className="text-lg font-semibold text-slate-100">{summary.averageWinRate}</p>
+          <p className="text-xs text-slate-400" title="Percent of closed lots with positive outcome. Flat lots excluded.">
+            Win Rate (%)
+          </p>
+          <p className="text-lg font-semibold text-slate-100">{formatNullablePercent(summary.averageWinRate, 1)}</p>
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400">Expectancy</p>
-          <p className="text-lg font-semibold text-slate-100">{summary.averageExpectancy}</p>
+          <p className="text-xs text-slate-400" title="Average realized P&L per matched lot in this setup.">
+            Expectancy ($ / lot)
+          </p>
+          <p className="text-lg font-semibold text-slate-100">{formatCurrency(summary.averageExpectancy)} / lot</p>
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
           <p className="text-xs text-slate-400">Average Hold (Days)</p>
-          <p className="text-lg font-semibold text-slate-100">{summary.averageHoldDays}</p>
+          <p className="text-lg font-semibold text-slate-100">{summary.averageHoldDays.toFixed(2)}</p>
         </div>
       </div>
 
@@ -319,9 +359,16 @@ export function SetupsAnalyticsPanel() {
                 <tr>
                   <th className="px-2 py-2 text-left">Tag</th>
                   <th className="px-2 py-2 text-left">Underlying</th>
-                  <th className="px-2 py-2 text-right">Realized P&L</th>
-                  <th className="px-2 py-2 text-right">Win Rate</th>
-                  <th className="px-2 py-2 text-right">Expectancy</th>
+                  <th className="px-2 py-2 text-right">Realized P&L ($)</th>
+                  <th
+                    className="px-2 py-2 text-right"
+                    title="Percent of closed lots with positive outcome. Flat lots excluded."
+                  >
+                    Win Rate (%)
+                  </th>
+                  <th className="px-2 py-2 text-right" title="Average realized P&L per matched lot in this setup.">
+                    Expectancy ($ / lot)
+                  </th>
                   <th className="px-2 py-2 text-right">Avg Hold</th>
                   <th className="px-2 py-2 text-left">Detail</th>
                 </tr>
@@ -331,12 +378,12 @@ export function SetupsAnalyticsPanel() {
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
                     <td className="px-2 py-2">{row.underlyingSymbol}</td>
-                    <td className={`px-2 py-2 text-right ${Number(row.realizedPnl ?? 0) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                      {row.realizedPnl ?? "0.00"}
+                    <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                      {formatCurrency(safeNumber(row.realizedPnl))}
                     </td>
-                    <td className="px-2 py-2 text-right">{row.winRate ?? "0.00"}</td>
-                    <td className="px-2 py-2 text-right">{row.expectancy ?? "0.00"}</td>
-                    <td className="px-2 py-2 text-right">{row.averageHoldDays ?? "0.00"}</td>
+                    <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
+                    <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
+                    <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
                     <td className="px-2 py-2">
                       <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
                         View detail
@@ -411,7 +458,7 @@ export function SetupsAnalyticsPanel() {
                     <tr>
                       <th className="px-2 py-2 text-left">Symbol</th>
                       <th className="px-2 py-2 text-right">Qty</th>
-                      <th className="px-2 py-2 text-right">Realized P&L</th>
+                      <th className="px-2 py-2 text-right">Realized P&L ($)</th>
                       <th className="px-2 py-2 text-right">Hold Days</th>
                       <th className="px-2 py-2 text-left">Outcome</th>
                       <th className="px-2 py-2 text-left">Open Execution</th>
@@ -423,8 +470,8 @@ export function SetupsAnalyticsPanel() {
                       <tr key={lot.id} className="border-t border-slate-800 text-slate-200">
                         <td className="px-2 py-2">{lot.symbol}</td>
                         <td className="px-2 py-2 text-right">{lot.quantity}</td>
-                        <td className={`px-2 py-2 text-right ${Number(lot.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                          {lot.realizedPnl}
+                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                          {formatCurrency(safeNumber(lot.realizedPnl))}
                         </td>
                         <td className="px-2 py-2 text-right">{lot.holdingDays}</td>
                         <td className="px-2 py-2">{lot.outcome}</td>
