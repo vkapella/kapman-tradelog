@@ -4,19 +4,17 @@ import { prisma } from "@/lib/db/prisma";
 import type { DiagnosticsResponse } from "@/types/api";
 
 export async function GET() {
-  const [imports, matchedCount, closeCandidateCount, syntheticExpirationCount, matchedLots] = await Promise.all([
+  const closeCandidateWhere = {
+    OR: [
+      { openingClosingEffect: "TO_CLOSE" as const },
+      { eventType: "ASSIGNMENT" as const },
+      { eventType: "EXERCISE" as const },
+      { eventType: "EXPIRATION_INFERRED" as const },
+    ],
+  };
+
+  const [imports, syntheticExpirationCount, matchedLots, closeCandidates] = await Promise.all([
     prisma.import.findMany({ select: { warnings: true, parsedRows: true, skippedRows: true } }),
-    prisma.matchedLot.count(),
-    prisma.execution.count({
-      where: {
-        OR: [
-          { openingClosingEffect: "TO_CLOSE" },
-          { eventType: "ASSIGNMENT" },
-          { eventType: "EXERCISE" },
-          { eventType: "EXPIRATION_INFERRED" },
-        ],
-      },
-    }),
     prisma.execution.count({ where: { eventType: "EXPIRATION_INFERRED" } }),
     prisma.matchedLot.findMany({
       include: {
@@ -24,6 +22,17 @@ export async function GET() {
         closeExecution: true,
       },
       orderBy: [{ openExecution: { tradeDate: "asc" } }, { id: "asc" }],
+    }),
+    prisma.execution.findMany({
+      where: closeCandidateWhere,
+      select: {
+        id: true,
+        symbol: true,
+        tradeDate: true,
+        quantity: true,
+        side: true,
+      },
+      orderBy: [{ tradeDate: "desc" }, { id: "desc" }],
     }),
   ]);
 
@@ -63,11 +72,42 @@ export async function GET() {
     openSpreadGroupId: lot.openExecution.spreadGroupId,
   }));
   const setupInference = inferSetupGroups(inferenceLots).diagnostics;
+  const matchedCount = matchedLots.length;
+  const closeCandidateCount = closeCandidates.length;
+  const matchedCloseExecutionIds = new Set(
+    matchedLots
+      .map((lot) => lot.closeExecutionId)
+      .filter((closeExecutionId): closeExecutionId is string => closeExecutionId !== null),
+  );
+
+  const unmatchedCloseExecutions = closeCandidates
+    .filter((execution) => !matchedCloseExecutionIds.has(execution.id))
+    .slice(0, 25)
+    .map((execution) => ({
+      id: execution.id,
+      symbol: execution.symbol,
+      tradeDate: execution.tradeDate.toISOString(),
+      qty: execution.quantity.toString(),
+      side: execution.side,
+    }));
+
+  const partialMatchCount = matchedLots.reduce((count, lot) => {
+    if (!lot.closeExecution) {
+      return count;
+    }
+
+    const openQty = Number(lot.openExecution.quantity);
+    const closeQty = Number(lot.closeExecution.quantity);
+    return openQty !== closeQty ? count + 1 : count;
+  }, 0);
 
   const payload: DiagnosticsResponse = {
     parseCoverage: totalRows === 0 ? 1 : parsedRows / totalRows,
     unsupportedRowCount: skippedRows,
-    matchingCoverage: closeCandidateCount === 0 ? 1 : Math.min(1, matchedCount / closeCandidateCount),
+    matchingCoverage: closeCandidateCount === 0 ? 1 : matchedCount / closeCandidateCount,
+    unmatchedCloseCount: Math.max(0, closeCandidateCount - matchedCount),
+    partialMatchCount,
+    unmatchedCloseExecutions,
     uncategorizedCount: setupInference.setupInferenceUncategorizedTotal,
     warningsCount,
     syntheticExpirationCount,
