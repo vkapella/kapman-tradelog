@@ -344,8 +344,13 @@ export function ExecutionsTablePanel() {
                     </button>
                   </th>
                   <th className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => toggleSort("price")} className="font-medium">
-                      Price
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("price")}
+                      className="font-medium"
+                      title="Execution price per share (equity) or per contract share (option). Multiply options by 100 for dollar value."
+                    >
+                      Unit Price
                     </button>
                   </th>
                   <th className="px-2 py-2 text-left">Event</th>

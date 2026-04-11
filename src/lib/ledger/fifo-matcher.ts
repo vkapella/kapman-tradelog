@@ -72,13 +72,14 @@ interface OpenLot {
 function computePnl(open: LedgerExecution, close: { side: "BUY" | "SELL"; price: number | null }, quantity: number): number {
   const openPrice = open.price ?? 0;
   const closePrice = close.price ?? 0;
+  const multiplier = open.assetClass === "OPTION" ? 100 : 1;
 
   if (open.side === "BUY" && close.side === "SELL") {
-    return (closePrice - openPrice) * quantity;
+    return (closePrice - openPrice) * quantity * multiplier;
   }
 
   if (open.side === "SELL" && close.side === "BUY") {
-    return (openPrice - closePrice) * quantity;
+    return (openPrice - closePrice) * quantity * multiplier;
   }
 
   return 0;

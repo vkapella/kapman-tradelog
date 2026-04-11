@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { formatNullablePercent } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
@@ -61,7 +62,7 @@ export function WinLossFlatWidget() {
     { name: "FLAT", value: counts.FLAT, color: "var(--muted)" },
   ];
 
-  const winRate = counts.WIN + counts.LOSS === 0 ? 0 : (counts.WIN / (counts.WIN + counts.LOSS)) * 100;
+  const winRate = counts.WIN + counts.LOSS === 0 ? null : (counts.WIN / (counts.WIN + counts.LOSS)) * 100;
 
   return (
     <WidgetCard title="Win / Loss / Flat">
@@ -79,7 +80,9 @@ export function WinLossFlatWidget() {
           </ResponsiveContainer>
         </div>
         <div className="space-y-1 text-xs text-muted">
-          <p className="text-base font-semibold text-text">Win rate: {winRate.toFixed(1)}%</p>
+          <p className="text-base font-semibold text-text" title="Percent of closed lots with positive outcome. Flat lots excluded.">
+            Win Rate (%): {formatNullablePercent(winRate, 1)}
+          </p>
           {chartData.map((entry) => (
             <p key={entry.name}>
               {entry.name}: {entry.value}

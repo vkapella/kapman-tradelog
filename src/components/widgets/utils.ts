@@ -15,3 +15,15 @@ export function safeNumber(value: string | number | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+export function formatPercent(value: number, digits = 1): string {
+  return `${value.toFixed(digits)}%`;
+}
+
+export function formatNullablePercent(value: number | null, digits = 1): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "N/A";
+  }
+
+  return formatPercent(value, digits);
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
@@ -319,7 +320,7 @@ export function MatchedLotsTablePanel() {
                   <th className="px-2 py-2 text-right">Qty</th>
                   <th className="px-2 py-2 text-right">
                     <button type="button" onClick={() => toggleSort("realizedPnl")} className="font-medium">
-                      Realized P&L
+                      Realized P&L ($)
                     </button>
                   </th>
                   <th className="px-2 py-2 text-right">
@@ -339,7 +340,7 @@ export function MatchedLotsTablePanel() {
                     <td className="px-2 py-2">{row.symbol}</td>
                     <td className="px-2 py-2 text-right">{row.quantity}</td>
                     <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                      {row.realizedPnl}
+                      {formatCurrency(safeNumber(row.realizedPnl))}
                     </td>
                     <td className="px-2 py-2 text-right">{row.holdingDays}</td>
                     <td className="px-2 py-2">

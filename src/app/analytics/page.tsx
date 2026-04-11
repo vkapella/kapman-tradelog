@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
-import { formatCurrency, safeNumber } from "@/components/widgets/utils";
+import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
 
 const SHOW_ALL_KEY = "kapman_table_setups_showAll";
@@ -139,7 +139,7 @@ export default function Page() {
 
     return {
       totalPnl,
-      winRate: wins + losses === 0 ? 0 : (wins / (wins + losses)) * 100,
+      winRate: wins + losses === 0 ? null : (wins / (wins + losses)) * 100,
       avgHold,
       pairAmbiguities: diagnostics?.setupInference.setupInferencePairAmbiguousTotal ?? 0,
       shortCallPaired: diagnostics?.setupInference.setupInferenceShortCallPairedTotal ?? 0,
@@ -214,7 +214,7 @@ export default function Page() {
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Total P&L" value={formatCurrency(kpis.totalPnl)} colorVariant={kpis.totalPnl >= 0 ? "pos" : "neg"} />
-        <KpiCard label="Win Rate" value={kpis.winRate.toFixed(1) + "%"} colorVariant="accent" />
+        <KpiCard label="Win Rate (%)" value={formatNullablePercent(kpis.winRate, 1)} colorVariant="accent" />
         <KpiCard label="Avg Hold" value={kpis.avgHold.toFixed(2) + "d"} colorVariant="accent" />
         <KpiCard label="Pair Ambiguities" value={kpis.pairAmbiguities} colorVariant="neutral" />
         <KpiCard label="Short Call Paired" value={kpis.shortCallPaired} colorVariant="neutral" />
@@ -271,13 +271,17 @@ export default function Page() {
                   <button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button>
                 </th>
                 <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&L</button>
+                  <button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&L ($)</button>
                 </th>
                 <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("winRate")}>Win Rate</button>
+                  <button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">
+                    Win Rate (%)
+                  </button>
                 </th>
                 <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("expectancy")}>Expectancy</button>
+                  <button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">
+                    Expectancy ($ / lot)
+                  </button>
                 </th>
                 <th className="px-2 py-2 text-right">
                   <button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button>
@@ -290,8 +294,8 @@ export default function Page() {
                   <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
                   <td className="px-2 py-2">{row.underlyingSymbol}</td>
                   <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</td>
-                  <td className="px-2 py-2 text-right">{safeNumber(row.winRate).toFixed(2)}</td>
-                  <td className="px-2 py-2 text-right">{safeNumber(row.expectancy).toFixed(2)}</td>
+                  <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
+                  <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</td>
                   <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
                 </tr>
               ))}

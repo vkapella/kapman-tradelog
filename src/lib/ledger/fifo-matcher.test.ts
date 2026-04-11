@@ -153,7 +153,7 @@ describe("runFifoMatcher", () => {
     const result = runFifoMatcher([openShort, closeShort], date("2026-02-01T00:00:00.000Z"));
 
     expect(result.matchedLots).toHaveLength(1);
-    expect(result.matchedLots[0]?.realizedPnl).toBe(4);
+    expect(result.matchedLots[0]?.realizedPnl).toBe(400);
     expect(result.matchedLots[0]?.outcome).toBe("WIN");
   });
 
@@ -174,7 +174,7 @@ describe("runFifoMatcher", () => {
     expect(result.syntheticExecutions[0]?.eventType).toBe("EXPIRATION_INFERRED");
     expect(result.syntheticExecutions[0]?.price).toBe(0);
     expect(result.matchedLots).toHaveLength(1);
-    expect(result.matchedLots[0]?.realizedPnl).toBe(-2);
+    expect(result.matchedLots[0]?.realizedPnl).toBe(-200);
     expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
   });
 
@@ -205,7 +205,7 @@ describe("runFifoMatcher", () => {
     const result = runFifoMatcher([openShort, assignmentClose], date("2026-02-01T00:00:00.000Z"));
 
     expect(result.matchedLots).toHaveLength(1);
-    expect(result.matchedLots[0]?.realizedPnl).toBe(-98);
+    expect(result.matchedLots[0]?.realizedPnl).toBe(-9800);
   });
 
   it("matches multiple opens to one close in FIFO order", () => {

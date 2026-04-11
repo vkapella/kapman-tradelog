@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
 import type { TtsEvidenceResponse } from "@/types/api";
 
 interface TtsPayload {
@@ -81,8 +82,13 @@ export function TtsEvidencePanel() {
               <p className="text-lg font-semibold text-slate-100">{data.medianHoldingPeriodDays}</p>
             </div>
             <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-              <p className="text-xs text-slate-400">Gross Proceeds Proxy</p>
-              <p className="text-lg font-semibold text-slate-100">{data.grossProceedsProxy}</p>
+              <p
+                className="text-xs text-slate-400"
+                title="Approximate trading notional — premium × contracts for options (excludes ×100 notional multiplier). Used as a trading-activity scale signal, not a tax determination."
+              >
+                Gross Proceeds Proxy
+              </p>
+              <p className="text-lg font-semibold text-slate-100">{formatCompactCurrency(safeNumber(data.grossProceedsProxy))}</p>
             </div>
           </div>
 

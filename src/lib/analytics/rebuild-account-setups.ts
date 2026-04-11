@@ -39,18 +39,54 @@ export async function rebuildAccountSetups(
   }));
 
   const inferred = inferSetupGroups(inferenceLots);
+  const lotMetricsById = new Map(
+    inferenceLots.map((lot) => [
+      lot.id,
+      {
+        realizedPnl: lot.realizedPnl,
+        holdingDays: lot.holdingDays,
+      },
+    ]),
+  );
 
   for (const group of inferred.groups) {
+    const groupMetrics = group.lotIds.reduce(
+      (acc, lotId) => {
+        const lot = lotMetricsById.get(lotId);
+        if (!lot) {
+          return acc;
+        }
+
+        acc.realizedPnl += lot.realizedPnl;
+        acc.holdingDays += lot.holdingDays;
+        acc.lotCount += 1;
+
+        if (lot.realizedPnl > 0) {
+          acc.wins += 1;
+        } else if (lot.realizedPnl < 0) {
+          acc.losses += 1;
+        }
+
+        return acc;
+      },
+      { realizedPnl: 0, holdingDays: 0, lotCount: 0, wins: 0, losses: 0 },
+    );
+
+    const denominator = groupMetrics.wins + groupMetrics.losses;
+    const winRate = denominator > 0 ? groupMetrics.wins / denominator : null;
+    const expectancy = groupMetrics.lotCount > 0 ? groupMetrics.realizedPnl / groupMetrics.lotCount : null;
+    const averageHoldDays = groupMetrics.lotCount > 0 ? groupMetrics.holdingDays / groupMetrics.lotCount : null;
+
     const created = await tx.setupGroup.create({
       data: {
         accountId,
         tag: group.tag,
         overrideTag: null,
         underlyingSymbol: group.underlyingSymbol,
-        realizedPnl: group.realizedPnl,
-        winRate: group.winRate,
-        expectancy: group.expectancy,
-        averageHoldDays: group.averageHoldDays,
+        realizedPnl: groupMetrics.realizedPnl,
+        winRate,
+        expectancy,
+        averageHoldDays,
       },
     });
 
