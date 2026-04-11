@@ -208,6 +208,18 @@ export interface OverviewSummaryResponse {
   }>;
 }
 
+export interface ReconciliationResponse {
+  startingCapital: string;
+  startingCapitalConfigured: boolean;
+  currentNlv: string;
+  totalGain: string;
+  unrealizedPnl: string;
+  cashAdjustments: string;
+  realizedPnl: string;
+  manualAdjustments: string;
+  unexplainedDelta: string;
+}
+
 export interface TtsEvidenceResponse {
   tradesPerMonth: number;
   activeDaysPerWeek: number;
@@ -435,6 +447,7 @@ export type MatchedLotsListApiResponse = ApiListResponse<MatchedLotRecord> | Api
 export type SetupsListApiResponse = ApiListResponse<SetupSummaryRecord> | ApiErrorResponse;
 export type SetupDetailApiResponse = ApiDetailResponse<SetupDetailResponse> | ApiErrorResponse;
 export type OverviewSummaryApiResponse = ApiDetailResponse<OverviewSummaryResponse> | ApiErrorResponse;
+export type ReconciliationApiResponse = ApiDetailResponse<ReconciliationResponse> | ApiErrorResponse;
 export type TtsEvidenceApiResponse = ApiDetailResponse<TtsEvidenceResponse> | ApiErrorResponse;
 export type DiagnosticsApiResponse = ApiDetailResponse<DiagnosticsResponse> | ApiErrorResponse;
 export type HealthApiResponse = HealthResponse;
