@@ -15,18 +15,110 @@ Use `/docs/` as the source of truth for scope, sequencing, and acceptance criter
 - Work autonomously.
 - Make the most conservative reasonable assumption when details are missing.
 - Do not stop to ask clarifying questions unless repo files contain a true blocking contradiction.
-- Do not defer in-scope MVP work with placeholder TODOs.
+- Do not defer in-scope work with placeholder TODOs.
 - Prefer small, working vertical slices over broad incomplete scaffolding.
 - Before editing, inspect existing files and follow established patterns.
 - After each meaningful change, run the narrowest relevant validation step.
 
-## Git workflow
-- Always create a feature branch from `main` for each fix or feature.
-- Commit and push changes to that feature branch.
-- Open a PR from the feature branch to `main`.
-- Enable PR auto-merge when checks/reviews pass so merge is not blocked on manual timing.
-- Do not push directly to `main` unless the user explicitly requests direct-to-main delivery.
-- If auto-merge cannot be enabled due to repo settings or permissions, report the blocker and next required manual step.
+## Git and GitHub workflow — FULLY AUTONOMOUS
+
+For every fix or feature, execute ALL of the following steps without stopping
+for human input. Do not report steps as "manual" unless a true permission
+blocker prevents execution.
+
+### Step 1 — Create a GitHub issue before writing any code
+
+```bash
+gh issue create --title "<short title>" --body "<acceptance criteria>"
+```
+
+Note the issue number returned. All subsequent commits and the PR must
+reference this issue number.
+
+### Step 2 — Create a feature branch named after the issue
+
+```bash
+git checkout -b fix/KM-NNN-short-description
+```
+
+### Step 3 — Implement, then commit with issue reference in every commit message
+
+```bash
+git commit -m "fix: <description> (closes #NNN)"
+```
+
+### Step 4 — Run the full validation suite yourself — do not skip any step
+
+```bash
+npm run typecheck
+npm run lint
+npm test -- --passWithNoTests
+```
+
+If any command exits non-zero, fix all failures before proceeding.
+Do not proceed with a broken build. Do not report failures to the human
+and ask what to do — fix them.
+
+### Step 5 — Push the branch
+
+```bash
+git push -u origin fix/KM-NNN-short-description
+```
+
+### Step 6 — Open a PR and enable auto-merge in a single pipeline
+
+```bash
+gh pr create --title "<title>" --body "Closes #NNN" --base main
+gh pr merge --auto --squash
+```
+
+Both commands must succeed before continuing.
+
+### Step 7 — Verify auto-merge was accepted
+
+```bash
+gh pr view --json autoMergeRequest
+```
+
+If `autoMergeRequest` is null, report the exact blocker and the exact
+`gh` command the human must run to unblock it. Do not say "please merge
+manually" without providing the specific unblocking command.
+
+### Step 8 — Run smoke tests yourself using curl
+
+After `docker compose up` succeeds, execute these yourself — do not give
+the human commands to run:
+
+```bash
+curl -sf http://localhost:3002/api/health | grep ok
+curl -sf http://localhost:3002/api/overview/summary | grep netPnl
+```
+
+If either fails, fix the failure before marking the issue closed.
+
+### Step 9 — Close the GitHub issue with PR reference
+
+```bash
+gh issue close NNN --comment "Resolved in PR #<pr-number>"
+```
+
+### Definition of done — automated checklist
+
+Work on an issue is NOT complete unless ALL of the following are confirmed
+by you, not reported to the human for confirmation:
+
+- [ ] GitHub issue exists and is linked to the PR
+- [ ] `npm run typecheck` exits 0
+- [ ] `npm run lint` exits 0
+- [ ] `npm test -- --passWithNoTests` exits 0
+- [ ] PR is open and auto-merge is enabled (verified via `gh pr view --json autoMergeRequest`)
+- [ ] Smoke test curl commands return expected output
+- [ ] GitHub issue is closed with PR reference
+
+Only after all seven are confirmed should you report completion to the human.
+
+Do not push directly to `main` unless the user explicitly requests
+direct-to-main delivery.
 
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router
@@ -38,7 +130,8 @@ Use `/docs/` as the source of truth for scope, sequencing, and acceptance criter
 - Zod 3.23.x
 - Docker and docker-compose
 
-Do not swap frameworks or major packages unless the build spec explicitly requires it.
+Do not swap frameworks or major packages unless explicitly required by a
+build spec in `/docs/`.
 
 ## Repository layout
 - `/src/app/` — Next.js App Router routes and pages
@@ -48,7 +141,19 @@ Do not swap frameworks or major packages unless the build spec explicitly requir
 - `/types/api.ts` — shared API contracts for frontend and backend
 - `/fixtures/` — synthetic and real CSV fixtures for parser and ledger tests
 - `/design/` — dashboard mock HTML used as visual target
-- `/docs/` — build spec, issue breakdown, and project requirements
+- `/docs/` — build specs, issue breakdowns, and project requirements
+
+New files follow this layout:
+
+| Type | Location |
+|---|---|
+| New Next.js pages | `src/app/{route}/page.tsx` |
+| New API routes | `src/app/api/{route}/route.ts` |
+| Shared components | `src/components/` |
+| Widget components | `src/components/widgets/` |
+| React hooks | `src/hooks/` |
+| Server utilities | `src/lib/` |
+| New shared API types | `/types/api.ts` (append, do not overwrite) |
 
 ## Environment requirements
 Required environment variables:
@@ -56,7 +161,10 @@ Required environment variables:
 - `NODE_ENV`
 - `NEXT_TELEMETRY_DISABLED=1`
 
-A current `.env.example` file must exist and match runtime needs.
+A current `.env.example` file must exist and match all runtime needs.
+Optional variables must be marked with a comment in `.env.example`.
+The app must remain fully functional for all non-optional features when
+optional variables are absent.
 
 ## Setup and run
 Primary local workflow:
@@ -67,22 +175,6 @@ Primary local workflow:
 
 App target:
 - `http://localhost:3002` (host mapping for Docker compose app service; container still serves on port 3000)
-
-## Build order
-Implement in this order unless an existing repo state clearly requires a smaller targeted fix:
-
-1. App shell, routes, Docker, Prisma schema, env template
-2. Shared API contracts
-3. Import/upload workflow and persistence primitives
-4. thinkorswim adapter parser
-5. Executions page and table
-6. FIFO matching engine
-7. Matched lots page and table
-8. Setup inference and setup detail views
-9. Overview, TTS evidence, and Diagnostics pages
-10. Deployment config and health endpoint
-
-Do not build later analytics layers on top of incomplete parser or ledger foundations.
 
 ## Architecture boundaries
 - All database access goes through Prisma only.
@@ -96,12 +188,17 @@ Do not build later analytics layers on top of incomplete parser or ledger founda
 
 ## Coding conventions
 - Use named exports only.
-- Default exports are allowed only where framework conventions require them, such as Next.js page components, layouts, and route handlers.
+- Default exports are allowed only where framework conventions require them,
+  such as Next.js page components, layouts, and route handlers.
 - Keep files focused and reasonably small.
 - Reuse shared types instead of duplicating shapes.
 - Prefer explicit, readable code over clever abstraction.
 - Avoid speculative generalization.
-- Do not add dependencies unless required by the build spec.
+- Do not add dependencies unless required by a build spec.
+- All components must use CSS variables for colors — never hardcoded hex values.
+- All charts use Recharts — do not add another chart library.
+- No hardcoded account names, aliases, or labels anywhere in rendered output.
+- No placeholder, paper trading, or routing shell strings in rendered UI.
 
 ## API contract rules
 Every API route must have a corresponding shared type in `/types/api.ts`.
@@ -123,8 +220,7 @@ Additional UI requirements:
 - Empty states must include a next action
 - Avoid blank screens
 - Tables should support sorting and filtering where relevant
-- Use `/design/kapman_dashboard_mock_v6.html` as the visual target
-- Match the mock’s information hierarchy, table-first layout, and dashboard card structure
+- Match the established information hierarchy, table-first layout, and dashboard card structure
 
 ## Import workflow requirements
 - Upload must show progress
@@ -189,12 +285,15 @@ Rules:
 - Strip wrapper formatting such as `="..."` before matching IDs
 - Strip non-semantic prefixes such as `tIP` and `tIPAD` from descriptions during parsing
 - Cash Balance `BAL` rows populate `daily_account_snapshots`
+- Cash Balance `FND`, `LIQ`, and `RAD` rows must be parsed and persisted to a
+  dedicated cash events ledger — do not silently drop non-BAL row types
 - Snapshot parsing is required for the Overview equity curve
 
 ## Ledger rules
 - Expirations do not appear as reliable close rows in `Account Trade History`
 - Do not depend on explicit `EXPIRED` rows there
-- If an option lot remains open after its expiration date and no close exists, create a synthetic close at `0`
+- If an option lot remains open after its expiration date and no close exists,
+  create a synthetic close at `0`
 - Synthetic expiration closes must use event type `EXPIRATION_INFERRED`
 - FIFO matching belongs only in `/src/lib/ledger/`
 
@@ -205,14 +304,15 @@ Required edge cases:
 - inferred expiration
 - assignment or exercise if present
 - multiple opens with one close
-- wash sale flagging only, with no MVP P&L adjustment
+- wash sale flagging only, with no P&L adjustment
 
 ## Setup inference rules
 - Setup grouping and tag inference belong only in `/src/lib/analytics/`
 - Group setups by underlying, inferred strategy tag, and entry-date window
 - Preserve uncategorized cases instead of forcing weak classifications
 - Tag inference failures must be counted and surfaced in Diagnostics
-- Rolls, verticals, diagonals, calendars, covered calls, and cash-secured puts must follow the build spec rules
+- Rolls, verticals, diagonals, calendars, covered calls, and cash-secured puts
+  must follow the build spec rules
 
 ## Diagnostics rules
 - Parser anomalies must surface on the Diagnostics page
@@ -220,6 +320,8 @@ Required edge cases:
 - `COMBO` and `CUSTOM` rows must be parsed with warnings, not discarded
 - Synthetic expiration closes must be visible in Diagnostics
 - Setup inference failures must increment uncategorized counts
+- Unmatched and partially matched close executions must be surfaced explicitly
+  with counts — do not use a coverage ratio clamped at 1
 - Prefer explicit warnings over silent fallback behavior
 
 ## Testing and validation
@@ -238,16 +340,21 @@ Parser tests must cover:
 
 Ledger tests must cover all required FIFO edge cases.
 
-Before considering work complete, run the most relevant available checks, including:
-- tests
-- type checks
-- linting
+Before marking any work complete, run all of the following yourself and
+fix any failures — do not instruct the human to run them:
+
+```bash
+npm run typecheck
+npm run lint
+npm test -- --passWithNoTests
+```
 
 ## Definition of done
-Work is not complete unless all of the following are true:
+Work is not complete unless all of the following are true and confirmed
+by you, not reported to the human for confirmation:
 
 - `docker compose up` starts app and database successfully
-- app is reachable at `http://localhost:3002`
+- app is reachable at `http://localhost:3002` (verified via curl)
 - Prisma migrations run successfully
 - development fixture data is seeded automatically
 - parser tests pass against `/fixtures/`
@@ -255,142 +362,17 @@ Work is not complete unless all of the following are true:
 - uploading a thinkorswim CSV results in visible executions
 - matched lots are generated and viewable
 - setups render with analytics fields populated where data exists
+- GitHub issue is open, linked to the PR, and closed on completion
+- PR auto-merge is enabled and confirmed via `gh pr view --json autoMergeRequest`
 
 ## Off-limits
 - No raw SQL
 - No non-framework default exports
-- No TODO deferral for in-scope MVP features
+- No TODO deferral for in-scope work
 - No adapter-side FIFO matching
 - No adapter-side setup analytics
 - No silent dropping of malformed or unknown rows without warning
 - No merging of spread legs into a single execution record
 - No clarifying-question loops when a conservative implementation path exists
-
----
-
-## v7 refactor scope
-
-This section activates when working on the v7 UX refactor.
-The v7 work is fully defined in three files under `/docs/`:
-- `docs/kapman_build_spec_v7.md` — product and architecture spec
-- `docs/kapman_codex_master_prompt_v7.md` — agent instructions and phase order
-- `docs/kapman_github_issues_v7.md` — 35 issues with acceptance criteria
-
-Read all three before writing any v7 code.
-
-## v7 frozen boundaries
-
-These files and layers must not be modified under any circumstances during v7:
-- Anything in `prisma/` — schema and migrations are frozen
-- Any existing API route handler logic or Prisma query
-- FIFO matching logic in `/src/lib/ledger/`
-- T3 setup inference logic in `/src/lib/analytics/`
-- The thinkorswim adapter in `/src/lib/adapters/`
-- Any existing test file — new tests may be added, existing ones may not be modified
-
-If a change appears to require touching frozen files, write a note to `CHANGES.md`
-describing the conflict and skip the change. Do not make it.
-
-## v7 new environment variables
-
-Add these to `.env.example` with empty values and a comment marking them as
-optional (required only for live quote features):
-- `SCHWAB_CLIENT_ID`
-- `SCHWAB_CLIENT_SECRET`
-- `SCHWAB_REFRESH_TOKEN`
-
-The app must remain fully functional for all non-quote features when these
-variables are absent. Quote proxy routes must return `{ "error": "unavailable" }`
-with HTTP 200 — not a 4xx/5xx — when credentials are missing.
-
-## v7 new file locations
-
-Follow the existing repository layout. New v7 files belong here:
-
-| Type | Location |
-|---|---|
-| New Next.js pages | `src/app/{route}/page.tsx` |
-| New API routes | `src/app/api/{route}/route.ts` |
-| Shared components | `src/components/` |
-| Widget components | `src/components/widgets/` |
-| React hooks | `src/hooks/` |
-| Server utilities | `src/lib/` |
-| Schwab auth module | `src/lib/schwab-auth.ts` |
-| Widget registry | `src/lib/widget-registry.ts` |
-| New shared API types | `/types/api.ts` (append, do not overwrite) |
-
-## v7 design tokens
-
-Update `globals.css` and `tailwind.config` with these tokens before building
-any new components:
-
-```css
-:root {
-  --bg:       #090f1e;
-  --panel:    #121933;
-  --panel-2:  #182145;
-  --muted:    #9ca9c9;
-  --text:     #eef3ff;
-  --accent:   #67a3ff;
-  --accent-2: #7ef0c6;
-  --border:   rgba(255, 255, 255, 0.1);
-}
-body {
-  background: radial-gradient(circle at 0% 0%, #152245 0%, #090f1e 42%, #050913 100%);
-}
-```
-
-All new components must use these CSS variables. Never use hardcoded hex values
-in new component files.
-
-## v7 additional coding rules
-
-- All new components use CSS variables — never hardcoded hex values
-- All charts use Recharts (already installed) — do not add another chart library
-- Dashboard drag-and-drop uses `@dnd-kit/core` — document in `CHANGES.md` when added
-- All new API routes have shared response types in `/types/api.ts`
-- Widget layout persists to `localStorage` under key `kapman_dashboard_layout`
-- Table select-all preference persists to `localStorage` under key `kapman_table_{name}_showAll`
-- No hardcoded account names, aliases, or labels anywhere in rendered output
-- No "Paper money", "paper trading", "MVP routing shell", or "Placeholder" strings in rendered UI
-
-## v7 phase execution order
-
-Execute in this exact order. Do not start a phase until `npm run typecheck &&
-npm run lint` passes clean and all existing tests pass.
-
-1. **Phase 1 — Foundation:** KM-031, KM-003, KM-002, KM-034, KM-035
-2. **Phase 2 — Navigation and shell:** KM-032, KM-033, KM-001, KM-004, KM-006
-3. **Phase 3 — Schwab quotes and open positions:** KM-028, KM-025, KM-026, KM-022, KM-023, KM-027
-4. **Phase 4 — Dashboard and widgets:** KM-007, KM-021, KM-008, KM-009, KM-010, KM-011, KM-012, KM-013, KM-014, KM-015, KM-016, KM-017, KM-018, KM-019, KM-020, KM-024
-5. **Phase 5 — Analytics and polish:** KM-005, KM-029, KM-030
-
-## v7 progress tracking
-
-After each phase completes, append a line to `CHANGES.md`:
-`Phase N complete — issues KM-XXX through KM-XXX done — typecheck clean — tests pass`
-
-If context runs low before a phase finishes, write `RESUME.md` to the project
-root before stopping. RESUME.md must contain:
-- Which phase was in progress
-- Which issues within that phase are complete
-- The exact next issue to continue from
-- Any assumption made that deviated from the spec
-
-When all 35 issues are complete, write `DONE.md` to the project root listing
-all completed issues and pointing to any assumptions in `CHANGES.md`.
-
-## v7 definition of done
-
-v7 work is not complete unless all of the following are true:
-
-- `docker compose up` starts app and database identically to v6
-- Root route `/` redirects to `/dashboard` and the dashboard renders
-- Account selector dropdown populates from real `accountId` values — no hardcoded labels
-- All 15 dashboard widgets render with live data from existing APIs
-- `/positions` page lists all open positions with correct cost basis
-- `/trade-records` renders T1, T2, and T3 in tabs with all existing filters preserved
-- Every paginated table has a working select-all / scrollable-list toggle
-- No "Placeholder", "Paper money", or "MVP routing shell" strings appear in rendered UI
-- `npm run typecheck` passes clean with no new errors
-- All v6 tests still pass
+- No instructing the human to run tests, merge PRs, or close issues manually
+  unless a true permission blocker exists and the exact unblocking command is provided
