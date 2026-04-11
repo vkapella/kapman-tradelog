@@ -1,5 +1,6 @@
 "use client";
 
+import { findSupersededExecutionQtyOverrideIds } from "@/lib/adjustments/execution-qty-overrides";
 import type { ManualAdjustmentRecord } from "@/types/api";
 
 function splitDirection(record: ManualAdjustmentRecord): string | null {
@@ -26,6 +27,8 @@ export function AdjustmentList({
   onReverse: (id: string) => void;
   reversingId: string | null;
 }) {
+  const supersededIds = findSupersededExecutionQtyOverrideIds(adjustments);
+
   return (
     <div className="rounded-xl border border-border bg-panel p-3">
       <p className="mb-3 text-sm font-semibold text-text">Adjustment Ledger</p>
@@ -61,6 +64,9 @@ export function AdjustmentList({
                   <td className="max-w-[260px] px-2 py-2 text-muted">{record.reason}</td>
                   <td className="px-2 py-2">
                     <span className={record.status === "ACTIVE" ? "text-accent-2" : "text-muted"}>{record.status}</span>
+                    {record.status === "ACTIVE" && supersededIds.has(record.id) ? (
+                      <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span>
+                    ) : null}
                   </td>
                   <td className="px-2 py-2 text-right">
                     <button

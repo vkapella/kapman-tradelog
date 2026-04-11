@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
+import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
+import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { ReverseManualAdjustmentResponse } from "@/types/api";
 
 export async function POST(_request: Request, context: { params: { id: string } }) {
@@ -39,6 +41,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
         reversedByAdjustmentId: createdReversal.id,
       },
     });
+
+    await rebuildAccountLedger(tx, existing.accountId, new Date());
+    await rebuildAccountSetups(tx, existing.accountId);
 
     return createdReversal;
   });

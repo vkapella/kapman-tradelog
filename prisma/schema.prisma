@@ -50,6 +50,7 @@ enum AdjustmentType {
   PRICE_OVERRIDE
   ADD_POSITION
   REMOVE_POSITION
+  EXECUTION_QTY_OVERRIDE
 }
 
 enum AdjustmentStatus {
