@@ -175,7 +175,7 @@ export default function Page() {
 
       {!loading && !error && summary ? (
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Net P&L" value={summary.netPnl} colorVariant={Number(summary.netPnl) < 0 ? "neg" : "pos"} />
+          <KpiCard label="Realized P&L" value={summary.netPnl} colorVariant={Number(summary.netPnl) < 0 ? "neg" : "pos"} />
           <KpiCard label="Executions" value={summary.executionCount} colorVariant="accent" />
           <KpiCard label="Matched Lots" value={summary.matchedLotCount} colorVariant="accent" />
           <KpiCard label="Setups" value={summary.setupCount} colorVariant="accent" />
