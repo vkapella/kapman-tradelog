@@ -2,6 +2,7 @@
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { useEffect, useMemo, useState } from "react";
+import { handleRemoveWidgetClick, stopDashboardControlPropagation } from "./interactions";
 import { WidgetPicker } from "@/components/WidgetPicker";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -43,7 +44,7 @@ function DashboardTile({
   remove: () => void;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id: slotId, disabled: !editMode });
+  const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: slotId, disabled: !editMode });
   const { setNodeRef: setDropRef } = useDroppable({ id: slotId });
 
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: isDragging ? 20 : 1 } : undefined;
@@ -60,15 +61,29 @@ function DashboardTile({
       className={[
         "relative",
         colSpan === 2 ? "md:col-span-2" : "md:col-span-1",
-        editMode ? "cursor-move" : "",
       ].join(" ")}
-      {...attributes}
-      {...listeners}
     >
       {editMode ? (
-        <button type="button" onClick={remove} className="absolute right-2 top-2 z-30 rounded border border-border bg-panel px-2 py-0.5 text-xs text-muted">
-          ×
-        </button>
+        <>
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            aria-label="Drag widget"
+            className="absolute left-2 top-2 z-30 flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            ||
+          </button>
+          <button
+            type="button"
+            onPointerDown={stopDashboardControlPropagation}
+            onClick={(event) => handleRemoveWidgetClick(event, { editMode, remove })}
+            className="absolute right-2 top-2 z-30 rounded border border-border bg-panel px-2 py-0.5 text-xs text-muted"
+          >
+            ×
+          </button>
+        </>
       ) : null}
       {children}
     </div>
