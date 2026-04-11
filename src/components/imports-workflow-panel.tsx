@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { CommitImportResponse, ImportRecord, UploadImportResponse } from "@/types/api";
 
@@ -28,6 +29,7 @@ interface ImportsWorkflowPanelProps {
 const SHOW_ALL_STORAGE_KEY = "kapman_table_imports_showAll";
 
 export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps) {
+  const searchParams = useSearchParams();
   const showUpload = mode !== "history";
   const showHistory = mode !== "upload";
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -43,15 +45,19 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accountFilter, setAccountFilter] = useState("");
+  const [importFilter, setImportFilter] = useState("");
 
   const canCommit = Boolean(uploadResult && !uploading && !committing && !commitResult);
 
-  const loadHistory = useCallback(async (accountId = "", page = historyPage) => {
+  const loadHistory = useCallback(async (accountId = accountFilter, importId = importFilter, page = historyPage) => {
     setHistoryLoading(true);
 
     const searchParams = new URLSearchParams();
     if (accountId.trim()) {
       searchParams.set("account", accountId.trim());
+    }
+    if (importId.trim()) {
+      searchParams.set("import", importId.trim());
     }
     searchParams.set("page", String(showAllHistory ? 1 : page));
     searchParams.set("pageSize", String(showAllHistory ? 1000 : 25));
@@ -62,7 +68,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     setHistory(payload.data);
     setHistoryMeta(payload.meta);
     setHistoryLoading(false);
-  }, [historyPage, showAllHistory]);
+  }, [accountFilter, historyPage, importFilter, showAllHistory]);
 
   useEffect(() => {
     try {
@@ -73,8 +79,21 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   }, []);
 
   useEffect(() => {
-    void loadHistory(accountFilter, historyPage);
-  }, [accountFilter, historyPage, loadHistory]);
+    if (!showHistory) {
+      return;
+    }
+
+    const accountFromQuery = searchParams.get("account") ?? "";
+    const importFromQuery = searchParams.get("import") ?? "";
+
+    setAccountFilter((current) => (current === accountFromQuery ? current : accountFromQuery));
+    setImportFilter((current) => (current === importFromQuery ? current : importFromQuery));
+    setHistoryPage(1);
+  }, [searchParams, showHistory]);
+
+  useEffect(() => {
+    void loadHistory(accountFilter, importFilter, historyPage);
+  }, [accountFilter, historyPage, importFilter, loadHistory]);
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -113,7 +132,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
           setError("Upload failed due to an invalid server response.");
         } finally {
           setUploading(false);
-          void loadHistory(accountFilter);
+          void loadHistory(accountFilter, importFilter);
           resolve();
         }
       };
@@ -148,7 +167,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
       const payload = (await response.json()) as CommitPayload;
       setCommitResult(payload.data);
-      await loadHistory(accountFilter);
+      await loadHistory(accountFilter, importFilter);
     } finally {
       setCommitting(false);
     }
@@ -167,7 +186,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
   function applyHistoryFilter() {
     setHistoryPage(1);
-    void loadHistory(accountFilter, 1);
+    void loadHistory(accountFilter, importFilter, 1);
   }
 
   function toggleShowAllHistory() {
@@ -293,6 +312,13 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               value={accountFilter}
               onChange={(event) => setAccountFilter(event.target.value)}
               placeholder="Filter by account id"
+              className="w-56 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100"
+            />
+            <input
+              type="text"
+              value={importFilter}
+              onChange={(event) => setImportFilter(event.target.value)}
+              placeholder="Filter by import id"
               className="w-56 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100"
             />
             <button

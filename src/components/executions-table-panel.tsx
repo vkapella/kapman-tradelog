@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
-import type { ExecutionRecord, ImportRecord } from "@/types/api";
+import type { ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
 interface ExecutionsPayload {
   data: ExecutionRecord[];
@@ -23,6 +23,10 @@ interface ImportsPayload {
     page: number;
     pageSize: number;
   };
+}
+
+interface ExecutionDetailPayload {
+  data: ExecutionDetailRecord;
 }
 
 type SortColumn = "eventTimestamp" | "symbol" | "quantity" | "price";
@@ -72,6 +76,14 @@ function sortExecutionRows(rows: ExecutionRecord[], column: SortColumn, directio
   return sorted;
 }
 
+function renderOptionValue(row: Pick<ExecutionRecord, "optionType" | "strike" | "expirationDate">): string {
+  if (!row.optionType) {
+    return "-";
+  }
+
+  return `${row.optionType} ${row.strike ?? "-"} ${row.expirationDate?.slice(0, 10) ?? "-"}`;
+}
+
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
   const initializedFromSearch = useRef(false);
@@ -87,6 +99,11 @@ export function ExecutionsTablePanel() {
   const [appliedFilters, setAppliedFilters] = useState<ExecutionFilters>(defaultFilters);
   const [sortColumn, setSortColumn] = useState<SortColumn>("eventTimestamp");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<ExecutionDetailRecord | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
     try {
@@ -175,6 +192,53 @@ export function ExecutionsTablePanel() {
     void loadExecutions();
   }, [appliedFilters, page, showAll]);
 
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadExecutionDetail() {
+      if (!selectedExecutionId) {
+        setDetail(null);
+        setDetailError(null);
+        return;
+      }
+
+      setDetailLoading(true);
+      setDetailError(null);
+      setCopyStatus("idle");
+
+      try {
+        const response = await fetch(`/api/executions/${selectedExecutionId}`, { cache: "no-store" });
+        if (!response.ok) {
+          if (!canceled) {
+            setDetail(null);
+            setDetailError("Unable to load execution detail right now.");
+          }
+          return;
+        }
+
+        const payload = (await response.json()) as ExecutionDetailPayload;
+        if (!canceled) {
+          setDetail(payload.data);
+        }
+      } catch {
+        if (!canceled) {
+          setDetail(null);
+          setDetailError("Unable to load execution detail right now.");
+        }
+      } finally {
+        if (!canceled) {
+          setDetailLoading(false);
+        }
+      }
+    }
+
+    void loadExecutionDetail();
+
+    return () => {
+      canceled = true;
+    };
+  }, [selectedExecutionId]);
+
   const accountOptions = useMemo(() => {
     return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();
   }, [imports]);
@@ -221,6 +285,19 @@ export function ExecutionsTablePanel() {
       window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
     } catch {
       // Ignore localStorage errors.
+    }
+  }
+
+  async function copyInstrumentKey() {
+    if (!detail?.instrumentKey) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(detail.instrumentKey);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
     }
   }
 
@@ -395,9 +472,9 @@ export function ExecutionsTablePanel() {
                     </td>
                     <td className="px-2 py-2">{row.accountId}</td>
                     <td className="px-2 py-2">
-                      <Link href={`/imports`} className="text-blue-300 underline">
+                      <button type="button" onClick={() => setSelectedExecutionId(row.id)} className="text-blue-300 underline">
                         {row.importId.slice(0, 8)}...
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -433,6 +510,102 @@ export function ExecutionsTablePanel() {
             </div>
           )}
         </div>
+      ) : null}
+
+      {selectedExecutionId ? (
+        <section className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-slate-100">Execution Detail Drill-through</h3>
+            <button type="button" onClick={() => setSelectedExecutionId(null)} className="text-xs text-slate-300 underline">
+              Close
+            </button>
+          </div>
+
+          {detailLoading ? <LoadingSkeleton lines={5} /> : null}
+          {!detailLoading && detailError ? <p className="text-xs text-red-200">{detailError}</p> : null}
+
+          {!detailLoading && detail ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-xs text-slate-400">Execution ID</p>
+                  <p className="break-all font-mono text-xs text-slate-100">{detail.id}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Import ID</p>
+                  <p className="break-all font-mono text-xs text-slate-100">{detail.importId}</p>
+                  <Link href={`/imports?tab=history&import=${encodeURIComponent(detail.importId)}`} className="text-xs text-blue-300 underline">
+                    Open parent import record
+                  </Link>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Account</p>
+                  <p className="break-all font-mono text-xs text-slate-100">{detail.accountId}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Trade Date</p>
+                  <p className="text-xs text-slate-100">{detail.tradeDate.slice(0, 10)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Symbol</p>
+                  <p className="text-xs text-slate-100">{detail.symbol}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Side</p>
+                  <p className="text-xs text-slate-100">{detail.side ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Qty</p>
+                  <p className="text-xs text-slate-100">{detail.quantity}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Unit Price</p>
+                  <p className="text-xs text-slate-100">{detail.price ?? "~"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Event</p>
+                  <p className="text-xs text-slate-100">{detail.eventType}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Effect</p>
+                  <p className="text-xs text-slate-100">{detail.openingClosingEffect ?? "UNKNOWN"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Option</p>
+                  <p className="text-xs text-slate-100">{renderOptionValue(detail)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded border border-slate-700 bg-slate-950/50 p-3">
+                <p className="text-xs text-slate-400">Instrument Key</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    readOnly
+                    value={detail.instrumentKey ?? ""}
+                    className="min-w-[18rem] flex-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyInstrumentKey}
+                    disabled={!detail.instrumentKey}
+                    className="rounded border border-slate-600 bg-slate-900 px-3 py-1 text-xs text-slate-200 disabled:opacity-50"
+                  >
+                    Copy
+                  </button>
+                </div>
+                {copyStatus === "copied" ? <p className="text-xs text-emerald-300">Instrument key copied.</p> : null}
+                {copyStatus === "failed" ? <p className="text-xs text-red-200">Clipboard write failed. Copy manually.</p> : null}
+              </div>
+
+              <details className="rounded border border-slate-700 bg-slate-950/50 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-100">Raw Row JSON</summary>
+                <pre className="mt-2 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200">
+                  {JSON.stringify(detail.rawRowJson ?? null, null, 2)}
+                </pre>
+              </details>
+            </div>
+          ) : null}
+        </section>
       ) : null}
     </section>
   );

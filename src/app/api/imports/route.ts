@@ -10,8 +10,15 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
   const accountFilter = url.searchParams.get("account");
+  const importFilter = url.searchParams.get("import");
 
-  const where = accountFilter ? { account: { accountId: accountFilter } } : {};
+  const where: Record<string, unknown> = {};
+  if (accountFilter) {
+    where.account = { accountId: accountFilter };
+  }
+  if (importFilter) {
+    where.id = importFilter;
+  }
 
   const [total, rows] = await Promise.all([
     prisma.import.count({ where }),
