@@ -7,6 +7,7 @@ import { HoldingDistributionWidget } from "@/components/widgets/HoldingDistribut
 import { ImportHealthWidget } from "@/components/widgets/ImportHealthWidget";
 import { MonthlyPnlWidget } from "@/components/widgets/MonthlyPnlWidget";
 import { OpenPositionsSummaryWidget } from "@/components/widgets/OpenPositionsSummaryWidget";
+import { ReconciliationWidget } from "@/components/widgets/ReconciliationWidget";
 import { RecentExecutionsWidget } from "@/components/widgets/RecentExecutionsWidget";
 import { SetupTagRollupWidget } from "@/components/widgets/SetupTagRollupWidget";
 import { StreakWidget } from "@/components/widgets/StreakWidget";
@@ -54,6 +55,13 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     description: "Open-position totals and unrealized mark deltas.",
     defaultColSpan: 1,
     component: OpenPositionsSummaryWidget,
+  },
+  {
+    id: "portfolio-reconciliation",
+    name: "Portfolio Reconciliation",
+    description: "Bridge realized, unrealized, cash adjustments, and broker NLV.",
+    defaultColSpan: 1,
+    component: ReconciliationWidget,
   },
   {
     id: "scatter",
