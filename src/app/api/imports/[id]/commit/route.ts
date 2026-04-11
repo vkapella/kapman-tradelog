@@ -3,6 +3,7 @@ import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
 import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
+import { replaceImportCashEvents } from "@/lib/imports/replace-import-cash-events";
 import { replaceImportExecutions } from "@/lib/imports/replace-import-executions";
 import { replaceImportSnapshots } from "@/lib/imports/replace-import-snapshots";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
@@ -91,6 +92,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
     transactionResult = await prisma.$transaction(async (tx) => {
       const ingestResult = await replaceImportExecutions(tx, importId, executionData);
       const snapshotResult = await replaceImportSnapshots(tx, importId, existingImport.accountId, parsed.snapshots);
+      await replaceImportCashEvents(tx, importId, existingImport.accountId, parsed.cashEvents);
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
       const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);

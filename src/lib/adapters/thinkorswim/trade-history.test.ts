@@ -19,6 +19,8 @@ describe("parseThinkorswimTradeHistory", () => {
     expect(resultOne.snapshots.length).toBeGreaterThan(0);
     expect(resultTwo.snapshots.length).toBeGreaterThan(0);
     expect(Array.isArray(resultSynthetic.snapshots)).toBe(true);
+    expect(resultOne.cashEvents.length).toBeGreaterThan(0);
+    expect(new Set(resultOne.cashEvents.map((event) => event.rowType))).toEqual(new Set(["LIQ", "FND"]));
 
     const spreads = new Set(resultOne.executions.map((row) => row.spread));
     expect(spreads.has("CALENDAR")).toBe(true);

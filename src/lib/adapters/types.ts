@@ -42,11 +42,22 @@ export interface NormalizedDailyAccountSnapshot {
   brokerNetLiquidationValue?: number | null;
 }
 
+export type CashEventRowType = "FND" | "LIQ" | "RAD";
+
+export interface NormalizedCashEvent {
+  eventDate: Date;
+  rowType: CashEventRowType;
+  refNumber: string;
+  description: string;
+  amount: number;
+}
+
 export interface ParseResult {
   warnings: AdapterWarning[];
   accountMetadata: ParsedAccountMetadata;
   executions: NormalizedExecution[];
   snapshots: NormalizedDailyAccountSnapshot[];
+  cashEvents: NormalizedCashEvent[];
   parsedRows: number;
   skippedRows: number;
 }

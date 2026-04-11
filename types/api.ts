@@ -113,6 +113,23 @@ export interface ExecutionsListQuery {
   pageSize?: number;
 }
 
+export interface CashEventResponse {
+  id: string;
+  accountId: string;
+  eventDate: string;
+  rowType: string;
+  refNumber: string;
+  description: string;
+  amount: string;
+  createdAt: string;
+}
+
+export interface CashEventsListQuery {
+  accountId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface MatchedLotRecord {
   id: string;
   accountId: string;
@@ -404,6 +421,7 @@ export type ImportsListApiResponse = ApiListResponse<ImportRecord> | ApiErrorRes
 export type UploadImportApiResponse = ApiDetailResponse<UploadImportResponse> | ApiErrorResponse;
 export type CommitImportApiResponse = ApiDetailResponse<CommitImportResponse> | ApiErrorResponse;
 export type ExecutionsListApiResponse = ApiListResponse<ExecutionRecord> | ApiErrorResponse;
+export type CashEventsListApiResponse = ApiListResponse<CashEventResponse> | ApiErrorResponse;
 export type MatchedLotsListApiResponse = ApiListResponse<MatchedLotRecord> | ApiErrorResponse;
 export type SetupsListApiResponse = ApiListResponse<SetupSummaryRecord> | ApiErrorResponse;
 export type SetupDetailApiResponse = ApiDetailResponse<SetupDetailResponse> | ApiErrorResponse;
