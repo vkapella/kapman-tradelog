@@ -17,6 +17,11 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
 }
 
+function formatSignedCurrency(value: number): string {
+  const formatted = formatCurrency(Math.abs(value));
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
 function formatPercent(value: number): string {
   return value.toFixed(2) + "%";
 }
@@ -227,6 +232,20 @@ export default function Page() {
     });
   }, [filteredPositions, markMap]);
 
+  const totals = useMemo(() => {
+    const totalCostBasis = rows.reduce((sum, row) => sum + row.costBasis, 0);
+    const hasMissingMarketValue = rows.some((row) => row.marketValue === null);
+    const totalMarketValue = hasMissingMarketValue ? null : rows.reduce((sum, row) => sum + (row.marketValue ?? 0), 0);
+    const totalUnrealized = totalMarketValue === null ? null : totalMarketValue - totalCostBasis;
+
+    return {
+      totalCostBasis,
+      totalMarketValue,
+      totalUnrealized,
+      hasMissingMarketValue,
+    };
+  }, [rows]);
+
   const pageSize = 25;
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -275,6 +294,25 @@ export default function Page() {
 
       {!loading && !error && total > 0 ? (
         <div className="space-y-2">
+          <div className="grid gap-2 md:grid-cols-3">
+            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Total Cost Basis</p>
+              <p className="mt-1 text-sm font-semibold text-text">{formatCurrency(totals.totalCostBasis)}</p>
+            </article>
+            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Total Market Value</p>
+              <p className="mt-1 text-sm font-semibold text-text">
+                {totals.totalMarketValue === null ? "—" : formatCurrency(totals.totalMarketValue)}
+              </p>
+              {totals.hasMissingMarketValue ? <p className="text-[11px] text-muted">Waiting on live marks</p> : null}
+            </article>
+            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted">Total Unrealized P&L</p>
+              <p className={totals.totalUnrealized === null ? "mt-1 text-sm font-semibold text-text" : totals.totalUnrealized >= 0 ? "mt-1 text-sm font-semibold text-green-300" : "mt-1 text-sm font-semibold text-red-300"}>
+                {totals.totalUnrealized === null ? "—" : formatSignedCurrency(totals.totalUnrealized)}
+              </p>
+            </article>
+          </div>
           {quoteUnavailable ? <p className="text-xs text-amber-200">Live quotes unavailable. Showing cost basis only.</p> : null}
           <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
             <table className="min-w-full text-xs">
