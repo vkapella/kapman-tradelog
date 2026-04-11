@@ -42,6 +42,7 @@ export function AdjustmentForm({
   const [splitTo, setSplitTo] = useState(1);
   const [instrumentKey, setInstrumentKey] = useState("");
   const [executionId, setExecutionId] = useState("");
+  const [executionOverrideQtyInput, setExecutionOverrideQtyInput] = useState("");
   const [resolvedExecution, setResolvedExecution] = useState<ExecutionRecord | null>(null);
   const [executionLookupError, setExecutionLookupError] = useState<string | null>(null);
   const [executionLookupLoading, setExecutionLookupLoading] = useState(false);
@@ -69,7 +70,7 @@ export function AdjustmentForm({
       return { instrumentKey, overridePrice };
     }
     if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
-      return { executionId: executionId.trim(), overrideQty };
+      return { executionId: executionId.trim(), overrideQty: Number(executionOverrideQtyInput) };
     }
     if (adjustmentType === "ADD_POSITION") {
       return {
@@ -92,6 +93,7 @@ export function AdjustmentForm({
     addStrike,
     adjustmentType,
     executionId,
+    executionOverrideQtyInput,
     instrumentKey,
     overridePrice,
     overrideQty,
@@ -105,6 +107,10 @@ export function AdjustmentForm({
     resolvedExecution !== null &&
     resolvedExecution.id === executionId.trim() &&
     resolvedExecution.accountId === accountId;
+  const executionOverrideQty = Number(executionOverrideQtyInput);
+  const hasValidExecutionOverrideQty =
+    adjustmentType !== "EXECUTION_QTY_OVERRIDE" ||
+    (executionOverrideQtyInput.trim().length > 0 && Number.isFinite(executionOverrideQty));
 
   async function resolveExecutionId(): Promise<ExecutionRecord | null> {
     if (adjustmentType !== "EXECUTION_QTY_OVERRIDE") {
@@ -161,10 +167,12 @@ export function AdjustmentForm({
       setInstrumentKey("");
       setExecutionLookupError(null);
       setResolvedExecution(null);
+      setExecutionOverrideQtyInput("");
       return;
     }
 
     setExecutionId("");
+    setExecutionOverrideQtyInput("");
     setExecutionLookupError(null);
     setResolvedExecution(null);
     if (previousType === "EXECUTION_QTY_OVERRIDE") {
@@ -176,6 +184,12 @@ export function AdjustmentForm({
     setPreviewing(true);
     setError(null);
     try {
+      if (adjustmentType === "EXECUTION_QTY_OVERRIDE" && !hasValidExecutionOverrideQty) {
+        onPreview(null);
+        setError("Override Qty is required.");
+        return;
+      }
+
       if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
         const match = await resolveExecutionId();
         if (!match) {
@@ -209,6 +223,11 @@ export function AdjustmentForm({
     setSaving(true);
     setError(null);
     try {
+      if (adjustmentType === "EXECUTION_QTY_OVERRIDE" && !hasValidExecutionOverrideQty) {
+        setError("Override Qty is required.");
+        return;
+      }
+
       if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
         const match = await resolveExecutionId();
         if (!match) {
@@ -376,6 +395,23 @@ export function AdjustmentForm({
           </label>
         ) : null}
 
+        {adjustmentType === "EXECUTION_QTY_OVERRIDE" ? (
+          <label className="text-xs text-muted">
+            Override Qty
+            <input
+              type="number"
+              inputMode="decimal"
+              required
+              min={0}
+              step="0.0001"
+              value={executionOverrideQtyInput}
+              onChange={(event) => setExecutionOverrideQtyInput(event.target.value)}
+              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              placeholder="2"
+            />
+          </label>
+        ) : null}
+
         {adjustmentType === "PRICE_OVERRIDE" ? (
           <label className="text-xs text-muted">
             Override Price
@@ -501,7 +537,11 @@ export function AdjustmentForm({
             !symbol ||
             !reason ||
             (adjustmentType === "EXECUTION_QTY_OVERRIDE" &&
-              (!executionId.trim() || executionLookupLoading || !!executionLookupError || !executionResolved))
+              (!executionId.trim() ||
+                !hasValidExecutionOverrideQty ||
+                executionLookupLoading ||
+                !!executionLookupError ||
+                !executionResolved))
           }
           onClick={handlePreview}
           className="rounded border border-border bg-panel-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
@@ -516,7 +556,11 @@ export function AdjustmentForm({
             !symbol ||
             !reason ||
             (adjustmentType === "EXECUTION_QTY_OVERRIDE" &&
-              (!executionId.trim() || executionLookupLoading || !!executionLookupError || !executionResolved))
+              (!executionId.trim() ||
+                !hasValidExecutionOverrideQty ||
+                executionLookupLoading ||
+                !!executionLookupError ||
+                !executionResolved))
           }
           onClick={handleCreate}
           className="rounded border border-border bg-accent/20 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
