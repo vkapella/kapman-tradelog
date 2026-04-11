@@ -353,7 +353,13 @@ export interface NlvResult {
   loading: boolean;
 }
 
-export type AdjustmentType = "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION";
+export type AdjustmentType =
+  | "SPLIT"
+  | "QTY_OVERRIDE"
+  | "PRICE_OVERRIDE"
+  | "ADD_POSITION"
+  | "REMOVE_POSITION"
+  | "EXECUTION_QTY_OVERRIDE";
 export type AdjustmentStatus = "ACTIVE" | "REVERSED";
 
 export interface SplitPayload {
@@ -371,6 +377,11 @@ export interface PriceOverridePayload {
   overridePrice: number;
 }
 
+export interface ExecutionQtyOverridePayload {
+  executionId: string;
+  overrideQty: number;
+}
+
 export interface AddPositionPayload {
   instrumentKey: string;
   assetClass: "EQUITY" | "OPTION";
@@ -385,7 +396,13 @@ export interface RemovePositionPayload {
   instrumentKey: string;
 }
 
-export type ManualAdjustmentPayload = SplitPayload | QtyOverridePayload | PriceOverridePayload | AddPositionPayload | RemovePositionPayload;
+export type ManualAdjustmentPayload =
+  | SplitPayload
+  | QtyOverridePayload
+  | PriceOverridePayload
+  | ExecutionQtyOverridePayload
+  | AddPositionPayload
+  | RemovePositionPayload;
 
 export interface ManualAdjustmentRecord {
   id: string;
@@ -422,6 +439,7 @@ export interface ReverseManualAdjustmentResponse {
 export interface AdjustmentPreviewResponse {
   symbol: string;
   adjustmentType: AdjustmentType;
+  warnings: string[];
   before: {
     openQty: number;
     costBasisPerShare: number | null;
@@ -434,6 +452,18 @@ export interface AdjustmentPreviewResponse {
   };
   affectedExecutionCount: number;
   effectiveDate: string;
+  executionQtyOverridePreview?: {
+    executionId: string;
+    rawQty: number;
+    beforeEffectiveQty: number;
+    afterEffectiveQty: number;
+    beforeAffectedMatchedLots: number;
+    afterAffectedMatchedLots: number;
+    beforeRealizedPnl: number;
+    afterRealizedPnl: number;
+    beforeUnexplainedDeltaImpact: number;
+    afterUnexplainedDeltaImpact: number;
+  };
 }
 
 export interface StreakSummaryResponse {

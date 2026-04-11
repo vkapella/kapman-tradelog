@@ -1,6 +1,10 @@
+import { Prisma } from "@prisma/client";
+import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
+import { deriveInstrumentKeyFromPersistedExecution } from "@/lib/ledger/instrument-key";
+import { runFifoMatcher, type LedgerExecution } from "@/lib/ledger/fifo-matcher";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import type { AdjustmentPreviewResponse, AdjustmentType, ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 
@@ -107,6 +111,67 @@ function summarizeForAdjustment(
   return { openQty: 0, grossCost: 0, costBasisPerShare: null };
 }
 
+function toNumber(value: Prisma.Decimal | null): number | null {
+  if (value === null) {
+    return null;
+  }
+  return Number(value);
+}
+
+function toLedgerExecution(row: {
+  id: string;
+  importId: string;
+  accountId: string;
+  broker: "SCHWAB_THINKORSWIM" | "FIDELITY";
+  eventTimestamp: Date;
+  tradeDate: Date;
+  eventType: "TRADE" | "EXPIRATION_INFERRED" | "ASSIGNMENT" | "EXERCISE";
+  assetClass: "EQUITY" | "OPTION" | "CASH" | "OTHER";
+  symbol: string;
+  instrumentKey: string | null;
+  underlyingSymbol: string | null;
+  side: "BUY" | "SELL" | null;
+  quantity: Prisma.Decimal;
+  price: Prisma.Decimal | null;
+  openingClosingEffect: "TO_OPEN" | "TO_CLOSE" | "UNKNOWN" | null;
+  expirationDate: Date | null;
+  optionType: string | null;
+  strike: Prisma.Decimal | null;
+}): LedgerExecution | null {
+  if (row.eventType === "EXPIRATION_INFERRED" || !row.side) {
+    return null;
+  }
+
+  const quantity = Number(row.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    importId: row.importId,
+    accountId: row.accountId,
+    broker: row.broker,
+    eventTimestamp: row.eventTimestamp,
+    tradeDate: row.tradeDate,
+    eventType: row.eventType,
+    assetClass: row.assetClass,
+    symbol: row.symbol,
+    instrumentKey: deriveInstrumentKeyFromPersistedExecution(row),
+    side: row.side,
+    quantity,
+    price: toNumber(row.price),
+    openingClosingEffect: row.openingClosingEffect ?? "UNKNOWN",
+    expirationDate: row.expirationDate,
+    optionType: row.optionType,
+    strike: toNumber(row.strike),
+  };
+}
+
+function sumRealizedPnl(matchedLots: Array<{ realizedPnl: number }>): number {
+  return matchedLots.reduce((sum, lot) => sum + lot.realizedPnl, 0);
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountId = url.searchParams.get("accountId");
@@ -121,7 +186,9 @@ export async function GET(request: Request) {
     ]);
   }
 
-  const adjustmentType = ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION"].includes(adjustmentTypeRaw)
+  const adjustmentType = ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION", "EXECUTION_QTY_OVERRIDE"].includes(
+    adjustmentTypeRaw,
+  )
     ? (adjustmentTypeRaw as AdjustmentType)
     : null;
   if (!adjustmentType) {
@@ -170,23 +237,52 @@ export async function GET(request: Request) {
   const executions = executionsRows.map(mapExecution);
   const matchedLots = matchedLotRows.map(mapMatchedLot);
 
-  const existingAdjustments: ManualAdjustmentRecord[] = adjustmentRows.map((row) => ({
-    id: row.id,
-    createdAt: row.createdAt.toISOString(),
-    createdBy: row.createdBy,
-    accountId: row.accountId,
-    accountExternalId: row.account.accountId,
-    symbol: row.symbol,
-    effectiveDate: row.effectiveDate.toISOString(),
-    adjustmentType: row.adjustmentType,
-    payload: parsePayloadByType(row.adjustmentType, row.payloadJson),
-    reason: row.reason,
-    evidenceRef: row.evidenceRef,
-    status: row.status,
-    reversedByAdjustmentId: row.reversedByAdjustmentId,
-  }));
+  const existingAdjustments: ManualAdjustmentRecord[] = adjustmentRows.flatMap((row) => {
+    try {
+      return [
+        {
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          createdBy: row.createdBy,
+          accountId: row.accountId,
+          accountExternalId: row.account.accountId,
+          symbol: row.symbol,
+          effectiveDate: row.effectiveDate.toISOString(),
+          adjustmentType: row.adjustmentType,
+          payload: parsePayloadByType(row.adjustmentType, row.payloadJson),
+          reason: row.reason,
+          evidenceRef: row.evidenceRef,
+          status: row.status,
+          reversedByAdjustmentId: row.reversedByAdjustmentId,
+        } satisfies ManualAdjustmentRecord,
+      ];
+    } catch {
+      return [];
+    }
+  });
 
-  const before = computeOpenPositions(executions, matchedLots, existingAdjustments);
+  const warnings: string[] = [];
+  let resolvedSymbol = symbol.toUpperCase();
+  let resolvedEffectiveDate = new Date(effectiveDate).toISOString();
+  let executionQtyOverridePreview: AdjustmentPreviewResponse["executionQtyOverridePreview"] | undefined;
+
+  if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+    const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
+    const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
+    if (!targetExecution) {
+      return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+        `Execution ${executionPayload.executionId} does not exist for this account.`,
+      ]);
+    }
+
+    resolvedSymbol = targetExecution.symbol.toUpperCase();
+    resolvedEffectiveDate = targetExecution.tradeDate.toISOString();
+
+    const rawQty = Number(targetExecution.quantity);
+    if (Number.isFinite(rawQty) && rawQty === executionPayload.overrideQty) {
+      warnings.push("Override qty equals the raw execution qty; this is a no-op.");
+    }
+  }
 
   const previewAdjustment: ManualAdjustmentRecord = {
     id: "preview-adjustment",
@@ -194,8 +290,8 @@ export async function GET(request: Request) {
     createdBy: "preview",
     accountId,
     accountExternalId: accountId,
-    symbol: symbol.toUpperCase(),
-    effectiveDate: new Date(effectiveDate).toISOString(),
+    symbol: resolvedSymbol,
+    effectiveDate: resolvedEffectiveDate,
     adjustmentType,
     payload,
     reason: "Preview",
@@ -204,26 +300,74 @@ export async function GET(request: Request) {
     reversedByAdjustmentId: null,
   };
 
+  const before = computeOpenPositions(executions, matchedLots, existingAdjustments);
   const after = computeOpenPositions(executions, matchedLots, [...existingAdjustments, previewAdjustment]);
 
-  const beforeSummary = summarizeForAdjustment(adjustmentType, symbol, payload, before);
-  const afterSummary = summarizeForAdjustment(adjustmentType, symbol, payload, after);
+  const beforeSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, before);
+  const afterSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, after);
 
   const effectiveTime = new Date(effectiveDate).getTime();
-  const affectedExecutionCount =
+  let affectedExecutionCount =
     adjustmentType === "SPLIT"
       ? executions.filter(
           (row) =>
             row.accountId === accountId &&
             row.assetClass === "EQUITY" &&
-            row.symbol.toUpperCase() === symbol.toUpperCase() &&
+            row.symbol.toUpperCase() === resolvedSymbol &&
             new Date(row.tradeDate).getTime() < effectiveTime,
         ).length
       : 0;
 
+  if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+    const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
+    const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
+    if (!targetExecution) {
+      return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+        `Execution ${executionPayload.executionId} does not exist for this account.`,
+      ]);
+    }
+
+    const matcherInput = executionsRows.flatMap((row) => {
+      const mapped = toLedgerExecution(row);
+      return mapped ? [mapped] : [];
+    });
+    const beforeOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, existingAdjustments);
+    const afterOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, [...existingAdjustments, previewAdjustment]);
+    const beforeFifo = runFifoMatcher(beforeOverrideResult.executions, new Date());
+    const afterFifo = runFifoMatcher(afterOverrideResult.executions, new Date());
+    const rawQty = Number(targetExecution.quantity);
+    const fallbackQty = Number.isFinite(rawQty) ? rawQty : 0;
+
+    const beforeEffectiveQty = beforeOverrideResult.overrideMap.get(executionPayload.executionId)?.overrideQty ?? fallbackQty;
+    const afterEffectiveQty = afterOverrideResult.overrideMap.get(executionPayload.executionId)?.overrideQty ?? fallbackQty;
+    const beforeAffectedMatchedLots = beforeFifo.matchedLots.filter(
+      (lot) => lot.openExecutionId === executionPayload.executionId || lot.closeExecutionId === executionPayload.executionId,
+    ).length;
+    const afterAffectedMatchedLots = afterFifo.matchedLots.filter(
+      (lot) => lot.openExecutionId === executionPayload.executionId || lot.closeExecutionId === executionPayload.executionId,
+    ).length;
+    const beforeRealizedPnl = sumRealizedPnl(beforeFifo.matchedLots);
+    const afterRealizedPnl = sumRealizedPnl(afterFifo.matchedLots);
+
+    executionQtyOverridePreview = {
+      executionId: executionPayload.executionId,
+      rawQty: fallbackQty,
+      beforeEffectiveQty,
+      afterEffectiveQty,
+      beforeAffectedMatchedLots,
+      afterAffectedMatchedLots,
+      beforeRealizedPnl,
+      afterRealizedPnl,
+      beforeUnexplainedDeltaImpact: beforeRealizedPnl * -1,
+      afterUnexplainedDeltaImpact: afterRealizedPnl * -1,
+    };
+    affectedExecutionCount = 1;
+  }
+
   const result: AdjustmentPreviewResponse = {
-    symbol: symbol.toUpperCase(),
+    symbol: resolvedSymbol,
     adjustmentType,
+    warnings,
     before: {
       openQty: beforeSummary.openQty,
       costBasisPerShare: beforeSummary.costBasisPerShare,
@@ -235,7 +379,8 @@ export async function GET(request: Request) {
       grossCost: afterSummary.grossCost,
     },
     affectedExecutionCount,
-    effectiveDate: new Date(effectiveDate).toISOString(),
+    effectiveDate: resolvedEffectiveDate,
+    executionQtyOverridePreview,
   };
 
   return detailResponse(result);

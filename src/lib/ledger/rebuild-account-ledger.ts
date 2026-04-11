@@ -1,4 +1,7 @@
 import type { Prisma } from "@prisma/client";
+import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
+import { parsePayloadByType } from "@/lib/adjustments/types";
+import type { ManualAdjustmentRecord } from "@/types/api";
 import { computeBrokerTxId } from "./ingest";
 import { deriveInstrumentKeyFromPersistedExecution } from "./instrument-key";
 import { runFifoMatcher, type LedgerExecution, type LedgerWarning } from "./fifo-matcher";
@@ -34,6 +37,45 @@ export async function rebuildAccountLedger(
       },
     },
     orderBy: [{ eventTimestamp: "asc" }, { id: "asc" }],
+  });
+
+  const executionQtyOverrideRows = await tx.manualAdjustment.findMany({
+    where: {
+      accountId,
+      status: "ACTIVE",
+      adjustmentType: "EXECUTION_QTY_OVERRIDE",
+    },
+    include: {
+      account: {
+        select: {
+          accountId: true,
+        },
+      },
+    },
+    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  });
+  const executionQtyOverrides: ManualAdjustmentRecord[] = executionQtyOverrideRows.flatMap((row) => {
+    try {
+      return [
+        {
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          createdBy: row.createdBy,
+          accountId: row.accountId,
+          accountExternalId: row.account.accountId,
+          symbol: row.symbol,
+          effectiveDate: row.effectiveDate.toISOString(),
+          adjustmentType: row.adjustmentType,
+          payload: parsePayloadByType(row.adjustmentType, row.payloadJson),
+          reason: row.reason,
+          evidenceRef: row.evidenceRef,
+          status: row.status,
+          reversedByAdjustmentId: row.reversedByAdjustmentId,
+        } satisfies ManualAdjustmentRecord,
+      ];
+    } catch {
+      return [];
+    }
   });
 
   const matcherInput: LedgerExecution[] = [];
@@ -72,7 +114,17 @@ export async function rebuildAccountLedger(
     });
   }
 
-  const matchResult = runFifoMatcher(matcherInput, asOfDate);
+  const overrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, executionQtyOverrides);
+  const matchResult = runFifoMatcher(overrideResult.executions, asOfDate);
+  if (overrideResult.unmatchedExecutionIds.length > 0) {
+    for (const executionId of overrideResult.unmatchedExecutionIds) {
+      matchResult.warnings.push({
+        code: "EXECUTION_QTY_OVERRIDE_TARGET_MISSING",
+        message: `Execution qty override references missing execution ${executionId}.`,
+        rowRef: executionId,
+      });
+    }
+  }
 
   if (matchResult.syntheticExecutions.length > 0) {
     await tx.execution.createMany({

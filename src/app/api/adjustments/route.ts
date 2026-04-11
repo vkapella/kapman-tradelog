@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse, listResponse, parsePagination } from "@/lib/api/responses";
+import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
+import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import { manualAdjustmentCreateSchema, parsePayloadByType } from "@/lib/adjustments/types";
 import type { ManualAdjustmentRecord } from "@/types/api";
 
@@ -11,7 +13,7 @@ function mapRowToRecord(row: {
   accountId: string;
   symbol: string;
   effectiveDate: Date;
-  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION";
+  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION" | "EXECUTION_QTY_OVERRIDE";
   payloadJson: Prisma.JsonValue;
   reason: string;
   evidenceRef: string | null;
@@ -108,21 +110,52 @@ export async function POST(request: Request) {
     return errorResponse("ACCOUNT_NOT_FOUND", "Account not found.", [`No account for id ${input.accountId}.`], 404);
   }
 
-  const created = await prisma.manualAdjustment.create({
-    data: {
-      createdBy: input.createdBy?.trim() || "local-user",
-      accountId: input.accountId,
-      symbol: input.symbol.toUpperCase(),
-      effectiveDate: new Date(input.effectiveDate),
-      adjustmentType: input.adjustmentType,
-      payloadJson: payload as unknown as Prisma.InputJsonValue,
-      reason: input.reason.trim(),
-      evidenceRef: input.evidenceRef?.trim() || null,
-      status: "ACTIVE",
-    },
-    include: {
-      account: { select: { accountId: true } },
-    },
+  let effectiveDate = new Date(input.effectiveDate);
+  let symbol = input.symbol.toUpperCase();
+  if (input.adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+    const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
+    const targetExecution = await prisma.execution.findFirst({
+      where: {
+        id: executionPayload.executionId,
+        accountId: input.accountId,
+      },
+      select: {
+        id: true,
+        tradeDate: true,
+        symbol: true,
+      },
+    });
+    if (!targetExecution) {
+      return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+        `Execution ${executionPayload.executionId} does not exist for account ${account.accountId}.`,
+      ]);
+    }
+
+    effectiveDate = targetExecution.tradeDate;
+    symbol = targetExecution.symbol.toUpperCase();
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.manualAdjustment.create({
+      data: {
+        createdBy: input.createdBy?.trim() || "local-user",
+        accountId: input.accountId,
+        symbol,
+        effectiveDate,
+        adjustmentType: input.adjustmentType,
+        payloadJson: payload as unknown as Prisma.InputJsonValue,
+        reason: input.reason.trim(),
+        evidenceRef: input.evidenceRef?.trim() || null,
+        status: "ACTIVE",
+      },
+      include: {
+        account: { select: { accountId: true } },
+      },
+    });
+
+    await rebuildAccountLedger(tx, input.accountId, new Date());
+    await rebuildAccountSetups(tx, input.accountId);
+    return row;
   });
 
   return detailResponse(mapRowToRecord(created));
