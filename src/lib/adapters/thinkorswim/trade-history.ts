@@ -1,7 +1,7 @@
 import { parseAccountMetadataFromCsv } from "../../accounts/parse-account-metadata";
 import { parseThinkorswimAccountSummary } from "./account-summary";
-import { parseCashBalanceSnapshots } from "./cash-balance";
-import type { AdapterWarning, NormalizedDailyAccountSnapshot, NormalizedExecution, ParseResult } from "../types";
+import { parseCashBalanceRows } from "./cash-balance";
+import type { AdapterWarning, NormalizedCashEvent, NormalizedDailyAccountSnapshot, NormalizedExecution, ParseResult } from "../types";
 
 const TRADE_HISTORY_HEADER = ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type";
 const KNOWN_SPREADS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
@@ -337,6 +337,10 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     }
   }
 
+  const cashBalanceRows = parseCashBalanceRows(csvText);
+  const snapshots = applyAccountSummaryToSnapshots(cashBalanceRows.snapshots, csvText);
+  const cashEvents: NormalizedCashEvent[] = cashBalanceRows.cashEvents;
+
   return {
     accountMetadata: {
       accountId: accountMetadata.accountId,
@@ -345,7 +349,8 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     },
     warnings,
     executions,
-    snapshots: applyAccountSummaryToSnapshots(parseCashBalanceSnapshots(csvText), csvText),
+    snapshots,
+    cashEvents,
     parsedRows,
     skippedRows,
   };

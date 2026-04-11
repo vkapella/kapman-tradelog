@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { parseCashBalanceSnapshots } from "../src/lib/adapters/thinkorswim/cash-balance";
 import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
 import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
+import { replaceImportCashEvents } from "../src/lib/imports/replace-import-cash-events";
 import { replaceImportExecutions } from "../src/lib/imports/replace-import-executions";
+import { replaceImportSnapshots } from "../src/lib/imports/replace-import-snapshots";
 import { deriveInstrumentKeyFromNormalizedExecution } from "../src/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "../src/lib/ledger/rebuild-account-ledger";
 
@@ -123,30 +124,10 @@ async function main() {
       },
     });
 
-    const snapshots = parseCashBalanceSnapshots(csvText);
-
-    for (const snapshot of snapshots) {
-      await prisma.dailyAccountSnapshot.upsert({
-        where: {
-          accountId_snapshotDate: {
-            accountId: account.id,
-            snapshotDate: snapshot.snapshotDate,
-          },
-        },
-        update: {
-          balance: snapshot.balance,
-          sourceRef: seededImport.id,
-        },
-        create: {
-          accountId: account.id,
-          snapshotDate: snapshot.snapshotDate,
-          balance: snapshot.balance,
-          sourceRef: seededImport.id,
-        },
-      });
-    }
-
     await prisma.$transaction(async (tx) => {
+      await replaceImportSnapshots(tx, seededImport.id, account.id, parsedTradeHistory.snapshots);
+      await replaceImportCashEvents(tx, seededImport.id, account.id, parsedTradeHistory.cashEvents);
+
       const ingestResult = await replaceImportExecutions(
         tx,
         seededImport.id,
