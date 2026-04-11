@@ -66,6 +66,7 @@ export interface CommitImportResponse extends ImportResult {
 
 export interface ImportsListQuery {
   account?: string;
+  import?: string;
   page?: number;
   pageSize?: number;
 }
@@ -90,6 +91,10 @@ export interface ExecutionRecord {
   expirationDate: string | null;
   spreadGroupId: string | null;
   importId: string;
+}
+
+export interface ExecutionDetailRecord extends ExecutionRecord {
+  rawRowJson: unknown;
 }
 
 export interface ExecutionPreviewRow {
