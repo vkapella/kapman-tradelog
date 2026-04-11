@@ -225,6 +225,15 @@ export interface DiagnosticsResponse {
   parseCoverage: number;
   unsupportedRowCount: number;
   matchingCoverage: number;
+  unmatchedCloseCount: number;
+  partialMatchCount: number;
+  unmatchedCloseExecutions: Array<{
+    id: string;
+    symbol: string;
+    tradeDate: string;
+    qty: string;
+    side: string | null;
+  }>;
   uncategorizedCount: number;
   warningsCount: number;
   syntheticExpirationCount: number;
