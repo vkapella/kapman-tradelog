@@ -36,6 +36,11 @@ fixtures/*account*.csv
 **/test/**/*account*.csv
 **/tests/**/*account*.csv
 **/*account*.csv
+fixtures/*[Aa]ccount*.csv
+**/adapter/**/*[Aa]ccount*.csv
+**/test/**/*[Aa]ccount*.csv
+**/tests/**/*[Aa]ccount*.csv
+**/*[Aa]ccount*.csv
 
 # vercel
 .vercel
