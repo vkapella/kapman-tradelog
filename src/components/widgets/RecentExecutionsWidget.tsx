@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { ExecutionRecord } from "@/types/api";
 
 interface ExecutionsPayload {
@@ -19,7 +20,9 @@ export function RecentExecutionsWidget() {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/executions?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -35,7 +38,7 @@ export function RecentExecutionsWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const recentRows = useMemo(() => {
     return rows

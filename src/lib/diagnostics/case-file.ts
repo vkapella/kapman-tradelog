@@ -9,12 +9,13 @@ import type {
 export interface StoredDiagnosticWarning {
   code: string;
   message: string;
+  accountId?: string;
   rowRef?: string;
 }
 
 export interface WarningGroupingContext {
-  unmatchedCloseExecutionIdByInstrumentKey?: Map<string, string>;
-  syntheticExecutionIdByInstrumentKey?: Map<string, string>;
+  unmatchedCloseExecutionIdByAccountInstrumentKey?: Map<string, string>;
+  syntheticExecutionIdByAccountInstrumentKey?: Map<string, string>;
 }
 
 export interface SetupInferenceSampleLike {
@@ -45,6 +46,10 @@ function extractInstrumentKey(message: string): string | null {
   }
 
   return null;
+}
+
+export function buildAccountInstrumentKey(accountId: string, instrumentKey: string): string {
+  return `${accountId}::${instrumentKey}`;
 }
 
 function buildWarningGroupTitle(code: string): string {
@@ -85,10 +90,11 @@ export function groupWarningRecords(
 
   for (const warning of warnings) {
     const instrumentKey = extractInstrumentKey(warning.message);
+    const scopeToken = warning.accountId ?? "NO_ACCOUNT";
     const groupKey =
       warning.code === "UNMATCHED_CLOSE_QUANTITY" || warning.code === "SYNTHETIC_EXPIRATION_INFERRED"
-        ? `${warning.code}:${instrumentKey ?? warning.message}`
-        : `${warning.code}:${warning.message}`;
+        ? `${warning.code}:${scopeToken}:${instrumentKey ?? warning.message}`
+        : `${warning.code}:${scopeToken}:${warning.message}`;
     const existing = grouped.get(groupKey);
     if (existing) {
       existing.count += 1;
@@ -105,12 +111,14 @@ export function groupWarningRecords(
   return Array.from(grouped.entries()).map(([id, entry]) => {
     let caseRef: DiagnosticGroupRecord["caseRef"] = null;
     if (entry.warning.code === "UNMATCHED_CLOSE_QUANTITY" && entry.instrumentKey) {
-      const executionId = context.unmatchedCloseExecutionIdByInstrumentKey?.get(entry.instrumentKey) ?? null;
+      const scopedInstrumentKey = entry.warning.accountId ? buildAccountInstrumentKey(entry.warning.accountId, entry.instrumentKey) : entry.instrumentKey;
+      const executionId = context.unmatchedCloseExecutionIdByAccountInstrumentKey?.get(scopedInstrumentKey) ?? null;
       caseRef = executionId ? { kind: "execution", executionId } : null;
     }
 
     if (entry.warning.code === "SYNTHETIC_EXPIRATION_INFERRED" && entry.instrumentKey) {
-      const executionId = context.syntheticExecutionIdByInstrumentKey?.get(entry.instrumentKey) ?? null;
+      const scopedInstrumentKey = entry.warning.accountId ? buildAccountInstrumentKey(entry.warning.accountId, entry.instrumentKey) : entry.instrumentKey;
+      const executionId = context.syntheticExecutionIdByAccountInstrumentKey?.get(scopedInstrumentKey) ?? null;
       caseRef = executionId ? { kind: "execution", executionId } : null;
     }
 

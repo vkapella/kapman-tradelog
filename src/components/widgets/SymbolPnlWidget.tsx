@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
 
@@ -18,7 +19,9 @@ export function SymbolPnlWidget() {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/matched-lots?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -34,7 +37,7 @@ export function SymbolPnlWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, number>();

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 
 interface PageStatsResponse {
   data: {
@@ -17,6 +19,7 @@ interface DataPagePanelProps {
 }
 
 export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
+  const { selectedAccounts } = useAccountFilterContext();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<PageStatsResponse["data"] | null>(null);
@@ -26,7 +29,9 @@ export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
 
     async function loadStats() {
       try {
-        const response = await fetch("/api/page-stats", { cache: "no-store" });
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const response = await fetch(`/api/page-stats?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error(`Request failed with ${response.status}`);
         }
@@ -51,7 +56,7 @@ export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   if (loading) {
     return <LoadingSkeleton lines={4} />;

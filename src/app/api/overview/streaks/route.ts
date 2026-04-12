@@ -1,9 +1,16 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
 import type { StreakSummaryResponse } from "@/types/api";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const accountScope = buildAccountScopeWhere(accountIds);
+
   const lots = await prisma.matchedLot.findMany({
+    where: accountScope as Prisma.MatchedLotWhereInput | undefined,
     include: {
       closeExecution: {
         select: {

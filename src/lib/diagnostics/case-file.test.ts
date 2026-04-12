@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExecutionRecord, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
 import {
+  buildAccountInstrumentKey,
   buildExecutionCaseFile,
   buildSetupInferenceCaseFile,
   groupSetupInferenceSamples,
@@ -65,23 +66,48 @@ function setup(overrides: Partial<SetupSummaryRecord> = {}): SetupSummaryRecord 
 }
 
 describe("groupWarningRecords", () => {
-  it("groups duplicate warning messages and attaches execution case refs when available", () => {
+  it("groups duplicate warning messages by account scope and attaches execution case refs when available", () => {
     const groups = groupWarningRecords(
       [
-        { code: "UNMATCHED_CLOSE_QUANTITY", message: "Unmatched close quantity 1 for instrument INTC|CALL|23|2025-01-17." },
-        { code: "UNMATCHED_CLOSE_QUANTITY", message: "Unmatched close quantity 1 for instrument INTC|CALL|23|2025-01-17." },
-        { code: "SYNTHETIC_EXPIRATION_INFERRED", message: "Synthetic expiration close created for HOOD|PUT|50|2025-06-20 quantity 1." },
+        {
+          code: "UNMATCHED_CLOSE_QUANTITY",
+          accountId: "account-1",
+          message: "Unmatched close quantity 1 for instrument INTC|CALL|23|2025-01-17.",
+        },
+        {
+          code: "UNMATCHED_CLOSE_QUANTITY",
+          accountId: "account-1",
+          message: "Unmatched close quantity 1 for instrument INTC|CALL|23|2025-01-17.",
+        },
+        {
+          code: "UNMATCHED_CLOSE_QUANTITY",
+          accountId: "account-2",
+          message: "Unmatched close quantity 1 for instrument INTC|CALL|23|2025-01-17.",
+        },
+        {
+          code: "SYNTHETIC_EXPIRATION_INFERRED",
+          accountId: "account-2",
+          message: "Synthetic expiration close created for HOOD|PUT|50|2025-06-20 quantity 1.",
+        },
       ],
       {
-        unmatchedCloseExecutionIdByInstrumentKey: new Map([["INTC|CALL|23|2025-01-17", "execution-unmatched"]]),
-        syntheticExecutionIdByInstrumentKey: new Map([["HOOD|PUT|50|2025-06-20", "execution-synth"]]),
+        unmatchedCloseExecutionIdByAccountInstrumentKey: new Map([
+          [buildAccountInstrumentKey("account-1", "INTC|CALL|23|2025-01-17"), "execution-unmatched-account-1"],
+          [buildAccountInstrumentKey("account-2", "INTC|CALL|23|2025-01-17"), "execution-unmatched-account-2"],
+        ]),
+        syntheticExecutionIdByAccountInstrumentKey: new Map([
+          [buildAccountInstrumentKey("account-2", "HOOD|PUT|50|2025-06-20"), "execution-synth"],
+        ]),
       },
     );
 
-    expect(groups).toHaveLength(2);
-    expect(groups[0]?.count).toBe(2);
-    expect(groups[0]?.caseRef).toEqual({ kind: "execution", executionId: "execution-unmatched" });
-    expect(groups[1]?.caseRef).toEqual({ kind: "execution", executionId: "execution-synth" });
+    expect(groups).toHaveLength(3);
+    const groupedByExecutionId = new Map(
+      groups.map((group) => [group.caseRef?.kind === "execution" ? group.caseRef.executionId : "none", group]),
+    );
+    expect(groupedByExecutionId.get("execution-unmatched-account-1")?.count).toBe(2);
+    expect(groupedByExecutionId.get("execution-unmatched-account-2")?.count).toBe(1);
+    expect(groupedByExecutionId.get("execution-synth")?.count).toBe(1);
   });
 });
 

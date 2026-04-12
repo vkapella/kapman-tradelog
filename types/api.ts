@@ -71,6 +71,7 @@ export interface CommitImportResponse extends ImportResult {
 }
 
 export interface ImportsListQuery {
+  accountIds?: string;
   account?: string;
   import?: string;
   page?: number;
@@ -135,6 +136,7 @@ export interface FidelityExecutionPreviewRow {
 export type PreviewRow = ExecutionPreviewRow | FidelityExecutionPreviewRow;
 
 export interface ExecutionsListQuery {
+  accountIds?: string;
   symbol?: string;
   account?: string;
   import?: string;
@@ -180,6 +182,7 @@ export interface MatchedLotRecord {
 }
 
 export interface MatchedLotsListQuery {
+  accountIds?: string;
   symbol?: string;
   outcome?: string;
   account?: string;
@@ -203,10 +206,15 @@ export interface SetupSummaryRecord {
 }
 
 export interface SetupsListQuery {
+  accountIds?: string;
   tag?: string;
   account?: string;
   page?: number;
   pageSize?: number;
+}
+
+export interface DiagnosticsQuery {
+  accountIds?: string;
 }
 
 export interface SetupDetailResponse {

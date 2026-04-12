@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import type { ExecutionRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -5,35 +7,45 @@ import { prisma } from "@/lib/db/prisma";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const symbol = url.searchParams.get("symbol") ?? undefined;
   const account = url.searchParams.get("account") ?? undefined;
   const importId = url.searchParams.get("import") ?? undefined;
   const executionId = url.searchParams.get("execution") ?? undefined;
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
+  const accountScope = buildAccountScopeWhere(accountIds);
 
-  const where: Record<string, unknown> = {};
+  const andClauses: Prisma.ExecutionWhereInput[] = [];
+  if (accountScope) {
+    andClauses.push(accountScope as Prisma.ExecutionWhereInput);
+  }
   if (symbol) {
-    where.OR = [
-      { symbol: { equals: symbol, mode: "insensitive" as const } },
-      { underlyingSymbol: { equals: symbol, mode: "insensitive" as const } },
-    ];
+    andClauses.push({
+      OR: [
+        { symbol: { equals: symbol, mode: "insensitive" } },
+        { underlyingSymbol: { equals: symbol, mode: "insensitive" } },
+      ],
+    });
   }
   if (importId) {
-    where.importId = importId;
+    andClauses.push({ importId });
   }
   if (executionId) {
-    where.id = executionId;
+    andClauses.push({ id: executionId });
   }
   if (account) {
-    where.account = { accountId: { equals: account, mode: "insensitive" as const } };
+    andClauses.push({ account: { accountId: { equals: account, mode: "insensitive" } } });
   }
   if (dateFrom || dateTo) {
-    where.tradeDate = {
-      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-      ...(dateTo ? { lte: new Date(dateTo) } : {}),
-    };
+    andClauses.push({
+      tradeDate: {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      },
+    });
   }
+  const where: Prisma.ExecutionWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [total, rows] = await Promise.all([
     prisma.execution.count({ where }),

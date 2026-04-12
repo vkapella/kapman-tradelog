@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
 import type {
   NlvResult,
@@ -47,7 +48,9 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
       setLoading(true);
 
       try {
-        const summaryResponse = await fetch("/api/overview/summary", { cache: "no-store" });
+        const summaryQuery = new URLSearchParams();
+        applyAccountIdsToSearchParams(summaryQuery, [accountId]);
+        const summaryResponse = await fetch(`/api/overview/summary?${summaryQuery.toString()}`, { cache: "no-store" });
         if (!summaryResponse.ok) {
           throw new Error("Unable to load overview summary for NLV.");
         }

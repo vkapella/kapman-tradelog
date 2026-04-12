@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
@@ -188,9 +189,22 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
   return markValue - totalCostBasis;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const accountScope = buildAccountScopeWhere(accountIds);
+  const executionScope = accountScope as Prisma.ExecutionWhereInput | undefined;
+  const matchedLotScope = accountScope as Prisma.MatchedLotWhereInput | undefined;
+  const snapshotScope = accountScope as Prisma.DailyAccountSnapshotWhereInput | undefined;
+  const cashEventScope = accountScope as Prisma.CashEventWhereInput | undefined;
+
+  const manualAdjustmentWhere: Prisma.ManualAdjustmentWhereInput = {
+    AND: [{ status: "ACTIVE" }, ...(accountScope ? [accountScope as Prisma.ManualAdjustmentWhereInput] : [])],
+  };
+
   const [executionRows, matchedLotRows, adjustmentRows, nlvRows, realizedAggregate, cashAggregate] = await Promise.all([
     prisma.execution.findMany({
+      where: executionScope,
       select: {
         id: true,
         accountId: true,
@@ -214,22 +228,25 @@ export async function GET() {
       },
     }),
     prisma.matchedLot.findMany({
+      where: matchedLotScope,
       include: {
         openExecution: { select: { tradeDate: true, importId: true, symbol: true } },
         closeExecution: { select: { tradeDate: true, importId: true } },
       },
     }),
     prisma.manualAdjustment.findMany({
-      where: { status: "ACTIVE" },
+      where: manualAdjustmentWhere,
       include: { account: { select: { accountId: true } } },
     }),
     prisma.dailyAccountSnapshot.findMany({
-      where: { brokerNetLiquidationValue: { not: null } },
+      where: {
+        AND: [{ brokerNetLiquidationValue: { not: null } }, ...(snapshotScope ? [snapshotScope] : [])],
+      },
       select: { accountId: true, brokerNetLiquidationValue: true, snapshotDate: true, id: true },
       orderBy: [{ accountId: "asc" }, { snapshotDate: "desc" }, { id: "desc" }],
     }),
-    prisma.matchedLot.aggregate({ _sum: { realizedPnl: true } }),
-    prisma.cashEvent.aggregate({ _sum: { amount: true } }),
+    prisma.matchedLot.aggregate({ where: matchedLotScope, _sum: { realizedPnl: true } }),
+    prisma.cashEvent.aggregate({ where: cashEventScope, _sum: { amount: true } }),
   ]);
 
   const executions = mapExecutionRowsToRecords(executionRows);

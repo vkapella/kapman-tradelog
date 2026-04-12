@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import type { DiagnosticsResponse } from "@/types/api";
 
@@ -10,13 +12,16 @@ interface DiagnosticsPayload {
 }
 
 export function DiagnosticsWidget() {
+  const { selectedAccounts } = useAccountFilterContext();
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadData() {
-      const response = await fetch("/api/diagnostics", { cache: "no-store" });
+      const query = new URLSearchParams();
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/diagnostics?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -32,7 +37,7 @@ export function DiagnosticsWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const clear = Boolean(data && data.warningsCount === 0 && data.parseCoverage === 1 && data.matchingCoverage === 1);
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { ImportRecord } from "@/types/api";
 
 interface ImportsPayload {
@@ -11,14 +12,16 @@ interface ImportsPayload {
 }
 
 export function ImportHealthWidget() {
-  const { isSelectedAccount } = useAccountFilterContext();
+  const { isSelectedAccount, selectedAccounts } = useAccountFilterContext();
   const [rows, setRows] = useState<ImportRecord[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/imports?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -34,7 +37,7 @@ export function ImportHealthWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const summary = useMemo(() => {
     const filtered = rows.filter((row) => isSelectedAccount(row.accountId));

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse, listResponse, parsePagination } from "@/lib/api/responses";
 import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
@@ -41,20 +42,26 @@ function mapRowToRecord(row: {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const accountId = url.searchParams.get("accountId") ?? undefined;
   const symbol = url.searchParams.get("symbol") ?? undefined;
   const status = url.searchParams.get("status") ?? undefined;
+  const accountScope = buildAccountScopeWhere(accountIds);
 
-  const where: Record<string, unknown> = {};
+  const andClauses: Prisma.ManualAdjustmentWhereInput[] = [];
+  if (accountScope) {
+    andClauses.push(accountScope as Prisma.ManualAdjustmentWhereInput);
+  }
   if (accountId) {
-    where.accountId = accountId;
+    andClauses.push({ accountId });
   }
   if (symbol) {
-    where.symbol = { equals: symbol.toUpperCase(), mode: "insensitive" as const };
+    andClauses.push({ symbol: { equals: symbol.toUpperCase(), mode: "insensitive" } });
   }
   if (status === "ACTIVE" || status === "REVERSED") {
-    where.status = status;
+    andClauses.push({ status });
   }
+  const where: Prisma.ManualAdjustmentWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [total, rows] = await Promise.all([
     prisma.manualAdjustment.count({ where }),

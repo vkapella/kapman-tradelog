@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
 
@@ -26,7 +27,9 @@ export function ExpectancyScatterWidget() {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/setups?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -42,7 +45,7 @@ export function ExpectancyScatterWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Array<{ x: number; y: number; z: number; row: SetupSummaryRecord }>>();

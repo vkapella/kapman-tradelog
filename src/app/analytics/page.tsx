@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
 
@@ -56,7 +57,9 @@ export default function Page() {
     let cancelled = false;
 
     async function loadSetupsForChart() {
-      const response = await fetch("/api/setups?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -72,13 +75,18 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadTableRows() {
-      const response = await fetch(`/api/setups?page=${showAll ? 1 : tablePage}&pageSize=${showAll ? 1000 : 25}`, { cache: "no-store" });
+      const query = new URLSearchParams({
+        page: String(showAll ? 1 : tablePage),
+        pageSize: String(showAll ? 1000 : 25),
+      });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -95,15 +103,20 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [showAll, tablePage]);
+  }, [showAll, tablePage, selectedAccounts]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadMatchedLotsAndDiagnostics() {
+      const lotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
+      const diagnosticsQuery = new URLSearchParams();
+      applyAccountIdsToSearchParams(lotsQuery, selectedAccounts);
+      applyAccountIdsToSearchParams(diagnosticsQuery, selectedAccounts);
+
       const [lotsResponse, diagnosticsResponse] = await Promise.all([
-        fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" }),
-        fetch("/api/diagnostics", { cache: "no-store" }),
+        fetch(`/api/matched-lots?${lotsQuery.toString()}`, { cache: "no-store" }),
+        fetch(`/api/diagnostics?${diagnosticsQuery.toString()}`, { cache: "no-store" }),
       ]);
 
       if (lotsResponse.ok) {
@@ -126,7 +139,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const filteredAllSetups = useMemo(() => allSetups.filter((row) => selectedAccounts.includes(row.accountId)), [allSetups, selectedAccounts]);
   const filteredLots = useMemo(() => matchedLots.filter((row) => selectedAccounts.includes(row.accountId)), [matchedLots, selectedAccounts]);

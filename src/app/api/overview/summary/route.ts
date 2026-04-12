@@ -1,35 +1,28 @@
+import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { OverviewSummaryResponse } from "@/types/api";
 
-function parseAccountIds(value: string | null): string[] {
-  if (!value) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      value
-        .split(",")
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0),
-    ),
-  );
-}
-
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
-  const whereAccount = accountIds.length > 0 ? { accountId: { in: accountIds } } : undefined;
+  const whereAccount = buildAccountScopeWhere(accountIds);
 
   const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots] = await Promise.all([
-    prisma.execution.count({ where: whereAccount }),
-    prisma.matchedLot.findMany({ where: whereAccount, select: { realizedPnl: true, holdingDays: true } }),
-    prisma.setupGroup.count({ where: whereAccount }),
-    prisma.import.findMany({ where: whereAccount, select: { status: true, parsedRows: true, skippedRows: true } }),
-    prisma.dailyAccountSnapshot.count({ where: whereAccount }),
+    prisma.execution.count({ where: whereAccount as Prisma.ExecutionWhereInput | undefined }),
+    prisma.matchedLot.findMany({
+      where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
+      select: { realizedPnl: true, holdingDays: true },
+    }),
+    prisma.setupGroup.count({ where: whereAccount as Prisma.SetupGroupWhereInput | undefined }),
+    prisma.import.findMany({
+      where: whereAccount as Prisma.ImportWhereInput | undefined,
+      select: { status: true, parsedRows: true, skippedRows: true },
+    }),
+    prisma.dailyAccountSnapshot.count({ where: whereAccount as Prisma.DailyAccountSnapshotWhereInput | undefined }),
     prisma.dailyAccountSnapshot.findMany({
-      where: whereAccount,
+      where: whereAccount as Prisma.DailyAccountSnapshotWhereInput | undefined,
       include: {
         account: {
           select: { accountId: true },

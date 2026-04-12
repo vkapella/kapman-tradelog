@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import type { SetupSummaryRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -6,16 +7,22 @@ import { prisma } from "@/lib/db/prisma";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const tag = url.searchParams.get("tag") ?? undefined;
   const account = url.searchParams.get("account") ?? undefined;
+  const accountScope = buildAccountScopeWhere(accountIds);
 
-  const where: Prisma.SetupGroupWhereInput = {};
+  const andClauses: Prisma.SetupGroupWhereInput[] = [];
+  if (accountScope) {
+    andClauses.push(accountScope as Prisma.SetupGroupWhereInput);
+  }
   if (tag) {
-    where.tag = { equals: tag, mode: "insensitive" };
+    andClauses.push({ tag: { equals: tag, mode: "insensitive" } });
   }
   if (account) {
-    where.account = { accountId: { equals: account, mode: "insensitive" } };
+    andClauses.push({ account: { accountId: { equals: account, mode: "insensitive" } } });
   }
+  const where: Prisma.SetupGroupWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [total, rows] = await Promise.all([
     prisma.setupGroup.count({ where }),
