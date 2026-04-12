@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { CommitImportResponse, ImportRecord, UploadImportResponse } from "@/types/api";
 
@@ -178,7 +179,14 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       return null;
     }
 
-    return `${commitResult.parsedRows} parsed · ${commitResult.inserted} inserted · ${commitResult.skipped_duplicate} skipped duplicate · ${commitResult.failed} failed`;
+    return [
+      `${commitResult.parsedRows} parsed`,
+      `${commitResult.inserted.executions} executions inserted`,
+      `${commitResult.inserted.cashEvents} cash events inserted`,
+      `${commitResult.skippedDuplicates.executions} execution duplicates skipped`,
+      `${commitResult.skippedDuplicates.cashEvents} cash-event duplicates skipped`,
+      `${commitResult.failed} failed`,
+    ].join(" · ");
   }, [commitResult]);
 
   const canGoBack = historyMeta.page > 1;
@@ -246,34 +254,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               </div>
 
               <div>
-                <p className="text-sm font-medium text-slate-100">Parse Preview (first 10 rows)</p>
+                <p className="text-sm font-medium text-slate-100">Parse Preview</p>
                 <div className="mt-2 overflow-auto rounded border border-slate-700">
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-slate-900 text-slate-300">
-                      <tr>
-                        <th className="px-2 py-2 text-left">Timestamp</th>
-                        <th className="px-2 py-2 text-left">Symbol</th>
-                        <th className="px-2 py-2 text-left">Side</th>
-                        <th className="px-2 py-2 text-right">Qty</th>
-                        <th className="px-2 py-2 text-right">Price</th>
-                        <th className="px-2 py-2 text-left">Spread</th>
-                        <th className="px-2 py-2 text-left">Effect</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uploadResult.previewRows.map((row, index) => (
-                        <tr key={`${row.eventTimestamp}-${index}`} className="border-t border-slate-800 text-slate-200">
-                          <td className="px-2 py-2">{row.eventTimestamp}</td>
-                          <td className="px-2 py-2">{row.symbol}</td>
-                          <td className="px-2 py-2">{row.side}</td>
-                          <td className="px-2 py-2 text-right">{row.quantity}</td>
-                          <td className="px-2 py-2 text-right">{row.price ?? "~"}</td>
-                          <td className="px-2 py-2">{row.spread}</td>
-                          <td className="px-2 py-2">{row.openingClosingEffect}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <ImportPreviewTable adapter={uploadResult.detection.adapterId} rows={uploadResult.previewRows} />
                 </div>
               </div>
 

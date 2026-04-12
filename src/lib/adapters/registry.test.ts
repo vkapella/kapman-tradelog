@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { detectAdapter, listAdapters } from "./registry";
 
 describe("adapter registry", () => {
-  it("lists schwab active adapter and fidelity stub", () => {
+  it("lists schwab and fidelity as active adapters", () => {
     const adapters = listAdapters();
     expect(adapters.map((adapter) => adapter.id)).toEqual(["schwab_thinkorswim", "fidelity"]);
     expect(adapters[0]?.status).toBe("active");
-    expect(adapters[1]?.status).toBe("stub");
+    expect(adapters[1]?.status).toBe("active");
   });
 
   it("detects thinkorswim fixtures through registry selection", () => {
@@ -21,6 +21,20 @@ describe("adapter registry", () => {
     });
 
     expect(match?.adapter.id).toBe("schwab_thinkorswim");
+    expect(match?.detection.matched).toBe(true);
+  });
+
+  it("detects fidelity fixtures through registry selection", () => {
+    const fixture = readFileSync("tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv", "utf8");
+
+    const match = detectAdapter({
+      name: "History_for_Account_X19467537-10.csv",
+      content: fixture,
+      mimeType: "text/csv",
+      size: fixture.length,
+    });
+
+    expect(match?.adapter.id).toBe("fidelity");
     expect(match?.detection.matched).toBe(true);
   });
 });

@@ -49,13 +49,19 @@ export interface UploadImportResponse {
     reason: string;
     warnings: AdapterWarningRecord[];
   };
-  previewRows: ExecutionPreviewRow[];
+  previewRows: PreviewRow[];
 }
 
 export interface ImportResult {
   parsedRows: number;
-  inserted: number;
-  skipped_duplicate: number;
+  inserted: {
+    executions: number;
+    cashEvents: number;
+  };
+  skippedDuplicates: {
+    executions: number;
+    cashEvents: number;
+  };
   failed: number;
 }
 
@@ -98,6 +104,7 @@ export interface ExecutionDetailRecord extends ExecutionRecord {
 }
 
 export interface ExecutionPreviewRow {
+  kind?: "legacy";
   eventTimestamp: string;
   symbol: string;
   side: string;
@@ -106,6 +113,26 @@ export interface ExecutionPreviewRow {
   spread: string;
   openingClosingEffect: string;
 }
+
+export interface FidelityExecutionPreviewRow {
+  kind: "fidelity";
+  rowIndex: number;
+  executionDate: string | null;
+  actionClassification: string;
+  symbol: string;
+  underlyingTicker: string | null;
+  assetClass: "OPTION" | "EQUITY" | "CASH_EVENT" | null;
+  side: "BUY" | "SELL" | null;
+  openClose: "OPEN" | "CLOSE" | null;
+  quantity: number | null;
+  price: number | null;
+  amount: number | null;
+  marginType: "Cash" | "Margin" | null;
+  status: "VALID" | "WARNING" | "SKIPPED" | "CANCELLED";
+  warningMessage?: string;
+}
+
+export type PreviewRow = ExecutionPreviewRow | FidelityExecutionPreviewRow;
 
 export interface ExecutionsListQuery {
   symbol?: string;
@@ -298,7 +325,9 @@ export interface AdapterCoverageRecord {
 
 export interface AdapterSummaryRecord {
   id: BrokerId;
+  name: BrokerId;
   displayName: string;
+  fileExtensions: string[];
   status: "active" | "stub";
   coverage: AdapterCoverageRecord;
 }

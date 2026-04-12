@@ -42,15 +42,58 @@ export interface NormalizedDailyAccountSnapshot {
   brokerNetLiquidationValue?: number | null;
 }
 
-export type CashEventRowType = "FND" | "LIQ" | "RAD";
+export type CashEventRowType =
+  | "FND"
+  | "LIQ"
+  | "RAD"
+  | "DIVIDEND"
+  | "REINVESTMENT"
+  | "REDEMPTION"
+  | "MONEY_MARKET_BUY"
+  | "MONEY_MARKET"
+  | "TRANSFER_IN"
+  | "ACAT_RECEIVE"
+  | "ACAT_CREDIT";
 
 export interface NormalizedCashEvent {
   eventDate: Date;
-  rowType: CashEventRowType;
+  rowType: CashEventRowType | string;
   refNumber: string;
   description: string;
   amount: number;
+  symbol?: string | null;
+  marginType?: "Cash" | "Margin" | null;
 }
+
+export interface LegacyExecutionPreviewRow {
+  eventTimestamp: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  price: number | null;
+  spread: string;
+  openingClosingEffect: string;
+}
+
+export interface FidelityPreviewRow {
+  kind: "fidelity";
+  rowIndex: number;
+  executionDate: string | null;
+  actionClassification: string;
+  symbol: string;
+  underlyingTicker: string | null;
+  assetClass: "OPTION" | "EQUITY" | "CASH_EVENT" | null;
+  side: "BUY" | "SELL" | null;
+  openClose: "OPEN" | "CLOSE" | null;
+  quantity: number | null;
+  price: number | null;
+  amount: number | null;
+  marginType: "Cash" | "Margin" | null;
+  status: "VALID" | "WARNING" | "SKIPPED" | "CANCELLED";
+  warningMessage?: string;
+}
+
+export type AdapterPreviewRow = LegacyExecutionPreviewRow | FidelityPreviewRow;
 
 export interface ParseResult {
   warnings: AdapterWarning[];
@@ -60,6 +103,7 @@ export interface ParseResult {
   cashEvents: NormalizedCashEvent[];
   parsedRows: number;
   skippedRows: number;
+  previewRows?: AdapterPreviewRow[];
 }
 
 export interface NormalizedExecution {

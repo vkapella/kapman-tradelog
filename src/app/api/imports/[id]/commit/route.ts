@@ -10,6 +10,58 @@ import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrum
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { CommitImportResponse } from "@/types/api";
 
+function normalizeDateKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function normalizeNumberKey(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return String(value);
+  }
+
+  return parsed.toString();
+}
+
+function buildExecutionDedupKey(input: {
+  accountId: string;
+  executionDate: Date;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number | string;
+  amount: number | string | null;
+}): string {
+  return [
+    input.accountId,
+    normalizeDateKey(input.executionDate),
+    input.symbol.trim().toUpperCase(),
+    input.side,
+    normalizeNumberKey(input.quantity),
+    normalizeNumberKey(input.amount),
+  ].join("|");
+}
+
+function buildCashEventDedupKey(input: {
+  accountId: string;
+  eventDate: Date;
+  cashEventType: string;
+  symbol: string | null;
+  amount: number | string;
+}): string {
+  const normalizedSymbol = (input.symbol ?? "").trim().toUpperCase() || "NOSYM";
+  return [
+    input.accountId,
+    normalizeDateKey(input.eventDate),
+    input.cashEventType.trim().toUpperCase(),
+    normalizedSymbol,
+    normalizeNumberKey(input.amount),
+  ].join("|");
+}
+
 export async function POST(_request: Request, context: { params: { id: string } }) {
   const importId = context.params.id;
 
@@ -91,9 +143,128 @@ export async function POST(_request: Request, context: { params: { id: string } 
   let transactionResult;
   try {
     transactionResult = await prisma.$transaction(async (tx) => {
-      const ingestResult = await replaceImportExecutions(tx, importId, executionData);
+      let filteredExecutionData = executionData;
+      let fidelitySkippedExecutionDuplicates = 0;
+
+      let filteredCashEvents = parsed.cashEvents;
+      let fidelitySkippedCashEventDuplicates = 0;
+
+      if (matched.adapter.id === "fidelity") {
+        const existingExecutions = await tx.execution.findMany({
+          where: {
+            accountId: existingImport.accountId,
+            importId: {
+              not: importId,
+            },
+          },
+          select: {
+            tradeDate: true,
+            symbol: true,
+            side: true,
+            quantity: true,
+            netAmount: true,
+          },
+        });
+
+        const existingExecutionKeys = new Set<string>();
+        for (const row of existingExecutions) {
+          if (!row.side) {
+            continue;
+          }
+
+          existingExecutionKeys.add(
+            buildExecutionDedupKey({
+              accountId: existingImport.accountId,
+              executionDate: row.tradeDate,
+              symbol: row.symbol,
+              side: row.side,
+              quantity: row.quantity.toString(),
+              amount: row.netAmount?.toString() ?? null,
+            }),
+          );
+        }
+
+        const dedupedExecutions = [];
+        for (const row of executionData) {
+          const key = buildExecutionDedupKey({
+            accountId: existingImport.accountId,
+            executionDate: row.tradeDate,
+            symbol: row.symbol,
+            side: row.side,
+            quantity: row.quantity,
+            amount: row.netAmount,
+          });
+
+          if (existingExecutionKeys.has(key)) {
+            fidelitySkippedExecutionDuplicates += 1;
+            continue;
+          }
+
+          existingExecutionKeys.add(key);
+          dedupedExecutions.push(row);
+        }
+
+        filteredExecutionData = dedupedExecutions;
+
+        const existingCashEvents = await tx.cashEvent.findMany({
+          where: {
+            accountId: existingImport.accountId,
+            sourceRef: {
+              not: importId,
+            },
+            refNumber: {
+              startsWith: "FIDELITY-",
+            },
+          },
+          select: {
+            eventDate: true,
+            rowType: true,
+            refNumber: true,
+            description: true,
+            amount: true,
+          },
+        });
+
+        const existingCashEventKeys = new Set<string>();
+        for (const row of existingCashEvents) {
+          const match = row.refNumber.match(/\(([A-Z0-9.-]+)\)$/);
+          const symbolFromDescription = match ? match[1] : null;
+          existingCashEventKeys.add(
+            buildCashEventDedupKey({
+              accountId: existingImport.accountId,
+              eventDate: row.eventDate,
+              cashEventType: row.rowType,
+              symbol: symbolFromDescription,
+              amount: row.amount.toString(),
+            }),
+          );
+        }
+
+        const dedupedCashEvents = [];
+        for (const row of parsed.cashEvents) {
+          const key = buildCashEventDedupKey({
+            accountId: existingImport.accountId,
+            eventDate: row.eventDate,
+            cashEventType: row.rowType,
+            symbol: row.symbol ?? null,
+            amount: row.amount,
+          });
+
+          if (existingCashEventKeys.has(key)) {
+            fidelitySkippedCashEventDuplicates += 1;
+            continue;
+          }
+
+          existingCashEventKeys.add(key);
+          dedupedCashEvents.push(row);
+        }
+
+        filteredCashEvents = dedupedCashEvents;
+      }
+
+      const ingestResult = await replaceImportExecutions(tx, importId, filteredExecutionData);
       const snapshotResult = await replaceImportSnapshots(tx, importId, existingImport.accountId, parsed.snapshots);
-      await replaceImportCashEvents(tx, importId, existingImport.accountId, parsed.cashEvents);
+      const cashEventResult = await replaceImportCashEvents(tx, importId, existingImport.accountId, filteredCashEvents);
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
       const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);
@@ -128,14 +299,17 @@ export async function POST(_request: Request, context: { params: { id: string } 
       ];
       const warningsJson = combinedWarnings as unknown as Prisma.InputJsonValue;
 
+      const executionSkippedDuplicates = ingestResult.skipped_duplicate + fidelitySkippedExecutionDuplicates;
+      const cashEventSkippedDuplicates = fidelitySkippedCashEventDuplicates;
+
       const updatedImport = await tx.import.update({
         where: { id: importId },
         data: {
           status: "COMMITTED",
-          parsedRows: ingestResult.parsed,
-          persistedRows: ingestResult.inserted,
+          parsedRows: parsed.parsedRows,
+          persistedRows: ingestResult.inserted + cashEventResult.upserted,
           skippedRows: parsed.skippedRows,
-          skippedDuplicateRows: ingestResult.skipped_duplicate,
+          skippedDuplicateRows: executionSkippedDuplicates + cashEventSkippedDuplicates,
           failedRows: ingestResult.failed,
           warnings: warningsJson,
         },
@@ -144,7 +318,14 @@ export async function POST(_request: Request, context: { params: { id: string } 
       return {
         updatedImport,
         combinedWarnings,
-        ingestResult,
+        inserted: {
+          executions: ingestResult.inserted,
+          cashEvents: cashEventResult.upserted,
+        },
+        skippedDuplicates: {
+          executions: executionSkippedDuplicates,
+          cashEvents: cashEventSkippedDuplicates,
+        },
       };
     });
   } catch (error) {
@@ -167,8 +348,8 @@ export async function POST(_request: Request, context: { params: { id: string } 
   const payload: CommitImportResponse = {
     importId: transactionResult.updatedImport.id,
     parsedRows: transactionResult.updatedImport.parsedRows,
-    inserted: transactionResult.updatedImport.persistedRows,
-    skipped_duplicate: transactionResult.updatedImport.skippedDuplicateRows,
+    inserted: transactionResult.inserted,
+    skippedDuplicates: transactionResult.skippedDuplicates,
     failed: transactionResult.updatedImport.failedRows,
     warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
