@@ -1,3 +1,4 @@
+import { parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { SetupDetailResponse } from "@/types/api";
@@ -10,10 +11,13 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
-export async function GET(_request: Request, context: { params: { id: string } }) {
+export async function GET(request: Request, context: { params: { id: string } }) {
+  const url = new URL(request.url);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const setupGroup = await prisma.setupGroup.findUnique({
     where: { id: context.params.id },
     include: {
+      account: { select: { accountId: true } },
       lots: {
         include: {
           matchedLot: {
@@ -28,6 +32,9 @@ export async function GET(_request: Request, context: { params: { id: string } }
   });
 
   if (!setupGroup) {
+    return errorResponse("NOT_FOUND", "Setup group not found.", [`Setup ${context.params.id} does not exist.`], 404);
+  }
+  if (accountIds.length > 0 && !accountIds.includes(setupGroup.accountId) && !accountIds.includes(setupGroup.account.accountId)) {
     return errorResponse("NOT_FOUND", "Setup group not found.", [`Setup ${context.params.id} does not exist.`], 404);
   }
 

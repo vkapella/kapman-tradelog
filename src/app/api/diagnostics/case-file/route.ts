@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import {
   buildExecutionCaseFile,
@@ -13,6 +14,14 @@ import type {
   MatchedLotRecord,
   SetupSummaryRecord,
 } from "@/types/api";
+
+function isOutOfAccountScope(accountIds: string[], internalAccountId: string, externalAccountId: string): boolean {
+  if (accountIds.length === 0) {
+    return false;
+  }
+
+  return !accountIds.includes(internalAccountId) && !accountIds.includes(externalAccountId);
+}
 
 function mapExecution(row: {
   id: string;
@@ -171,16 +180,21 @@ async function loadSetupRecordsForLots(matchedLotIds: string[]): Promise<SetupSu
   return uniqueById(rows.map(mapSetup));
 }
 
-async function loadExecutionCaseFile(executionId: string): Promise<DiagnosticCaseFileResponse | null> {
+async function loadExecutionCaseFile(executionId: string, accountIds: string[]): Promise<DiagnosticCaseFileResponse | null> {
   const execution = await prisma.execution.findUnique({
     where: { id: executionId },
+    include: { account: { select: { accountId: true } } },
   });
   if (!execution) {
+    return null;
+  }
+  if (isOutOfAccountScope(accountIds, execution.accountId, execution.account.accountId)) {
     return null;
   }
 
   const matchedLots = await prisma.matchedLot.findMany({
     where: {
+      accountId: execution.accountId,
       OR: [{ openExecutionId: execution.id }, { closeExecutionId: execution.id }],
     },
     include: {
@@ -223,15 +237,19 @@ async function loadExecutionCaseFile(executionId: string): Promise<DiagnosticCas
   });
 }
 
-async function loadMatchedLotCaseFile(matchedLotId: string): Promise<DiagnosticCaseFileResponse | null> {
+async function loadMatchedLotCaseFile(matchedLotId: string, accountIds: string[]): Promise<DiagnosticCaseFileResponse | null> {
   const matchedLot = await prisma.matchedLot.findUnique({
     where: { id: matchedLotId },
     include: {
+      account: { select: { accountId: true } },
       openExecution: true,
       closeExecution: true,
     },
   });
   if (!matchedLot) {
+    return null;
+  }
+  if (isOutOfAccountScope(accountIds, matchedLot.accountId, matchedLot.account.accountId)) {
     return null;
   }
 
@@ -258,10 +276,11 @@ async function loadMatchedLotCaseFile(matchedLotId: string): Promise<DiagnosticC
   });
 }
 
-async function loadSetupCaseFile(setupId: string): Promise<DiagnosticCaseFileResponse | null> {
+async function loadSetupCaseFile(setupId: string, accountIds: string[]): Promise<DiagnosticCaseFileResponse | null> {
   const setupGroup = await prisma.setupGroup.findUnique({
     where: { id: setupId },
     include: {
+      account: { select: { accountId: true } },
       lots: {
         include: {
           matchedLot: {
@@ -275,6 +294,9 @@ async function loadSetupCaseFile(setupId: string): Promise<DiagnosticCaseFileRes
     },
   });
   if (!setupGroup) {
+    return null;
+  }
+  if (isOutOfAccountScope(accountIds, setupGroup.accountId, setupGroup.account.accountId)) {
     return null;
   }
 
@@ -300,7 +322,7 @@ async function loadSetupCaseFile(setupId: string): Promise<DiagnosticCaseFileRes
   });
 }
 
-async function loadSetupInferenceCaseFile(searchParams: URLSearchParams): Promise<DiagnosticCaseFileResponse | null> {
+async function loadSetupInferenceCaseFile(searchParams: URLSearchParams, accountIds: string[]): Promise<DiagnosticCaseFileResponse | null> {
   const code = searchParams.get("code");
   const underlyingSymbol = searchParams.get("underlyingSymbol");
   const message = searchParams.get("message") ?? "Setup inference diagnostic.";
@@ -317,11 +339,17 @@ async function loadSetupInferenceCaseFile(searchParams: URLSearchParams): Promis
     return null;
   }
 
+  const accountScope = buildAccountScopeWhere(accountIds);
   const matchedLots = await prisma.matchedLot.findMany({
     where: {
-      id: {
-        in: lotIds,
-      },
+      AND: [
+        {
+          id: {
+            in: lotIds,
+          },
+        },
+        ...(accountScope ? [accountScope as Prisma.MatchedLotWhereInput] : []),
+      ],
     },
     include: {
       openExecution: true,
@@ -402,6 +430,7 @@ async function loadSetupInferenceCaseFile(searchParams: URLSearchParams): Promis
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind");
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
 
   let payload: DiagnosticCaseFileResponse | null = null;
   if (kind === "execution") {
@@ -409,21 +438,21 @@ export async function GET(request: Request) {
     if (!executionId) {
       return errorResponse("MISSING_EXECUTION_ID", "executionId is required.", ["Provide executionId for execution case files."]);
     }
-    payload = await loadExecutionCaseFile(executionId);
+    payload = await loadExecutionCaseFile(executionId, accountIds);
   } else if (kind === "matched_lot") {
     const matchedLotId = url.searchParams.get("matchedLotId");
     if (!matchedLotId) {
       return errorResponse("MISSING_MATCHED_LOT_ID", "matchedLotId is required.", ["Provide matchedLotId for matched lot case files."]);
     }
-    payload = await loadMatchedLotCaseFile(matchedLotId);
+    payload = await loadMatchedLotCaseFile(matchedLotId, accountIds);
   } else if (kind === "setup") {
     const setupId = url.searchParams.get("setupId");
     if (!setupId) {
       return errorResponse("MISSING_SETUP_ID", "setupId is required.", ["Provide setupId for setup case files."]);
     }
-    payload = await loadSetupCaseFile(setupId);
+    payload = await loadSetupCaseFile(setupId, accountIds);
   } else if (kind === "setup_inference") {
-    payload = await loadSetupInferenceCaseFile(url.searchParams);
+    payload = await loadSetupInferenceCaseFile(url.searchParams, accountIds);
   } else {
     return errorResponse("INVALID_KIND", "Unsupported case file kind.", ["Supported kinds: execution, matched_lot, setup, setup_inference."]);
   }

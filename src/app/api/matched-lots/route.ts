@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import type { MatchedLotRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -6,14 +7,19 @@ import { prisma } from "@/lib/db/prisma";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const symbol = url.searchParams.get("symbol") ?? undefined;
   const outcome = url.searchParams.get("outcome") ?? undefined;
   const account = url.searchParams.get("account") ?? undefined;
   const importId = url.searchParams.get("import") ?? undefined;
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
+  const accountScope = buildAccountScopeWhere(accountIds);
 
   const andClauses: Prisma.MatchedLotWhereInput[] = [];
+  if (accountScope) {
+    andClauses.push(accountScope as Prisma.MatchedLotWhereInput);
+  }
 
   if (symbol) {
     andClauses.push({

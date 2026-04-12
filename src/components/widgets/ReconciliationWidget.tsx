@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { ReconciliationResponse } from "@/types/api";
@@ -20,6 +22,7 @@ function signClass(value: number): string {
 }
 
 export function ReconciliationWidget() {
+  const { selectedAccounts } = useAccountFilterContext();
   const [data, setData] = useState<ReconciliationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +35,9 @@ export function ReconciliationWidget() {
       setError(null);
 
       try {
-        const response = await fetch("/api/overview/reconciliation", { cache: "no-store" });
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const response = await fetch(`/api/overview/reconciliation?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Unable to load reconciliation.");
         }
@@ -58,7 +63,7 @@ export function ReconciliationWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const rows = useMemo(() => {
     if (!data) {

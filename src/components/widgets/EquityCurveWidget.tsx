@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { safeNumber } from "@/components/widgets/utils";
 import type { OverviewSummaryResponse } from "@/types/api";
@@ -12,7 +13,7 @@ interface OverviewPayload {
 }
 
 export function EquityCurveWidget() {
-  const { isSelectedAccount } = useAccountFilterContext();
+  const { isSelectedAccount, selectedAccounts } = useAccountFilterContext();
   const [viewMode, setViewMode] = useState<"combined" | "accounts">("combined");
   const [data, setData] = useState<OverviewSummaryResponse["snapshotSeries"]>([]);
 
@@ -20,7 +21,9 @@ export function EquityCurveWidget() {
     let cancelled = false;
 
     async function loadData() {
-      const response = await fetch("/api/overview/summary", { cache: "no-store" });
+      const query = new URLSearchParams();
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/overview/summary?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -36,7 +39,7 @@ export function EquityCurveWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const accounts = useMemo(() => {
     return Array.from(new Set(data.map((point) => point.accountId).filter((accountId) => isSelectedAccount(accountId)))).sort();

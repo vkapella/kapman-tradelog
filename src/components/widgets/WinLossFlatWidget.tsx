@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatNullablePercent } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
 
@@ -19,7 +20,9 @@ export function WinLossFlatWidget() {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/matched-lots?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -35,7 +38,7 @@ export function WinLossFlatWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const counts = useMemo(() => {
     const initial = { WIN: 0, LOSS: 0, FLAT: 0 };

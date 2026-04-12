@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { navGroups } from "@/lib/navigation";
 
 interface PageStatsPayload {
@@ -21,6 +23,7 @@ interface OverviewSummaryPayload {
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { selectedAccounts } = useAccountFilterContext();
   const [accountTotal, setAccountTotal] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
   const [snapshotTotal, setSnapshotTotal] = useState(0);
@@ -31,9 +34,14 @@ export function SidebarNav() {
 
     async function loadSidebarStats() {
       try {
+        const statsQuery = new URLSearchParams();
+        const summaryQuery = new URLSearchParams();
+        applyAccountIdsToSearchParams(statsQuery, selectedAccounts);
+        applyAccountIdsToSearchParams(summaryQuery, selectedAccounts);
+
         const [statsResponse, summaryResponse] = await Promise.all([
-          fetch("/api/page-stats", { cache: "no-store" }),
-          fetch("/api/overview/summary", { cache: "no-store" }),
+          fetch(`/api/page-stats?${statsQuery.toString()}`, { cache: "no-store" }),
+          fetch(`/api/overview/summary?${summaryQuery.toString()}`, { cache: "no-store" }),
         ]);
 
         if (!cancelled && statsResponse.ok) {
@@ -62,7 +70,7 @@ export function SidebarNav() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const badgeValues = useMemo(
     () => ({

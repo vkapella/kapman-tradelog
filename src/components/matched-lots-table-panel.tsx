@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
@@ -31,7 +33,6 @@ type SortDirection = "asc" | "desc";
 
 interface MatchedLotFilters {
   symbol: string;
-  account: string;
   importId: string;
   outcome: string;
   dateFrom: string;
@@ -40,7 +41,6 @@ interface MatchedLotFilters {
 
 const defaultFilters: MatchedLotFilters = {
   symbol: "",
-  account: "",
   importId: "",
   outcome: "",
   dateFrom: "",
@@ -78,6 +78,7 @@ function sortMatchedLots(rows: MatchedLotRecord[], column: SortColumn, direction
 }
 
 export function MatchedLotsTablePanel() {
+  const { selectedAccounts } = useAccountFilterContext();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<MatchedLotRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +101,9 @@ export function MatchedLotsTablePanel() {
 
   useEffect(() => {
     async function loadImports() {
-      const response = await fetch("/api/imports?page=1&pageSize=200", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "200" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -110,7 +113,7 @@ export function MatchedLotsTablePanel() {
     }
 
     void loadImports();
-  }, []);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     async function loadMatchedLots() {
@@ -121,12 +124,10 @@ export function MatchedLotsTablePanel() {
         page: String(showAll ? 1 : page),
         pageSize: String(showAll ? 1000 : 25),
       });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
 
       if (appliedFilters.symbol.trim()) {
         query.set("symbol", appliedFilters.symbol.trim());
-      }
-      if (appliedFilters.account.trim()) {
-        query.set("account", appliedFilters.account.trim());
       }
       if (appliedFilters.importId.trim()) {
         query.set("import", appliedFilters.importId.trim());
@@ -156,16 +157,11 @@ export function MatchedLotsTablePanel() {
     }
 
     void loadMatchedLots();
-  }, [appliedFilters, page, showAll]);
-
-  const accountOptions = useMemo(() => {
-    return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();
-  }, [imports]);
+  }, [appliedFilters, page, selectedAccounts, showAll]);
 
   const importOptions = useMemo(() => {
-    const filtered = draftFilters.account ? imports.filter((entry) => entry.accountId === draftFilters.account) : imports;
-    return filtered.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
-  }, [imports, draftFilters.account]);
+    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
+  }, [imports]);
 
   const sortedRows = useMemo(() => {
     return sortMatchedLots(rows, sortColumn, sortDirection);
@@ -222,18 +218,6 @@ export function MatchedLotsTablePanel() {
           placeholder="Symbol (e.g. NVDA)"
           className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
         />
-        <select
-          value={draftFilters.account}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, account: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All accounts</option>
-          {accountOptions.map((accountId) => (
-            <option key={accountId} value={accountId}>
-              {accountId}
-            </option>
-          ))}
-        </select>
         <select
           value={draftFilters.importId}
           onChange={(event) => setDraftFilters((current) => ({ ...current, importId: event.target.value }))}

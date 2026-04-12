@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { CommitImportResponse, ImportRecord, UploadImportResponse } from "@/types/api";
 
 interface ImportsListPayload {
@@ -31,6 +33,7 @@ const SHOW_ALL_STORAGE_KEY = "kapman_table_imports_showAll";
 
 export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps) {
   const searchParams = useSearchParams();
+  const { selectedAccounts } = useAccountFilterContext();
   const showUpload = mode !== "history";
   const showHistory = mode !== "upload";
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -60,6 +63,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     if (importId.trim()) {
       searchParams.set("import", importId.trim());
     }
+    applyAccountIdsToSearchParams(searchParams, selectedAccounts);
     searchParams.set("page", String(showAllHistory ? 1 : page));
     searchParams.set("pageSize", String(showAllHistory ? 1000 : 25));
 
@@ -69,7 +73,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     setHistory(payload.data);
     setHistoryMeta(payload.meta);
     setHistoryLoading(false);
-  }, [accountFilter, historyPage, importFilter, showAllHistory]);
+  }, [accountFilter, historyPage, importFilter, selectedAccounts, showAllHistory]);
 
   useEffect(() => {
     try {
@@ -94,7 +98,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
   useEffect(() => {
     void loadHistory(accountFilter, importFilter, historyPage);
-  }, [accountFilter, historyPage, importFilter, loadHistory]);
+  }, [accountFilter, historyPage, importFilter, loadHistory, selectedAccounts]);
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -352,7 +356,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
                       <td className="px-2 py-2 text-right">{row.failed}</td>
                       <td className="px-2 py-2">
-                        <a href={`/trade-records?tab=executions&import=${row.id}&account=${row.accountId}`} className="text-blue-300 underline">
+                        <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
                           View executions
                         </a>
                       </td>

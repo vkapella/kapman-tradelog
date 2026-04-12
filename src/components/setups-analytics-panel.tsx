@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
@@ -61,6 +63,7 @@ export function SetupsAnalyticsPanel() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { selectedAccounts } = useAccountFilterContext();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
   const [summaryRows, setSummaryRows] = useState<SetupSummaryRecord[]>([]);
@@ -92,7 +95,9 @@ export function SetupsAnalyticsPanel() {
 
   useEffect(() => {
     async function loadImports() {
-      const response = await fetch("/api/imports?page=1&pageSize=200", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "200" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -102,7 +107,7 @@ export function SetupsAnalyticsPanel() {
     }
 
     void loadImports();
-  }, []);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     async function loadSetups() {
@@ -113,6 +118,7 @@ export function SetupsAnalyticsPanel() {
         page: String(showAll ? 1 : page),
         pageSize: String(showAll ? 1000 : 25),
       });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
 
       if (appliedFilters.account.trim()) {
         query.set("account", appliedFilters.account.trim());
@@ -136,7 +142,7 @@ export function SetupsAnalyticsPanel() {
     }
 
     void loadSetups();
-  }, [appliedFilters, page, showAll]);
+  }, [appliedFilters, page, selectedAccounts, showAll]);
 
   useEffect(() => {
     async function loadSummaryRows() {
@@ -144,6 +150,7 @@ export function SetupsAnalyticsPanel() {
         page: "1",
         pageSize: "1000",
       });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
 
       if (appliedFilters.account.trim()) {
         query.set("account", appliedFilters.account.trim());
@@ -162,7 +169,7 @@ export function SetupsAnalyticsPanel() {
     }
 
     void loadSummaryRows();
-  }, [appliedFilters]);
+  }, [appliedFilters, selectedAccounts]);
 
   useEffect(() => {
     async function loadSetupDetail() {
@@ -176,7 +183,9 @@ export function SetupsAnalyticsPanel() {
       setDetailError(null);
 
       try {
-        const response = await fetch(`/api/setups/${selectedSetupId}`, { cache: "no-store" });
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const response = await fetch(`/api/setups/${selectedSetupId}?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           setDetail(null);
           setDetailError("Unable to load setup detail right now.");
@@ -195,7 +204,7 @@ export function SetupsAnalyticsPanel() {
     }
 
     void loadSetupDetail();
-  }, [selectedSetupId]);
+  }, [selectedSetupId, selectedAccounts]);
 
   const accountOptions = useMemo(() => {
     return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();

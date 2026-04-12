@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { ExecutionRecord, MatchedLotRecord } from "@/types/api";
 
 interface ExecutionsPayload {
@@ -23,9 +24,14 @@ export function TtsReadinessWidget() {
     let cancelled = false;
 
     async function loadInputs() {
+      const executionQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
+      const lotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(executionQuery, selectedAccounts);
+      applyAccountIdsToSearchParams(lotsQuery, selectedAccounts);
+
       const [executionResponse, lotsResponse] = await Promise.all([
-        fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" }),
-        fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" }),
+        fetch(`/api/executions?${executionQuery.toString()}`, { cache: "no-store" }),
+        fetch(`/api/matched-lots?${lotsQuery.toString()}`, { cache: "no-store" }),
       ]);
 
       if (!executionResponse.ok || !lotsResponse.ok) {
@@ -46,7 +52,7 @@ export function TtsReadinessWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const metrics = useMemo(() => {
     const filteredExecutions = executions.filter((row) => selectedAccounts.includes(row.accountId));

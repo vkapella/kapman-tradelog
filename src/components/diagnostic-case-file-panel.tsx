@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { DiagnosticCaseFileResponse } from "@/types/api";
 
 interface DiagnosticCaseFilePayload {
@@ -54,6 +56,7 @@ function buildApiQuery(input: DiagnosticCaseQuery): string | null {
 }
 
 export function DiagnosticCaseFilePanel({ query, closeHref }: { query: DiagnosticCaseQuery; closeHref: string }) {
+  const { selectedAccounts } = useAccountFilterContext();
   const requestQuery = useMemo(() => buildApiQuery(query), [query]);
   const [data, setData] = useState<DiagnosticCaseFileResponse | null>(null);
   const [loading, setLoading] = useState(Boolean(requestQuery));
@@ -73,7 +76,9 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/diagnostics/case-file?${requestQuery}`, { cache: "no-store" });
+      const scopedQuery = new URLSearchParams(requestQuery);
+      applyAccountIdsToSearchParams(scopedQuery, selectedAccounts);
+      const response = await fetch(`/api/diagnostics/case-file?${scopedQuery.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         if (!cancelled) {
           setData(null);
@@ -95,7 +100,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
     return () => {
       cancelled = true;
     };
-  }, [requestQuery]);
+  }, [requestQuery, selectedAccounts]);
 
   if (!requestQuery) {
     return null;
@@ -169,7 +174,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-slate-200">
                   {data.executions.map((execution) => (
                     <li key={execution.id}>
-                      <Link href={`/executions?execution=${execution.id}&account=${execution.accountId}`} className="text-blue-300 underline">
+                      <Link href={`/executions?execution=${execution.id}`} className="text-blue-300 underline">
                         {execution.id.slice(0, 8)}...
                       </Link>{" "}
                       {execution.underlyingSymbol ?? execution.symbol} {execution.eventType} {execution.openingClosingEffect ?? "UNKNOWN"}
@@ -187,7 +192,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-slate-200">
                   {data.matchedLots.map((lot) => (
                     <li key={lot.id}>
-                      <Link href={`/matched-lots?account=${lot.accountId}`} className="text-blue-300 underline">
+                      <Link href="/matched-lots" className="text-blue-300 underline">
                         {lot.id.slice(0, 8)}...
                       </Link>{" "}
                       {lot.underlyingSymbol ?? lot.symbol} {lot.outcome} {lot.realizedPnl}

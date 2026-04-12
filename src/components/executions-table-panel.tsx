@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
@@ -35,7 +37,6 @@ type SortDirection = "asc" | "desc";
 
 interface ExecutionFilters {
   symbol: string;
-  account: string;
   importId: string;
   executionId: string;
   dateFrom: string;
@@ -44,7 +45,6 @@ interface ExecutionFilters {
 
 const defaultFilters: ExecutionFilters = {
   symbol: "",
-  account: "",
   importId: "",
   executionId: "",
   dateFrom: "",
@@ -95,6 +95,7 @@ function canInvestigateExecution(row: Pick<ExecutionRecord, "eventType" | "openi
 
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
+  const { selectedAccounts } = useAccountFilterContext();
   const initializedFromSearch = useRef(false);
 
   const [imports, setImports] = useState<ImportRecord[]>([]);
@@ -129,7 +130,6 @@ export function ExecutionsTablePanel() {
 
     const initial = {
       symbol: searchParams.get("symbol") ?? "",
-      account: searchParams.get("account") ?? "",
       importId: searchParams.get("import") ?? "",
       executionId: searchParams.get("execution") ?? "",
       dateFrom: searchParams.get("date_from") ?? "",
@@ -143,7 +143,9 @@ export function ExecutionsTablePanel() {
 
   useEffect(() => {
     async function loadImports() {
-      const response = await fetch("/api/imports?page=1&pageSize=200", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "200" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -153,7 +155,7 @@ export function ExecutionsTablePanel() {
     }
 
     void loadImports();
-  }, []);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     async function loadExecutions() {
@@ -164,12 +166,10 @@ export function ExecutionsTablePanel() {
         page: String(showAll ? 1 : page),
         pageSize: String(showAll ? 1000 : 25),
       });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
 
       if (appliedFilters.symbol.trim()) {
         query.set("symbol", appliedFilters.symbol.trim());
-      }
-      if (appliedFilters.account.trim()) {
-        query.set("account", appliedFilters.account.trim());
       }
       if (appliedFilters.importId.trim()) {
         query.set("import", appliedFilters.importId.trim());
@@ -199,7 +199,7 @@ export function ExecutionsTablePanel() {
     }
 
     void loadExecutions();
-  }, [appliedFilters, page, showAll]);
+  }, [appliedFilters, page, selectedAccounts, showAll]);
 
   useEffect(() => {
     let canceled = false;
@@ -216,7 +216,9 @@ export function ExecutionsTablePanel() {
       setCopyStatus("idle");
 
       try {
-        const response = await fetch(`/api/executions/${selectedExecutionId}`, { cache: "no-store" });
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const response = await fetch(`/api/executions/${selectedExecutionId}?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           if (!canceled) {
             setDetail(null);
@@ -246,16 +248,11 @@ export function ExecutionsTablePanel() {
     return () => {
       canceled = true;
     };
-  }, [selectedExecutionId]);
-
-  const accountOptions = useMemo(() => {
-    return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();
-  }, [imports]);
+  }, [selectedExecutionId, selectedAccounts]);
 
   const importOptions = useMemo(() => {
-    const filtered = draftFilters.account ? imports.filter((entry) => entry.accountId === draftFilters.account) : imports;
-    return filtered.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
-  }, [imports, draftFilters.account]);
+    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
+  }, [imports]);
 
   const sortedRows = useMemo(() => {
     return sortExecutionRows(rows, sortColumn, sortDirection);
@@ -325,18 +322,6 @@ export function ExecutionsTablePanel() {
           placeholder="Symbol (e.g. SPY)"
           className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
         />
-        <select
-          value={draftFilters.account}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, account: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All accounts</option>
-          {accountOptions.map((accountId) => (
-            <option key={accountId} value={accountId}>
-              {accountId}
-            </option>
-          ))}
-        </select>
         <select
           value={draftFilters.importId}
           onChange={(event) => setDraftFilters((current) => ({ ...current, importId: event.target.value }))}

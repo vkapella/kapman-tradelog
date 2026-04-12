@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import type { ImportRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -9,16 +11,22 @@ function mapBrokerToContract(broker: string): ImportRecord["broker"] {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const accountFilter = url.searchParams.get("account");
   const importFilter = url.searchParams.get("import");
+  const accountScope = buildAccountScopeWhere(accountIds);
 
-  const where: Record<string, unknown> = {};
+  const andClauses: Prisma.ImportWhereInput[] = [];
+  if (accountScope) {
+    andClauses.push(accountScope as Prisma.ImportWhereInput);
+  }
   if (accountFilter) {
-    where.account = { accountId: accountFilter };
+    andClauses.push({ account: { accountId: accountFilter } });
   }
   if (importFilter) {
-    where.id = importFilter;
+    andClauses.push({ id: importFilter });
   }
+  const where: Prisma.ImportWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [total, rows] = await Promise.all([
     prisma.import.count({ where }),

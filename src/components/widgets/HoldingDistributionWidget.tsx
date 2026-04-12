@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
@@ -18,7 +19,9 @@ export function HoldingDistributionWidget() {
     let cancelled = false;
 
     async function loadRows() {
-      const response = await fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" });
+      const query = new URLSearchParams({ page: "1", pageSize: "1000" });
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+      const response = await fetch(`/api/matched-lots?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
       }
@@ -34,7 +37,7 @@ export function HoldingDistributionWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   const bucketData = useMemo(() => {
     const buckets = {

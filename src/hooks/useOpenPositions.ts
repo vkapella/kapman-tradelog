@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ExecutionRecord, ManualAdjustmentRecord, OpenPosition, AdjustmentsListApiResponse, MatchedLotRecord } from "@/types/api";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 
 interface ExecutionsPayload {
   data: ExecutionRecord[];
@@ -17,6 +19,7 @@ interface AdjustmentsPayload {
 }
 
 export function useOpenPositions(): { positions: OpenPosition[]; loading: boolean; error: string | null } {
+  const { selectedAccounts } = useAccountFilterContext();
   const [positions, setPositions] = useState<OpenPosition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,9 +32,16 @@ export function useOpenPositions(): { positions: OpenPosition[]; loading: boolea
       setError(null);
 
       try {
+        const executionQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
+        const matchedLotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
+        const adjustmentsQuery = new URLSearchParams({ page: "1", pageSize: "1000", status: "ACTIVE" });
+        applyAccountIdsToSearchParams(executionQuery, selectedAccounts);
+        applyAccountIdsToSearchParams(matchedLotsQuery, selectedAccounts);
+        applyAccountIdsToSearchParams(adjustmentsQuery, selectedAccounts);
+
         const [executionResponse, matchedLotsResponse] = await Promise.all([
-          fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" }),
-          fetch("/api/matched-lots?page=1&pageSize=1000", { cache: "no-store" }),
+          fetch(`/api/executions?${executionQuery.toString()}`, { cache: "no-store" }),
+          fetch(`/api/matched-lots?${matchedLotsQuery.toString()}`, { cache: "no-store" }),
         ]);
 
         if (!executionResponse.ok || !matchedLotsResponse.ok) {
@@ -42,7 +52,7 @@ export function useOpenPositions(): { positions: OpenPosition[]; loading: boolea
         const matchedLotsPayload = (await matchedLotsResponse.json()) as MatchedLotsPayload;
         let manualAdjustments: ManualAdjustmentRecord[] = [];
         try {
-          const adjustmentsResponse = await fetch("/api/adjustments?page=1&pageSize=1000&status=ACTIVE", { cache: "no-store" });
+          const adjustmentsResponse = await fetch(`/api/adjustments?${adjustmentsQuery.toString()}`, { cache: "no-store" });
           if (adjustmentsResponse.ok) {
             const adjustmentsPayload = (await adjustmentsResponse.json()) as AdjustmentsPayload | AdjustmentsListApiResponse;
             if ("data" in adjustmentsPayload && Array.isArray(adjustmentsPayload.data)) {
@@ -75,7 +85,7 @@ export function useOpenPositions(): { positions: OpenPosition[]; loading: boolea
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   return { positions, loading, error };
 }
