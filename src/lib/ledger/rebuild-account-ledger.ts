@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
+import { applySplitAdjustmentsToLedgerExecutions } from "@/lib/adjustments/split-ledger-executions";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import type { ManualAdjustmentRecord } from "@/types/api";
 import { computeBrokerTxId } from "./ingest";
@@ -39,11 +40,13 @@ export async function rebuildAccountLedger(
     orderBy: [{ eventTimestamp: "asc" }, { id: "asc" }],
   });
 
-  const executionQtyOverrideRows = await tx.manualAdjustment.findMany({
+  const adjustmentRows = await tx.manualAdjustment.findMany({
     where: {
       accountId,
       status: "ACTIVE",
-      adjustmentType: "EXECUTION_QTY_OVERRIDE",
+      adjustmentType: {
+        in: ["SPLIT", "EXECUTION_QTY_OVERRIDE"],
+      },
     },
     include: {
       account: {
@@ -54,7 +57,7 @@ export async function rebuildAccountLedger(
     },
     orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
-  const executionQtyOverrides: ManualAdjustmentRecord[] = executionQtyOverrideRows.flatMap((row) => {
+  const activeAdjustments: ManualAdjustmentRecord[] = adjustmentRows.flatMap((row) => {
     try {
       return [
         {
@@ -77,6 +80,9 @@ export async function rebuildAccountLedger(
       return [];
     }
   });
+
+  const splitAdjustments = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "SPLIT");
+  const executionQtyOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_QTY_OVERRIDE");
 
   const matcherInput: LedgerExecution[] = [];
   for (const execution of sourceExecutions) {
@@ -114,7 +120,8 @@ export async function rebuildAccountLedger(
     });
   }
 
-  const overrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, executionQtyOverrides);
+  const splitAdjustedMatcherInput = applySplitAdjustmentsToLedgerExecutions(matcherInput, splitAdjustments);
+  const overrideResult = applyExecutionQtyOverrideToLedgerExecutions(splitAdjustedMatcherInput, executionQtyOverrides);
   const matchResult = runFifoMatcher(overrideResult.executions, asOfDate);
   if (overrideResult.unmatchedExecutionIds.length > 0) {
     for (const executionId of overrideResult.unmatchedExecutionIds) {
