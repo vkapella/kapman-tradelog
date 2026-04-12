@@ -1,6 +1,6 @@
 import type { OptionDetails } from "./types";
 
-const FIDELITY_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d+)$/;
+const FIDELITY_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d+(?:\.\d+)?)$/;
 
 export function parseOptionSymbol(symbol: string): OptionDetails | null {
   if (!symbol) {

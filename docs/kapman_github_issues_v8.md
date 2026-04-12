@@ -28,7 +28,7 @@ Parse a Fidelity "History for Account" CSV buffer into raw row objects.
 - `parseFidelityCsv` returns the correct data row count for each fixture file.
 - No field value begins with `\uFEFF`.
 - Option symbol `" -NTAP260220C115"` is returned as `"-NTAP260220C115"` (leading space stripped).
-- `accountId` extracted as `"X19467537"` from all three fixture filenames.
+- `accountId` extracted as `"T12345678"` from all three fixture filenames.
 - `npm run typecheck` and `npm run lint` pass.
 
 ---
@@ -346,9 +346,9 @@ tests/adapters/fidelity/
   symbol-parser.test.ts
   transformer.test.ts
   fixtures/
-    History_for_Account_X19467537-8.csv
-    History_for_Account_X19467537-9.csv
-    History_for_Account_X19467537-10.csv
+    History_for_Account_T12345678-8.csv
+    History_for_Account_T12345678-9.csv
+    History_for_Account_T12345678-10.csv
 ```
 
 ### Required test coverage

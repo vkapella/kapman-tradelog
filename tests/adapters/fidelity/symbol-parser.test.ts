@@ -37,6 +37,27 @@ describe("parseOptionSymbol", () => {
       optionType: "CALL",
       strikePrice: 215,
     });
+
+    expect(parseOptionSymbol("-CSCO260220C77.5")).toEqual({
+      underlyingTicker: "CSCO",
+      expirationDate: "2026-02-20",
+      optionType: "CALL",
+      strikePrice: 77.5,
+    });
+
+    expect(parseOptionSymbol("-SHEL260417C87.5")).toEqual({
+      underlyingTicker: "SHEL",
+      expirationDate: "2026-04-17",
+      optionType: "CALL",
+      strikePrice: 87.5,
+    });
+
+    expect(parseOptionSymbol("-SLV260116C47.5")).toEqual({
+      underlyingTicker: "SLV",
+      expirationDate: "2026-01-16",
+      optionType: "CALL",
+      strikePrice: 47.5,
+    });
   });
 
   it("returns null for equities or non-matching symbols", () => {

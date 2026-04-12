@@ -158,6 +158,7 @@ function toLedgerExecution(row: {
     eventType: row.eventType,
     assetClass: row.assetClass,
     symbol: row.symbol,
+    underlyingSymbol: row.underlyingSymbol,
     instrumentKey: deriveInstrumentKeyFromPersistedExecution(row),
     side: row.side,
     quantity,

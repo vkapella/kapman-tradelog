@@ -16,6 +16,7 @@ function makeExecution(overrides: Partial<LedgerExecution>): LedgerExecution {
     eventType: "TRADE",
     assetClass: "OPTION",
     symbol: "SPY",
+    underlyingSymbol: "SPY",
     instrumentKey: "SPY|CALL|500|2026-03-20",
     side: "BUY",
     quantity: 1,

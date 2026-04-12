@@ -1,17 +1,17 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseFidelityCsv } from "@/lib/adapters/fidelity/parser";
 import { transformFidelityRows } from "@/lib/adapters/fidelity/transformer";
 import type { RawFidelityRow } from "@/lib/adapters/fidelity/types";
+import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_10, FIXTURE_FILENAME_8, FIXTURE_FILENAME_9, loadFixtureBuffer } from "./fixture-data";
 
 function loadRows(filename: string): RawFidelityRow[] {
-  return parseFidelityCsv(readFileSync(`tests/adapters/fidelity/fixtures/${filename}`), filename);
+  return parseFidelityCsv(loadFixtureBuffer(filename), filename);
 }
 
 describe("transformFidelityRows", () => {
   it("uses absolute quantity for SELL rows", () => {
-    const rows = loadRows("History_for_Account_X19467537-10.csv");
-    const transformed = transformFidelityRows(rows, "X19467537");
+    const rows = loadRows(FIXTURE_FILENAME_10);
+    const transformed = transformFidelityRows(rows, FIXTURE_ACCOUNT_ID);
 
     const sellOpening = transformed.records.find(
       (record) =>
@@ -29,8 +29,8 @@ describe("transformFidelityRows", () => {
   });
 
   it("never emits SPAXX/FSIXX as execution records", () => {
-    const rows = loadRows("History_for_Account_X19467537-10.csv");
-    const transformed = transformFidelityRows(rows, "X19467537");
+    const rows = loadRows(FIXTURE_FILENAME_10);
+    const transformed = transformFidelityRows(rows, FIXTURE_ACCOUNT_ID);
 
     const executionSymbols = transformed.records
       .filter((record): record is Extract<(typeof transformed.records)[number], { kind: "EXECUTION" }> => record.kind === "EXECUTION")
@@ -59,7 +59,7 @@ describe("transformFidelityRows", () => {
       },
     ];
 
-    const transformed = transformFidelityRows(syntheticRows, "X19467537");
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
 
     expect(transformed.records).toHaveLength(1);
     expect(transformed.records[0]?.kind).toBe("CASH_EVENT");
@@ -69,11 +69,11 @@ describe("transformFidelityRows", () => {
   });
 
   it("links assignment option/equity pairs with shared assignmentLinkId", () => {
-    const rows8 = loadRows("History_for_Account_X19467537-8.csv");
-    const rows9 = loadRows("History_for_Account_X19467537-9.csv");
+    const rows8 = loadRows(FIXTURE_FILENAME_8);
+    const rows9 = loadRows(FIXTURE_FILENAME_9);
 
-    const transformed8 = transformFidelityRows(rows8, "X19467537");
-    const transformed9 = transformFidelityRows(rows9, "X19467537");
+    const transformed8 = transformFidelityRows(rows8, FIXTURE_ACCOUNT_ID);
+    const transformed9 = transformFidelityRows(rows9, FIXTURE_ACCOUNT_ID);
 
     const isLinkedExecution = (
       record: (typeof transformed8.records)[number],
@@ -149,7 +149,7 @@ describe("transformFidelityRows", () => {
       },
     ];
 
-    const transformed = transformFidelityRows(syntheticRows, "X19467537");
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
 
     expect(transformed.records).toHaveLength(0);
     expect(transformed.skippedBlankCount).toBe(1);
@@ -158,8 +158,8 @@ describe("transformFidelityRows", () => {
   });
 
   it("accounts for all parsed rows in fixture -10 round-trip tally", () => {
-    const rows = loadRows("History_for_Account_X19467537-10.csv");
-    const transformed = transformFidelityRows(rows, "X19467537");
+    const rows = loadRows(FIXTURE_FILENAME_10);
+    const transformed = transformFidelityRows(rows, FIXTURE_ACCOUNT_ID);
 
     const unknownSkippedCount = transformed.warnings.filter((warning) => warning.message.includes("Unknown Fidelity action")).length;
 
@@ -200,7 +200,7 @@ describe("transformFidelityRows", () => {
       },
     ];
 
-    const transformed = transformFidelityRows(syntheticRows, "X19467537");
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
 
     expect(transformed.warnings.some((warning) => warning.message.includes("could not be paired"))).toBe(true);
     const warningRows = transformed.previewRows.filter((row) => row.status === "WARNING");

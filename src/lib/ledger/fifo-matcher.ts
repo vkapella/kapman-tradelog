@@ -16,6 +16,7 @@ export interface LedgerExecution {
   eventType: "TRADE" | "ASSIGNMENT" | "EXERCISE";
   assetClass: "EQUITY" | "OPTION" | "CASH" | "OTHER";
   symbol: string;
+  underlyingSymbol: string | null;
   instrumentKey: string;
   side: "BUY" | "SELL";
   quantity: number;
@@ -47,6 +48,7 @@ export interface SyntheticExecutionCandidate {
   eventType: "EXPIRATION_INFERRED";
   assetClass: "OPTION";
   symbol: string;
+  underlyingSymbol: string | null;
   instrumentKey: string;
   side: "BUY" | "SELL";
   quantity: number;
@@ -67,6 +69,42 @@ export interface FifoMatchResult {
 interface OpenLot {
   execution: LedgerExecution;
   remainingQty: number;
+}
+
+const FIDELITY_COMPACT_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})\d{6}[CP]\d+(?:\.\d+)?$/;
+
+function normalizeUnderlyingSymbol(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/^-/, "");
+  return normalized || null;
+}
+
+function deriveUnderlyingSymbol(execution: Pick<LedgerExecution, "underlyingSymbol" | "instrumentKey" | "symbol">): string | null {
+  const explicit = normalizeUnderlyingSymbol(execution.underlyingSymbol);
+  if (explicit) {
+    return explicit;
+  }
+
+  const [fromInstrumentKey = ""] = execution.instrumentKey.split("|");
+  const instrumentUnderlying = normalizeUnderlyingSymbol(fromInstrumentKey);
+  if (instrumentUnderlying && instrumentUnderlying !== "NA") {
+    return instrumentUnderlying;
+  }
+
+  const compactOptionMatch = execution.symbol.match(FIDELITY_COMPACT_OPTION_SYMBOL_REGEX);
+  if (compactOptionMatch?.[1]) {
+    return compactOptionMatch[1];
+  }
+
+  return normalizeUnderlyingSymbol(execution.symbol);
 }
 
 function computePnl(open: LedgerExecution, close: { side: "BUY" | "SELL"; price: number | null }, quantity: number): number {
@@ -263,6 +301,7 @@ export function runFifoMatcher(executions: LedgerExecution[], asOfDate: Date): F
         eventType: "EXPIRATION_INFERRED",
         assetClass: "OPTION",
         symbol: openLot.execution.symbol,
+        underlyingSymbol: deriveUnderlyingSymbol(openLot.execution),
         instrumentKey: openLot.execution.instrumentKey,
         side: syntheticCloseSide,
         quantity: openLot.remainingQty,

@@ -1,22 +1,22 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FidelityAdapter } from "@/lib/adapters/fidelity/index";
+import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_10, loadFixtureBuffer } from "./fixture-data";
 
 describe("FidelityAdapter", () => {
   it("parses fixture buffers without throwing", () => {
     const adapter = new FidelityAdapter();
-    const buffer = readFileSync("tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv");
+    const buffer = loadFixtureBuffer(FIXTURE_FILENAME_10);
 
-    const parsed = adapter.parse(buffer, "History_for_Account_X19467537-10.csv");
+    const parsed = adapter.parse(buffer, FIXTURE_FILENAME_10);
 
     expect(parsed.records.length).toBeGreaterThan(0);
-    expect(parsed.accountId).toBe("X19467537");
+    expect(parsed.accountId).toBe(FIXTURE_ACCOUNT_ID);
   });
 
   it("validates status counts and warning message conversion", () => {
     const adapter = new FidelityAdapter();
-    const buffer = readFileSync("tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv");
-    const parsed = adapter.parse(buffer, "History_for_Account_X19467537-10.csv");
+    const buffer = loadFixtureBuffer(FIXTURE_FILENAME_10);
+    const parsed = adapter.parse(buffer, FIXTURE_FILENAME_10);
 
     const validation = adapter.validate(parsed.records);
 

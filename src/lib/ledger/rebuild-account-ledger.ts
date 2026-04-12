@@ -13,8 +13,51 @@ export interface RebuildAccountLedgerResult {
   warnings: LedgerWarning[];
 }
 
+const FIDELITY_COMPACT_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d+(?:\.\d+)?)$/;
+
 function toNumber(value: Prisma.Decimal | null): number | null {
   return value === null ? null : Number(value);
+}
+
+function toDateOnlyIso(value: Date | null): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function parseCompactOptionSymbol(symbol: string): {
+  underlyingSymbol: string;
+  optionType: "CALL" | "PUT";
+  strike: number;
+  expirationDate: Date;
+  expirationDateIso: string;
+} | null {
+  const match = symbol.match(FIDELITY_COMPACT_OPTION_SYMBOL_REGEX);
+  if (!match) {
+    return null;
+  }
+
+  const year = 2000 + Number(match[2]);
+  const month = Number(match[3]);
+  const day = Number(match[4]);
+  const optionType = match[5] === "C" ? "CALL" : "PUT";
+  const strike = Number.parseFloat(match[6]);
+
+  const expirationDate = new Date(Date.UTC(year, month - 1, day));
+  const expirationDateIso = toDateOnlyIso(expirationDate);
+  if (!expirationDateIso || !Number.isFinite(strike)) {
+    return null;
+  }
+
+  return {
+    underlyingSymbol: match[1],
+    optionType,
+    strike,
+    expirationDate,
+    expirationDateIso,
+  };
+}
+
+function buildOptionInstrumentKey(underlyingSymbol: string, optionType: string, strike: number, expirationDateIso: string): string {
+  return `${underlyingSymbol}|${optionType}|${strike}|${expirationDateIso}`;
 }
 
 export async function rebuildAccountLedger(
@@ -84,6 +127,15 @@ export async function rebuildAccountLedger(
   const splitAdjustments = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "SPLIT");
   const executionQtyOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_QTY_OVERRIDE");
 
+  const updates: Array<{
+    id: string;
+    underlyingSymbol: string;
+    optionType: "CALL" | "PUT";
+    strike: number;
+    expirationDate: Date;
+    instrumentKey: string;
+  }> = [];
+
   const matcherInput: LedgerExecution[] = [];
   for (const execution of sourceExecutions) {
     if (execution.eventType === "EXPIRATION_INFERRED") {
@@ -99,6 +151,55 @@ export async function rebuildAccountLedger(
       continue;
     }
 
+    let normalizedUnderlyingSymbol = execution.underlyingSymbol;
+    let normalizedOptionType = execution.optionType;
+    let normalizedStrike = toNumber(execution.strike);
+    let normalizedExpirationDate = execution.expirationDate;
+    let normalizedInstrumentKey = deriveInstrumentKeyFromPersistedExecution(execution);
+
+    if (execution.assetClass === "OPTION") {
+      const parsed = parseCompactOptionSymbol(execution.symbol);
+      const hasMissingOptionMetadata =
+        !normalizedUnderlyingSymbol ||
+        !normalizedOptionType ||
+        normalizedStrike === null ||
+        !normalizedExpirationDate ||
+        normalizedInstrumentKey.includes("|NA|");
+
+      if (parsed && hasMissingOptionMetadata) {
+        normalizedUnderlyingSymbol = parsed.underlyingSymbol;
+        normalizedOptionType = parsed.optionType;
+        normalizedStrike = parsed.strike;
+        normalizedExpirationDate = parsed.expirationDate;
+        normalizedInstrumentKey = buildOptionInstrumentKey(
+          parsed.underlyingSymbol,
+          parsed.optionType,
+          parsed.strike,
+          parsed.expirationDateIso,
+        );
+
+        const currentStrike = toNumber(execution.strike);
+        const currentExpiration = toDateOnlyIso(execution.expirationDate);
+        const changed =
+          execution.underlyingSymbol !== parsed.underlyingSymbol ||
+          execution.optionType !== parsed.optionType ||
+          currentStrike !== parsed.strike ||
+          currentExpiration !== parsed.expirationDateIso ||
+          execution.instrumentKey !== normalizedInstrumentKey;
+
+        if (changed) {
+          updates.push({
+            id: execution.id,
+            underlyingSymbol: parsed.underlyingSymbol,
+            optionType: parsed.optionType,
+            strike: parsed.strike,
+            expirationDate: parsed.expirationDate,
+            instrumentKey: normalizedInstrumentKey,
+          });
+        }
+      }
+    }
+
     matcherInput.push({
       id: execution.id,
       importId: execution.importId,
@@ -109,14 +210,28 @@ export async function rebuildAccountLedger(
       eventType: execution.eventType,
       assetClass: execution.assetClass,
       symbol: execution.symbol,
-      instrumentKey: deriveInstrumentKeyFromPersistedExecution(execution),
+      underlyingSymbol: normalizedUnderlyingSymbol,
+      instrumentKey: normalizedInstrumentKey,
       side: execution.side,
       quantity,
       price: toNumber(execution.price),
       openingClosingEffect: execution.openingClosingEffect ?? "UNKNOWN",
-      expirationDate: execution.expirationDate,
-      optionType: execution.optionType,
-      strike: toNumber(execution.strike),
+      expirationDate: normalizedExpirationDate,
+      optionType: normalizedOptionType,
+      strike: normalizedStrike,
+    });
+  }
+
+  for (const update of updates) {
+    await tx.execution.update({
+      where: { id: update.id },
+      data: {
+        underlyingSymbol: update.underlyingSymbol,
+        optionType: update.optionType,
+        strike: update.strike,
+        expirationDate: update.expirationDate,
+        instrumentKey: update.instrumentKey,
+      },
     });
   }
 
@@ -163,6 +278,7 @@ export async function rebuildAccountLedger(
           eventType: execution.eventType,
           assetClass: execution.assetClass,
           symbol: execution.symbol,
+          underlyingSymbol: execution.underlyingSymbol,
           brokerTxId,
           instrumentKey: execution.instrumentKey,
           side: execution.side,

@@ -1,20 +1,16 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { extractAccountIdFromFilename, parseFidelityCsv } from "@/lib/adapters/fidelity/parser";
-
-function loadFixtureBuffer(filename: string): Buffer {
-  return readFileSync(`tests/adapters/fidelity/fixtures/${filename}`);
-}
+import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_10, FIXTURE_FILENAME_8, FIXTURE_FILENAME_9, loadFixtureBuffer } from "./fixture-data";
 
 describe("parseFidelityCsv", () => {
   it("strips UTF-8 BOM and returns expected row count per fixture", () => {
-    const fixture8 = parseFidelityCsv(loadFixtureBuffer("History_for_Account_X19467537-8.csv"), "History_for_Account_X19467537-8.csv");
-    const fixture9 = parseFidelityCsv(loadFixtureBuffer("History_for_Account_X19467537-9.csv"), "History_for_Account_X19467537-9.csv");
-    const fixture10 = parseFidelityCsv(loadFixtureBuffer("History_for_Account_X19467537-10.csv"), "History_for_Account_X19467537-10.csv");
+    const fixture8 = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_8), FIXTURE_FILENAME_8);
+    const fixture9 = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_9), FIXTURE_FILENAME_9);
+    const fixture10 = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_10), FIXTURE_FILENAME_10);
 
-    expect(fixture8).toHaveLength(297);
-    expect(fixture9).toHaveLength(267);
-    expect(fixture10).toHaveLength(100);
+    expect(fixture8).toHaveLength(8);
+    expect(fixture9).toHaveLength(7);
+    expect(fixture10).toHaveLength(8);
 
     for (const row of fixture8) {
       expect(row.rawAction.startsWith("\uFEFF")).toBe(false);
@@ -24,14 +20,14 @@ describe("parseFidelityCsv", () => {
   });
 
   it("extracts account id from fixture filenames", () => {
-    expect(extractAccountIdFromFilename("History_for_Account_X19467537-8.csv")).toBe("X19467537");
-    expect(extractAccountIdFromFilename("History_for_Account_X19467537-9.csv")).toBe("X19467537");
-    expect(extractAccountIdFromFilename("History_for_Account_X19467537-10.csv")).toBe("X19467537");
+    expect(extractAccountIdFromFilename(FIXTURE_FILENAME_8)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(FIXTURE_FILENAME_9)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(FIXTURE_FILENAME_10)).toBe(FIXTURE_ACCOUNT_ID);
     expect(extractAccountIdFromFilename("unexpected.csv")).toBeNull();
   });
 
   it("parses numbers and dates, and strips the leading symbol space", () => {
-    const rows = parseFidelityCsv(loadFixtureBuffer("History_for_Account_X19467537-8.csv"), "History_for_Account_X19467537-8.csv");
+    const rows = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_8), FIXTURE_FILENAME_8);
 
     const ntapRow = rows.find((row) => row.symbol === "-NTAP260220C115");
     expect(ntapRow?.symbol).toBe("-NTAP260220C115");
@@ -56,7 +52,7 @@ describe("parseFidelityCsv", () => {
       "",
     ].join("\n");
 
-    const rows = parseFidelityCsv(Buffer.from(csv, "utf8"), "History_for_Account_X19467537-11.csv");
+    const rows = parseFidelityCsv(Buffer.from(csv, "utf8"), `History_for_Account_${FIXTURE_ACCOUNT_ID}-11.csv`);
     const row = rows[0];
     if (!row) {
       throw new Error("Expected synthetic row to parse.");
