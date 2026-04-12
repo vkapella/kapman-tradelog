@@ -36,6 +36,7 @@ function ledgerExecution(overrides: Partial<LedgerExecution> = {}): LedgerExecut
     eventType: overrides.eventType ?? "TRADE",
     assetClass: overrides.assetClass ?? "OPTION",
     symbol: overrides.symbol ?? "SPY",
+    underlyingSymbol: overrides.underlyingSymbol ?? "SPY",
     instrumentKey: overrides.instrumentKey ?? "SPY|CALL|650|2027-12-17",
     side: overrides.side ?? "BUY",
     quantity: overrides.quantity ?? 21,

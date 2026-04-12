@@ -1,17 +1,17 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { classifyAction } from "@/lib/adapters/fidelity/classifier";
 import { parseFidelityCsv } from "@/lib/adapters/fidelity/parser";
+import { FIXTURE_FILENAME_10, FIXTURE_FILENAME_8, FIXTURE_FILENAME_9, loadFixtureBuffer } from "./fixture-data";
 
 function loadActions(): string[] {
   const fixtures = [
-    "tests/adapters/fidelity/fixtures/History_for_Account_X19467537-8.csv",
-    "tests/adapters/fidelity/fixtures/History_for_Account_X19467537-9.csv",
-    "tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv",
+    FIXTURE_FILENAME_8,
+    FIXTURE_FILENAME_9,
+    FIXTURE_FILENAME_10,
   ];
 
   return fixtures
-    .flatMap((fixture) => parseFidelityCsv(readFileSync(fixture), fixture).map((row) => row.rawAction))
+    .flatMap((fixture) => parseFidelityCsv(loadFixtureBuffer(fixture), fixture).map((row) => row.rawAction))
     .filter((action) => action.trim().length > 0);
 }
 

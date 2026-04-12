@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { FIXTURE_FILENAME_10, loadFixtureCsvText } from "../../../tests/adapters/fidelity/fixture-data";
 import { detectAdapter, listAdapters } from "./registry";
 
 describe("adapter registry", () => {
@@ -25,10 +26,10 @@ describe("adapter registry", () => {
   });
 
   it("detects fidelity fixtures through registry selection", () => {
-    const fixture = readFileSync("tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv", "utf8");
+    const fixture = loadFixtureCsvText(FIXTURE_FILENAME_10);
 
     const match = detectAdapter({
-      name: "History_for_Account_X19467537-10.csv",
+      name: FIXTURE_FILENAME_10,
       content: fixture,
       mimeType: "text/csv",
       size: fixture.length,

@@ -16,6 +16,7 @@ function makeExecution(overrides: Partial<LedgerExecution>): LedgerExecution {
     eventType: "TRADE",
     assetClass: "OPTION",
     symbol: "SPY",
+    underlyingSymbol: "SPY",
     instrumentKey: "SPY|CALL|500|2026-03-20",
     side: "BUY",
     quantity: 1,
@@ -173,9 +174,50 @@ describe("runFifoMatcher", () => {
     expect(result.syntheticExecutions).toHaveLength(1);
     expect(result.syntheticExecutions[0]?.eventType).toBe("EXPIRATION_INFERRED");
     expect(result.syntheticExecutions[0]?.price).toBe(0);
+    expect(result.syntheticExecutions[0]?.underlyingSymbol).toBe("SPY");
     expect(result.matchedLots).toHaveLength(1);
     expect(result.matchedLots[0]?.realizedPnl).toBe(-200);
     expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
+  });
+
+  it("derives synthetic expiration underlying symbol from instrument key when missing on source execution", () => {
+    const openOption = makeExecution({
+      id: "open-exp-key-underlying",
+      symbol: "-HOOD250620P50",
+      underlyingSymbol: null,
+      side: "SELL",
+      optionType: "PUT",
+      strike: 50,
+      quantity: 2,
+      price: 1.25,
+      openingClosingEffect: "TO_OPEN",
+      expirationDate: date("2025-06-20T00:00:00.000Z"),
+      instrumentKey: "HOOD|PUT|50|2025-06-20",
+    });
+
+    const result = runFifoMatcher([openOption], date("2025-06-25T00:00:00.000Z"));
+    expect(result.syntheticExecutions).toHaveLength(1);
+    expect(result.syntheticExecutions[0]?.underlyingSymbol).toBe("HOOD");
+  });
+
+  it("derives synthetic expiration underlying symbol from compact option symbol when instrument key is incomplete", () => {
+    const openOption = makeExecution({
+      id: "open-exp-symbol-underlying",
+      symbol: "-INTC250620C25",
+      underlyingSymbol: null,
+      side: "BUY",
+      optionType: "CALL",
+      strike: 25,
+      quantity: 1,
+      price: 1.5,
+      openingClosingEffect: "TO_OPEN",
+      expirationDate: date("2025-06-20T00:00:00.000Z"),
+      instrumentKey: "NA|CALL|25|2025-06-20",
+    });
+
+    const result = runFifoMatcher([openOption], date("2025-06-25T00:00:00.000Z"));
+    expect(result.syntheticExecutions).toHaveLength(1);
+    expect(result.syntheticExecutions[0]?.underlyingSymbol).toBe("INTC");
   });
 
   it("treats assignment/exercise as forced close when strike exists", () => {

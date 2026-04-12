@@ -26,7 +26,7 @@ No schema migrations, no new adjustment types, no changes to FIFO matching or P&
 | Currency columns | Include `$` suffix in header name |
 | Missing values | Empty cell (not `null`, not `N/A`) |
 | File naming convention | `History_for_Account_<accountId>-<sequenceNumber>.csv` |
-| Account ID in filename | Alphanumeric, e.g. `X19467537` |
+| Account ID in filename | Alphanumeric, e.g. `T12345678` |
 | Multi-file imports | Multiple files for same account are valid; dedup by `(runDate, action, symbol, quantity, amount)` |
 
 ### Column schema
@@ -301,9 +301,9 @@ npm run lint
 Copy uploaded sample files to:
 
 ```
-tests/adapters/fidelity/fixtures/History_for_Account_X19467537-8.csv
-tests/adapters/fidelity/fixtures/History_for_Account_X19467537-9.csv
-tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv
+tests/adapters/fidelity/fixtures/History_for_Account_T12345678-8.csv
+tests/adapters/fidelity/fixtures/History_for_Account_T12345678-9.csv
+tests/adapters/fidelity/fixtures/History_for_Account_T12345678-10.csv
 ```
 
 ### Required unit tests
@@ -325,7 +325,7 @@ tests/adapters/fidelity/fixtures/History_for_Account_X19467537-10.csv
 | Action classifier — unrecognised | Status `WARNING`, appended to `importWarnings[]` |
 | Quantity sign | `abs(quantity)` stored; side from classifier |
 | Deduplication | Re-importing same file produces zero new executions |
-| Account ID extraction | Filename regex extracts `X19467537` correctly |
+| Account ID extraction | Filename regex extracts `T12345678` correctly |
 
 ---
 
