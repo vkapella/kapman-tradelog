@@ -180,6 +180,115 @@ describe("runFifoMatcher", () => {
     expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
   });
 
+  it("does not create synthetic expiration for 0DTE lot fully closed on expiry date", () => {
+    const sharedTimestamp = date("2024-12-05T00:00:00.000Z");
+    const open = makeExecution({
+      id: "z-open-0dte",
+      eventTimestamp: sharedTimestamp,
+      tradeDate: sharedTimestamp,
+      side: "BUY",
+      quantity: 1,
+      price: 2,
+      openingClosingEffect: "TO_OPEN",
+      symbol: "-SPXW241205C6095",
+      underlyingSymbol: "SPXW",
+      instrumentKey: "SPXW|CALL|6095|2024-12-05",
+      expirationDate: date("2024-12-05T00:00:00.000Z"),
+      optionType: "CALL",
+      strike: 6095,
+    });
+    const close = makeExecution({
+      id: "a-close-0dte",
+      eventTimestamp: sharedTimestamp,
+      tradeDate: sharedTimestamp,
+      side: "SELL",
+      quantity: 1,
+      price: 1.5,
+      openingClosingEffect: "TO_CLOSE",
+      symbol: "-SPXW241205C6095",
+      underlyingSymbol: "SPXW",
+      instrumentKey: "SPXW|CALL|6095|2024-12-05",
+      expirationDate: date("2024-12-05T00:00:00.000Z"),
+      optionType: "CALL",
+      strike: 6095,
+    });
+
+    const result = runFifoMatcher([open, close], date("2024-12-10T00:00:00.000Z"));
+
+    expect(result.syntheticExecutions).toHaveLength(0);
+    expect(result.matchedLots).toHaveLength(1);
+    expect(result.warnings.some((warning) => warning.code === "UNMATCHED_CLOSE_QUANTITY")).toBe(false);
+    expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(false);
+  });
+
+  it("creates synthetic expiration only for remaining quantity after partial 0DTE close", () => {
+    const sharedTimestamp = date("2024-08-09T00:00:00.000Z");
+    const open = makeExecution({
+      id: "z-open-0dte-partial",
+      eventTimestamp: sharedTimestamp,
+      tradeDate: sharedTimestamp,
+      side: "BUY",
+      quantity: 2,
+      price: 2.2,
+      openingClosingEffect: "TO_OPEN",
+      symbol: "-INTC240809P31",
+      underlyingSymbol: "INTC",
+      instrumentKey: "INTC|PUT|31|2024-08-09",
+      expirationDate: date("2024-08-09T00:00:00.000Z"),
+      optionType: "PUT",
+      strike: 31,
+    });
+    const close = makeExecution({
+      id: "a-close-0dte-partial",
+      eventTimestamp: sharedTimestamp,
+      tradeDate: sharedTimestamp,
+      side: "SELL",
+      quantity: 1,
+      price: 2.4,
+      openingClosingEffect: "TO_CLOSE",
+      symbol: "-INTC240809P31",
+      underlyingSymbol: "INTC",
+      instrumentKey: "INTC|PUT|31|2024-08-09",
+      expirationDate: date("2024-08-09T00:00:00.000Z"),
+      optionType: "PUT",
+      strike: 31,
+    });
+
+    const result = runFifoMatcher([open, close], date("2024-08-15T00:00:00.000Z"));
+
+    expect(result.syntheticExecutions).toHaveLength(1);
+    expect(result.syntheticExecutions[0]?.quantity).toBe(1);
+    expect(result.syntheticExecutions[0]?.instrumentKey).toBe("INTC|PUT|31|2024-08-09");
+    expect(result.matchedLots).toHaveLength(2);
+    expect(result.warnings.some((warning) => warning.code === "UNMATCHED_CLOSE_QUANTITY")).toBe(false);
+    expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
+  });
+
+  it("creates synthetic expiration for fully open 0DTE lot at expiry", () => {
+    const open = makeExecution({
+      id: "open-0dte-unclosed",
+      eventTimestamp: date("2024-07-05T00:00:00.000Z"),
+      tradeDate: date("2024-07-05T00:00:00.000Z"),
+      side: "BUY",
+      quantity: 1,
+      price: 1.9,
+      openingClosingEffect: "TO_OPEN",
+      symbol: "-INTC240705C32",
+      underlyingSymbol: "INTC",
+      instrumentKey: "INTC|CALL|32|2024-07-05",
+      expirationDate: date("2024-07-05T00:00:00.000Z"),
+      optionType: "CALL",
+      strike: 32,
+    });
+
+    const result = runFifoMatcher([open], date("2024-07-10T00:00:00.000Z"));
+
+    expect(result.syntheticExecutions).toHaveLength(1);
+    expect(result.syntheticExecutions[0]?.instrumentKey).toBe("INTC|CALL|32|2024-07-05");
+    expect(result.matchedLots).toHaveLength(1);
+    expect(result.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
+  });
+
   it("derives synthetic expiration underlying symbol from instrument key when missing on source execution", () => {
     const openOption = makeExecution({
       id: "open-exp-key-underlying",
