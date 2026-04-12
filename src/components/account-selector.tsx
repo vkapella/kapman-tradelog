@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 
 export function AccountSelector() {
@@ -63,7 +64,7 @@ export function AccountSelector() {
                   onChange={() => toggleAccount(accountId)}
                   className="h-3 w-3 rounded border-border bg-panel"
                 />
-                <span className="truncate font-mono">{accountId}</span>
+                <AccountLabel accountId={accountId} className="truncate" />
               </label>
             ))}
           </div>

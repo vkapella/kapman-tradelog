@@ -1,24 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { ExecutionRecord, ImportRecord } from "@/types/api";
+import type { AccountRecord, ApiListResponse } from "@/types/api";
 
-interface ExecutionListPayload {
-  data: ExecutionRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface ImportListPayload {
-  data: ImportRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
+interface ResolvedAccountLabel {
+  text: string;
+  title: string;
+  useMonospace: boolean;
+  isInternalFallback: boolean;
 }
 
 interface AccountFilterContextValue {
@@ -27,6 +16,8 @@ interface AccountFilterContextValue {
   setSelectedAccounts: (ids: string[]) => void;
   isSelectedAccount: (accountId: string) => boolean;
   toExternalAccountId: (accountId: string) => string;
+  getAccountDisplayText: (accountId: string) => string;
+  resolveAccountLabel: (accountId: string) => ResolvedAccountLabel;
 }
 
 const AccountFilterContext = createContext<AccountFilterContextValue | null>(null);
@@ -39,51 +30,39 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [selectedAccounts, setSelectedAccountsState] = useState<string[]>([]);
   const [externalByInternal, setExternalByInternal] = useState<Record<string, string>>({});
+  const [displayLabelByInternal, setDisplayLabelByInternal] = useState<Record<string, string>>({});
+  const [internalByExternal, setInternalByExternal] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAccounts() {
       try {
-        const [executionResponse, importResponse] = await Promise.all([
-          fetch("/api/executions?page=1&pageSize=1000", { cache: "no-store" }),
-          fetch("/api/imports?page=1&pageSize=1000", { cache: "no-store" }),
-        ]);
-        let accountIds: string[] = [];
-        let executionRows: ExecutionRecord[] = [];
-        let importRows: ImportRecord[] = [];
-
-        if (executionResponse.ok) {
-          const payload = (await executionResponse.json()) as ExecutionListPayload;
-          executionRows = payload.data;
-          accountIds = executionRows.map((row) => row.accountId);
+        const response = await fetch("/api/accounts", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Unable to load accounts.");
         }
 
-        if (importResponse.ok) {
-          const payload = (await importResponse.json()) as ImportListPayload;
-          importRows = payload.data;
-        }
-
-        // Fallback to imports so the selector still hydrates before executions exist.
-        if (accountIds.length === 0) {
-          accountIds = importRows.map((row) => row.accountId);
-        }
+        const payload = (await response.json()) as ApiListResponse<AccountRecord>;
+        const rows = payload.data;
 
         if (cancelled) {
           return;
         }
 
-        const externalByInternalNext: Record<string, string> = {};
-        const importById = new Map(importRows.map((row) => [row.id, row.accountId]));
-        for (const executionRow of executionRows) {
-          const externalAccountId = importById.get(executionRow.importId);
-          if (externalAccountId) {
-            externalByInternalNext[executionRow.accountId] = externalAccountId;
-          }
-        }
+        const accountIds = [...rows]
+          .sort((left, right) => (left.displayLabel ?? left.accountId).localeCompare(right.displayLabel ?? right.accountId))
+          .map((row) => row.id);
+        const externalByInternalNext = Object.fromEntries(rows.map((row) => [row.id, row.accountId]));
+        const displayLabelByInternalNext = Object.fromEntries(
+          rows.filter((row) => row.displayLabel).map((row) => [row.id, row.displayLabel ?? row.accountId]),
+        );
+        const internalByExternalNext = Object.fromEntries(rows.map((row) => [row.accountId, row.id]));
+        const uniqueAccounts = Array.from(new Set(accountIds));
 
-        const uniqueAccounts = uniqueSorted(accountIds);
         setExternalByInternal(externalByInternalNext);
+        setDisplayLabelByInternal(displayLabelByInternalNext);
+        setInternalByExternal(internalByExternalNext);
         setAvailableAccounts(uniqueAccounts);
         setSelectedAccountsState((current) => {
           if (current.length === 0) {
@@ -96,6 +75,8 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
       } catch {
         if (!cancelled) {
           setExternalByInternal({});
+          setDisplayLabelByInternal({});
+          setInternalByExternal({});
           setAvailableAccounts([]);
           setSelectedAccountsState([]);
         }
@@ -112,6 +93,36 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   const value = useMemo<AccountFilterContextValue>(() => {
     const selectedSet = new Set(selectedAccounts);
     const selectedExternalSet = new Set(selectedAccounts.map((accountId) => externalByInternal[accountId] ?? accountId));
+    const resolveAccountLabel = (accountId: string): ResolvedAccountLabel => {
+      const internalAccountId = internalByExternal[accountId] ?? accountId;
+      const externalAccountId = externalByInternal[internalAccountId] ?? (internalByExternal[accountId] ? accountId : null);
+      const displayLabel = displayLabelByInternal[internalAccountId];
+
+      if (displayLabel) {
+        return {
+          text: displayLabel,
+          title: externalAccountId ?? internalAccountId,
+          useMonospace: false,
+          isInternalFallback: false,
+        };
+      }
+
+      if (externalAccountId) {
+        return {
+          text: externalAccountId,
+          title: externalAccountId,
+          useMonospace: true,
+          isInternalFallback: false,
+        };
+      }
+
+      return {
+        text: internalAccountId,
+        title: internalAccountId,
+        useMonospace: true,
+        isInternalFallback: true,
+      };
+    };
 
     return {
       availableAccounts,
@@ -122,6 +133,8 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         setSelectedAccountsState(valid.length === 0 ? availableAccounts : valid);
       },
       toExternalAccountId: (accountId: string) => externalByInternal[accountId] ?? accountId,
+      getAccountDisplayText: (accountId: string) => resolveAccountLabel(accountId).text,
+      resolveAccountLabel,
       isSelectedAccount: (accountId: string) => {
         if (selectedSet.has(accountId) || selectedExternalSet.has(accountId)) {
           return true;
@@ -131,7 +144,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         return externalAccountId ? selectedExternalSet.has(externalAccountId) : false;
       },
     };
-  }, [availableAccounts, selectedAccounts, externalByInternal]);
+  }, [availableAccounts, selectedAccounts, externalByInternal, displayLabelByInternal, internalByExternal]);
 
   return <AccountFilterContext.Provider value={value}>{children}</AccountFilterContext.Provider>;
 }

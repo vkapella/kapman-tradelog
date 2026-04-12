@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
@@ -388,7 +389,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
                       <td className="px-2 py-2">{row.filename}</td>
                       <td className="px-2 py-2">{row.broker}</td>
-                      <td className="px-2 py-2">{row.accountId}</td>
+                      <td className="px-2 py-2">
+                        <AccountLabel accountId={row.accountId} />
+                      </td>
                       <td className="px-2 py-2">{row.status}</td>
                       <td className="px-2 py-2 text-right">{row.parsedRows}</td>
                       <td className="px-2 py-2 text-right">{row.inserted}</td>
