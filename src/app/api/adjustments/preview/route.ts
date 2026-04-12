@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
+import { applySplitAdjustmentsToLedgerExecutions } from "@/lib/adjustments/split-ledger-executions";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -172,6 +173,28 @@ function sumRealizedPnl(matchedLots: Array<{ realizedPnl: number }>): number {
   return matchedLots.reduce((sum, lot) => sum + lot.realizedPnl, 0);
 }
 
+const EPSILON = 1e-9;
+
+function numbersDiffer(left: number, right: number): boolean {
+  return Math.abs(left - right) > EPSILON;
+}
+
+function nullableNumbersDiffer(left: number | null, right: number | null): boolean {
+  if (left === null || right === null) {
+    return left !== right;
+  }
+  return numbersDiffer(left, right);
+}
+
+function splitChangedLedgerExecution(before: LedgerExecution, after: LedgerExecution): boolean {
+  return (
+    numbersDiffer(before.quantity, after.quantity) ||
+    nullableNumbersDiffer(before.price, after.price) ||
+    nullableNumbersDiffer(before.strike, after.strike) ||
+    before.instrumentKey !== after.instrumentKey
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountId = url.searchParams.get("accountId");
@@ -306,16 +329,22 @@ export async function GET(request: Request) {
   const beforeSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, before);
   const afterSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, after);
 
-  const effectiveTime = new Date(effectiveDate).getTime();
   let affectedExecutionCount =
     adjustmentType === "SPLIT"
-      ? executions.filter(
-          (row) =>
-            row.accountId === accountId &&
-            row.assetClass === "EQUITY" &&
-            row.symbol.toUpperCase() === resolvedSymbol &&
-            new Date(row.tradeDate).getTime() < effectiveTime,
-        ).length
+      ? executionsRows
+          .flatMap((row) => {
+            const candidate = toLedgerExecution(row);
+            return candidate ? [candidate] : [];
+          })
+          .filter((execution) => {
+            const beforeAdjusted = applySplitAdjustmentsToLedgerExecutions([execution], existingAdjustments)[0];
+            const afterAdjusted = applySplitAdjustmentsToLedgerExecutions([execution], [...existingAdjustments, previewAdjustment])[0];
+            if (!beforeAdjusted || !afterAdjusted) {
+              return false;
+            }
+
+            return splitChangedLedgerExecution(beforeAdjusted, afterAdjusted);
+          }).length
       : 0;
 
   if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
@@ -331,8 +360,10 @@ export async function GET(request: Request) {
       const mapped = toLedgerExecution(row);
       return mapped ? [mapped] : [];
     });
-    const beforeOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, existingAdjustments);
-    const afterOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(matcherInput, [...existingAdjustments, previewAdjustment]);
+    const beforeSplitAdjusted = applySplitAdjustmentsToLedgerExecutions(matcherInput, existingAdjustments);
+    const afterSplitAdjusted = applySplitAdjustmentsToLedgerExecutions(matcherInput, [...existingAdjustments, previewAdjustment]);
+    const beforeOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(beforeSplitAdjusted, existingAdjustments);
+    const afterOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(afterSplitAdjusted, [...existingAdjustments, previewAdjustment]);
     const beforeFifo = runFifoMatcher(beforeOverrideResult.executions, new Date());
     const afterFifo = runFifoMatcher(afterOverrideResult.executions, new Date());
     const rawQty = Number(targetExecution.quantity);
