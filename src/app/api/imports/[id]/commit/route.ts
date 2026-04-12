@@ -27,7 +27,7 @@ function normalizeNumberKey(value: number | string | null | undefined): string {
   return parsed.toString();
 }
 
-function buildExecutionDedupKey(input: {
+function buildExecutionAmountDedupKey(input: {
   accountId: string;
   executionDate: Date;
   symbol: string;
@@ -42,6 +42,44 @@ function buildExecutionDedupKey(input: {
     input.side,
     normalizeNumberKey(input.quantity),
     normalizeNumberKey(input.amount),
+  ].join("|");
+}
+
+function buildExecutionSignatureDedupKey(input: {
+  accountId: string;
+  executionDate: Date;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number | string;
+  price: number | string | null;
+  openingClosingEffect: "TO_OPEN" | "TO_CLOSE" | "UNKNOWN";
+}): string {
+  return [
+    input.accountId,
+    normalizeDateKey(input.executionDate),
+    input.symbol.trim().toUpperCase(),
+    input.side,
+    normalizeNumberKey(input.quantity),
+    normalizeNumberKey(input.price),
+    input.openingClosingEffect,
+  ].join("|");
+}
+
+function buildExecutionCorrectionDedupKey(input: {
+  accountId: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number | string;
+  price: number | string | null;
+  openingClosingEffect: "TO_OPEN" | "TO_CLOSE" | "UNKNOWN";
+}): string {
+  return [
+    input.accountId,
+    input.symbol.trim().toUpperCase(),
+    input.side,
+    normalizeNumberKey(input.quantity),
+    normalizeNumberKey(input.price),
+    input.openingClosingEffect,
   ].join("|");
 }
 
@@ -162,18 +200,22 @@ export async function POST(_request: Request, context: { params: { id: string } 
             symbol: true,
             side: true,
             quantity: true,
+            price: true,
             netAmount: true,
+            openingClosingEffect: true,
           },
         });
 
-        const existingExecutionKeys = new Set<string>();
+        const existingExecutionAmountKeys = new Set<string>();
+        const existingExecutionSignatureKeys = new Set<string>();
+        const existingExecutionCorrectionKeys = new Set<string>();
         for (const row of existingExecutions) {
           if (!row.side) {
             continue;
           }
 
-          existingExecutionKeys.add(
-            buildExecutionDedupKey({
+          existingExecutionAmountKeys.add(
+            buildExecutionAmountDedupKey({
               accountId: existingImport.accountId,
               executionDate: row.tradeDate,
               symbol: row.symbol,
@@ -182,11 +224,32 @@ export async function POST(_request: Request, context: { params: { id: string } 
               amount: row.netAmount?.toString() ?? null,
             }),
           );
+          existingExecutionSignatureKeys.add(
+            buildExecutionSignatureDedupKey({
+              accountId: existingImport.accountId,
+              executionDate: row.tradeDate,
+              symbol: row.symbol,
+              side: row.side,
+              quantity: row.quantity.toString(),
+              price: row.price?.toString() ?? null,
+              openingClosingEffect: row.openingClosingEffect ?? "UNKNOWN",
+            }),
+          );
+          existingExecutionCorrectionKeys.add(
+            buildExecutionCorrectionDedupKey({
+              accountId: existingImport.accountId,
+              symbol: row.symbol,
+              side: row.side,
+              quantity: row.quantity.toString(),
+              price: row.price?.toString() ?? null,
+              openingClosingEffect: row.openingClosingEffect ?? "UNKNOWN",
+            }),
+          );
         }
 
         const dedupedExecutions = [];
         for (const row of executionData) {
-          const key = buildExecutionDedupKey({
+          const amountKey = buildExecutionAmountDedupKey({
             accountId: existingImport.accountId,
             executionDate: row.tradeDate,
             symbol: row.symbol,
@@ -194,13 +257,36 @@ export async function POST(_request: Request, context: { params: { id: string } 
             quantity: row.quantity,
             amount: row.netAmount,
           });
+          const signatureKey = buildExecutionSignatureDedupKey({
+            accountId: existingImport.accountId,
+            executionDate: row.tradeDate,
+            symbol: row.symbol,
+            side: row.side,
+            quantity: row.quantity,
+            price: row.price,
+            openingClosingEffect: row.openingClosingEffect,
+          });
+          const correctionKey = buildExecutionCorrectionDedupKey({
+            accountId: existingImport.accountId,
+            symbol: row.symbol,
+            side: row.side,
+            quantity: row.quantity,
+            price: row.price,
+            openingClosingEffect: row.openingClosingEffect,
+          });
+          const isCancelRebookRepresentative = row.rawRowJson?.cancelRebookCode === "CANCEL_REBOOK";
+          const duplicate = isCancelRebookRepresentative
+            ? existingExecutionSignatureKeys.has(signatureKey) || existingExecutionCorrectionKeys.has(correctionKey)
+            : existingExecutionAmountKeys.has(amountKey);
 
-          if (existingExecutionKeys.has(key)) {
+          if (duplicate) {
             fidelitySkippedExecutionDuplicates += 1;
             continue;
           }
 
-          existingExecutionKeys.add(key);
+          existingExecutionAmountKeys.add(amountKey);
+          existingExecutionSignatureKeys.add(signatureKey);
+          existingExecutionCorrectionKeys.add(correctionKey);
           dedupedExecutions.push(row);
         }
 

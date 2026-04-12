@@ -38,9 +38,18 @@ export type ActionClassification =
   | { kind: "UNKNOWN" };
 
 export interface ImportWarning {
+  code?: string;
   rowIndex: number;
   rawAction: string;
   message: string;
+}
+
+export interface CancelRebookInfo {
+  code: "CANCEL_REBOOK";
+  rowIndexes: number[];
+  message: string;
+  symbol: string;
+  settlementDate: string | null;
 }
 
 export type ImportRecordStatus = "VALID" | "WARNING" | "SKIPPED" | "CANCELLED";
@@ -73,6 +82,7 @@ export interface ExecutionImportRecord extends BaseImportRecord {
   fees: number;
   amount: number | null;
   assignmentLinkId: string | null;
+  cancelRebookCode: "CANCEL_REBOOK" | null;
 }
 
 export interface CashEventImportRecord extends BaseImportRecord {
@@ -105,6 +115,9 @@ export interface TransformResult {
   records: ImportRecord[];
   previewRows: FidelityPreviewRow[];
   warnings: ImportWarning[];
+  cancelRebookInfos: CancelRebookInfo[];
   cancelledCount: number;
+  cancelRebookOriginalDropCount: number;
   skippedBlankCount: number;
+  unknownSkippedCount: number;
 }
