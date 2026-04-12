@@ -13,6 +13,12 @@ export interface RebuildAccountLedgerResult {
   warnings: LedgerWarning[];
 }
 
+export interface RebuildAccountLedgerOptions {
+  executionQtyOverrides?: Array<{
+    payload: unknown;
+  }>;
+}
+
 const FIDELITY_COMPACT_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d+(?:\.\d+)?)$/;
 
 function toNumber(value: Prisma.Decimal | null): number | null {
@@ -60,10 +66,43 @@ function buildOptionInstrumentKey(underlyingSymbol: string, optionType: string, 
   return `${underlyingSymbol}|${optionType}|${strike}|${expirationDateIso}`;
 }
 
+function toExecutionQtyOverrideAdjustments(
+  overrides: Array<{ payload: unknown }>,
+  accountId: string,
+): ManualAdjustmentRecord[] {
+  return overrides.flatMap((override, index) => {
+    try {
+      const payload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", override.payload);
+      const createdAt = new Date(index).toISOString();
+
+      return [
+        {
+          id: `rebuild-override-${index}-${payload.executionId}`,
+          createdAt,
+          createdBy: "system:rebuild-pnl",
+          accountId,
+          accountExternalId: accountId,
+          symbol: "OVERRIDE",
+          effectiveDate: createdAt,
+          adjustmentType: "EXECUTION_QTY_OVERRIDE",
+          payload,
+          reason: "Applied during ledger rebuild",
+          evidenceRef: null,
+          status: "ACTIVE",
+          reversedByAdjustmentId: null,
+        } satisfies ManualAdjustmentRecord,
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export async function rebuildAccountLedger(
   tx: Prisma.TransactionClient,
   accountId: string,
   asOfDate: Date,
+  options?: RebuildAccountLedgerOptions,
 ): Promise<RebuildAccountLedgerResult> {
   await tx.matchedLot.deleteMany({ where: { accountId } });
   await tx.execution.deleteMany({
@@ -125,7 +164,11 @@ export async function rebuildAccountLedger(
   });
 
   const splitAdjustments = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "SPLIT");
-  const executionQtyOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_QTY_OVERRIDE");
+  const dbExecutionQtyOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_QTY_OVERRIDE");
+  const executionQtyOverrides =
+    options?.executionQtyOverrides === undefined
+      ? dbExecutionQtyOverrides
+      : toExecutionQtyOverrideAdjustments(options.executionQtyOverrides, accountId);
 
   const updates: Array<{
     id: string;
@@ -237,7 +280,8 @@ export async function rebuildAccountLedger(
 
   const splitAdjustedMatcherInput = applySplitAdjustmentsToLedgerExecutions(matcherInput, splitAdjustments);
   const overrideResult = applyExecutionQtyOverrideToLedgerExecutions(splitAdjustedMatcherInput, executionQtyOverrides);
-  const matchResult = runFifoMatcher(overrideResult.executions, asOfDate);
+  const effectiveExecutions = overrideResult.executions.filter((execution) => execution.quantity > 0);
+  const matchResult = runFifoMatcher(effectiveExecutions, asOfDate);
   if (overrideResult.unmatchedExecutionIds.length > 0) {
     for (const executionId of overrideResult.unmatchedExecutionIds) {
       matchResult.warnings.push({
