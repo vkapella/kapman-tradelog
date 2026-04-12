@@ -70,29 +70,36 @@ export async function GET(request: Request) {
   const skippedRows = imports.reduce((sum, row) => sum + row.skippedRows, 0);
   const warningSamples: string[] = [];
   const storedWarnings: StoredDiagnosticWarning[] = [];
-  const warningsCount = imports.reduce((sum, row) => {
-    if (Array.isArray(row.warnings)) {
-      for (const warning of row.warnings) {
-        if (typeof warning !== "object" || warning === null || !("message" in warning)) {
-          continue;
-        }
-
-        const message = String(warning.message);
-        if (warningSamples.length < 10) {
-          warningSamples.push(message);
-        }
-
-        storedWarnings.push({
-          code: "code" in warning ? String(warning.code) : "WARNING",
-          message,
-          accountId: row.accountId,
-          rowRef: "rowRef" in warning && warning.rowRef !== undefined ? String(warning.rowRef) : undefined,
-        });
-      }
-      return sum + row.warnings.length;
+  let warningsCount = 0;
+  for (const row of imports) {
+    if (!Array.isArray(row.warnings)) {
+      continue;
     }
-    return sum;
-  }, 0);
+
+    for (const warning of row.warnings) {
+      if (typeof warning !== "object" || warning === null || !("message" in warning)) {
+        continue;
+      }
+
+      const code = "code" in warning ? String(warning.code) : "WARNING";
+      if (code === "CANCEL_REBOOK") {
+        continue;
+      }
+
+      warningsCount += 1;
+      const message = String(warning.message);
+      if (warningSamples.length < 10) {
+        warningSamples.push(message);
+      }
+
+      storedWarnings.push({
+        code,
+        message,
+        accountId: row.accountId,
+        rowRef: "rowRef" in warning && warning.rowRef !== undefined ? String(warning.rowRef) : undefined,
+      });
+    }
+  }
 
   const totalRows = parsedRows + skippedRows;
   const inferenceLots: SetupInferenceLot[] = matchedLots.map((lot) => ({

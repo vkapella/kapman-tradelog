@@ -102,4 +102,8 @@ describe("classifyAction", () => {
     });
     expect(classifyAction(moneyMarket)).toEqual({ kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_BUY" });
   });
+
+  it("classifies SELL CANCEL rows as cancelled actions", () => {
+    expect(classifyAction("SELL CANCEL CLOSING TRANSACTION")).toEqual({ kind: "CANCELLED" });
+  });
 });

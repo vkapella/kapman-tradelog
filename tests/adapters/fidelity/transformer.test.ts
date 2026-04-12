@@ -8,6 +8,25 @@ function loadRows(filename: string): RawFidelityRow[] {
   return parseFidelityCsv(loadFixtureBuffer(filename), filename);
 }
 
+function makeRow(overrides: Partial<RawFidelityRow>): RawFidelityRow {
+  return {
+    runDate: new Date("2025-01-02T00:00:00.000Z"),
+    rawAction: "YOU BOUGHT CLOSING TRANSACTION",
+    symbol: "-INTC250117C23",
+    description: "CALL INTC JAN 17 25 $23",
+    marginType: "Margin",
+    price: 0.11,
+    quantity: 1,
+    commission: 0,
+    fees: 0,
+    accruedInterest: null,
+    amount: -11.12,
+    cashBalance: 1000,
+    settlementDate: new Date("2025-01-03T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 describe("transformFidelityRows", () => {
   it("uses absolute quantity for SELL rows", () => {
     const rows = loadRows(FIXTURE_FILENAME_10);
@@ -100,7 +119,145 @@ describe("transformFidelityRows", () => {
     expect(intcLinkIds.size).toBe(1);
   });
 
-  it("skips blank rows, skips cancelled rows, and records unknown warnings", () => {
+  it("collapses a complete cancel/correct triplet to a single CORR execution", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      makeRow({ runDate: new Date("2025-01-02T00:00:00.000Z"), amount: -11.12 }),
+      makeRow({
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        rawAction: "BUY CANCEL CLOSING TRANSACTION",
+        description: "CXL DESCRIPTION CANCELLED TRADE as of Jan-02-2025",
+        quantity: -1,
+        amount: 11.12,
+      }),
+      makeRow({
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        description: "CORR DESCRIPTION CORRECTED CONFIRM as of Jan-02-2025",
+        quantity: 1,
+        amount: -11.03,
+      }),
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+    const executions = transformed.records.filter(
+      (record): record is Extract<(typeof transformed.records)[number], { kind: "EXECUTION" }> => record.kind === "EXECUTION",
+    );
+
+    expect(executions).toHaveLength(1);
+    expect(executions[0]?.description).toContain("CORR DESCRIPTION CORRECTED CONFIRM");
+    expect(executions[0]?.cancelRebookCode).toBe("CANCEL_REBOOK");
+    expect(transformed.cancelRebookInfos).toHaveLength(1);
+    expect(transformed.cancelRebookInfos[0]?.rowIndexes).toEqual([4, 5, 6]);
+    expect(transformed.cancelRebookOriginalDropCount).toBe(1);
+    expect(transformed.cancelledCount).toBe(1);
+    expect(transformed.warnings.some((warning) => warning.code === "CANCELLED_ROW_SKIPPED")).toBe(false);
+  });
+
+  it("drops CANCEL with original when no CORR row exists and emits a structured warning", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      makeRow({ runDate: new Date("2025-01-02T00:00:00.000Z"), amount: -11.12 }),
+      makeRow({
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        rawAction: "BUY CANCEL CLOSING TRANSACTION",
+        description: "CXL DESCRIPTION CANCELLED TRADE as of Jan-02-2025",
+        quantity: -1,
+        amount: 11.12,
+      }),
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+
+    expect(transformed.records).toHaveLength(0);
+    expect(transformed.cancelRebookOriginalDropCount).toBe(1);
+    expect(transformed.cancelledCount).toBe(1);
+    expect(transformed.warnings.some((warning) => warning.code === "CANCEL_REBOOK_MISSING_CORRECTION")).toBe(true);
+    expect(transformed.warnings.some((warning) => warning.message.includes("Trade cancelled with no correction found"))).toBe(true);
+    expect(transformed.warnings.some((warning) => warning.code === "CANCELLED_ROW_SKIPPED")).toBe(false);
+  });
+
+  it("keeps CORR rows when no matching CANCEL exists and emits a structured warning", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      makeRow({
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        description: "CORR DESCRIPTION CORRECTED CONFIRM as of Jan-02-2025",
+        quantity: 1,
+        amount: -11.03,
+      }),
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+    const executions = transformed.records.filter(
+      (record): record is Extract<(typeof transformed.records)[number], { kind: "EXECUTION" }> => record.kind === "EXECUTION",
+    );
+
+    expect(executions).toHaveLength(1);
+    expect(executions[0]?.cancelRebookCode).toBeNull();
+    expect(transformed.warnings.some((warning) => warning.code === "CANCEL_REBOOK_MISSING_CANCEL")).toBe(true);
+  });
+
+  it("resolves multiple cancel/correct pairs independently in one import", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      makeRow({
+        symbol: "-INTC250117C23",
+        runDate: new Date("2025-01-02T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-03T00:00:00.000Z"),
+      }),
+      makeRow({
+        symbol: "-INTC250117C23",
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-03T00:00:00.000Z"),
+        rawAction: "BUY CANCEL CLOSING TRANSACTION",
+        description: "CXL DESCRIPTION CANCELLED TRADE as of Jan-02-2025",
+        quantity: -1,
+        amount: 11.12,
+      }),
+      makeRow({
+        symbol: "-INTC250117C23",
+        runDate: new Date("2025-01-21T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-03T00:00:00.000Z"),
+        description: "CORR DESCRIPTION CORRECTED CONFIRM as of Jan-02-2025",
+        quantity: 1,
+        amount: -11.03,
+      }),
+      makeRow({
+        symbol: "-AAPL250117C180",
+        runDate: new Date("2025-01-05T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-06T00:00:00.000Z"),
+        description: "CALL AAPL JAN 17 25 $180",
+        amount: -8.12,
+      }),
+      makeRow({
+        symbol: "-AAPL250117C180",
+        runDate: new Date("2025-01-22T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-06T00:00:00.000Z"),
+        rawAction: "BUY CANCEL CLOSING TRANSACTION",
+        description: "CXL DESCRIPTION CANCELLED TRADE as of Jan-05-2025",
+        quantity: -1,
+        amount: 8.12,
+      }),
+      makeRow({
+        symbol: "-AAPL250117C180",
+        runDate: new Date("2025-01-22T00:00:00.000Z"),
+        settlementDate: new Date("2025-01-06T00:00:00.000Z"),
+        description: "CORR DESCRIPTION CORRECTED CONFIRM as of Jan-05-2025",
+        quantity: 1,
+        amount: -8.01,
+      }),
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+    const executions = transformed.records.filter(
+      (record): record is Extract<(typeof transformed.records)[number], { kind: "EXECUTION" }> => record.kind === "EXECUTION",
+    );
+
+    expect(executions).toHaveLength(2);
+    expect(executions.every((record) => record.cancelRebookCode === "CANCEL_REBOOK")).toBe(true);
+    expect(transformed.cancelRebookInfos).toHaveLength(2);
+    expect(transformed.cancelRebookOriginalDropCount).toBe(2);
+    expect(transformed.cancelledCount).toBe(2);
+    expect(transformed.warnings.some((warning) => warning.code?.startsWith("CANCEL_REBOOK_MISSING_"))).toBe(false);
+  });
+
+  it("tracks blank rows, cancel rows, and unknown actions distinctly", () => {
     const syntheticRows: RawFidelityRow[] = [
       {
         runDate: null,
@@ -154,16 +311,23 @@ describe("transformFidelityRows", () => {
     expect(transformed.records).toHaveLength(0);
     expect(transformed.skippedBlankCount).toBe(1);
     expect(transformed.cancelledCount).toBe(1);
-    expect(transformed.warnings.some((warning) => warning.message.includes("Unknown Fidelity action"))).toBe(true);
+    expect(transformed.unknownSkippedCount).toBe(1);
+    expect(transformed.warnings.some((warning) => warning.code === "UNKNOWN_ACTION")).toBe(true);
+    expect(transformed.warnings.some((warning) => warning.code === "CANCEL_REBOOK_MISSING_CORRECTION")).toBe(true);
+    expect(transformed.warnings.some((warning) => warning.code === "CANCELLED_ROW_SKIPPED")).toBe(false);
   });
 
   it("accounts for all parsed rows in fixture -10 round-trip tally", () => {
     const rows = loadRows(FIXTURE_FILENAME_10);
     const transformed = transformFidelityRows(rows, FIXTURE_ACCOUNT_ID);
 
-    const unknownSkippedCount = transformed.warnings.filter((warning) => warning.message.includes("Unknown Fidelity action")).length;
-
-    expect(transformed.records.length + transformed.skippedBlankCount + transformed.cancelledCount + unknownSkippedCount).toBe(rows.length);
+    expect(
+      transformed.records.length +
+        transformed.skippedBlankCount +
+        transformed.cancelledCount +
+        transformed.unknownSkippedCount +
+        transformed.cancelRebookOriginalDropCount,
+    ).toBe(rows.length);
   });
 
   it("adds warnings for unmatched assignment legs", () => {

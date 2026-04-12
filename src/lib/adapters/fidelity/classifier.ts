@@ -3,7 +3,7 @@ import type { ActionClassification } from "./types";
 export function classifyAction(rawAction: string): ActionClassification {
   const normalized = rawAction.toUpperCase();
 
-  if (normalized.includes("BUY CANCEL") || normalized.includes("CXL DESCRIPTION CANCELLED TRADE")) {
+  if (normalized.startsWith("BUY CANCEL") || normalized.startsWith("SELL CANCEL") || normalized.includes("CXL DESCRIPTION CANCELLED TRADE")) {
     return { kind: "CANCELLED" };
   }
 

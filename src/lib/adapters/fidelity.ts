@@ -105,6 +105,7 @@ function toExecution(record: ExecutionImportRecord): NormalizedExecution | null 
       price: toRawString(record.price),
       quantity: toRawString(record.quantity),
       assignmentLinkId: toRawString(record.assignmentLinkId),
+      cancelRebookCode: toRawString(record.cancelRebookCode),
     },
   };
 }
@@ -137,11 +138,18 @@ function parseFidelity(file: UploadedFile): ParseResult {
   const parsed = fidelityV8Adapter.parse(Buffer.from(file.content, "utf8"), file.name);
   const resolvedAccountId = parsed.accountId ?? FALLBACK_ACCOUNT_ID;
 
-  const warnings: Array<{ code: string; message: string; rowRef?: string }> = parsed.warnings.map((warning: { rowIndex: number; message: string }) => ({
-    code: "FIDELITY_WARNING",
+  const warnings: Array<{ code: string; message: string; rowRef?: string }> = parsed.warnings.map((warning) => ({
+    code: warning.code ?? "FIDELITY_WARNING",
     message: warning.message,
     rowRef: String(warning.rowIndex),
   }));
+  for (const info of parsed.cancelRebookInfos) {
+    warnings.push({
+      code: info.code,
+      message: info.message,
+      rowRef: info.rowIndexes.join(","),
+    });
+  }
 
   if (!parsed.accountId) {
     warnings.push({
@@ -193,7 +201,7 @@ function parseFidelity(file: UploadedFile): ParseResult {
     snapshots: [],
     cashEvents,
     parsedRows: parsed.rawRowCount,
-    skippedRows: Math.max(0, parsed.rawRowCount - parsed.records.length),
+    skippedRows: parsed.skippedBlankCount + parsed.unknownSkippedCount,
   };
 
   parseResult.previewRows = parsed.previewRows.map((row: FidelityPreviewRow) => ({
