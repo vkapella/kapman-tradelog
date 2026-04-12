@@ -173,7 +173,7 @@ export async function GET(request: Request) {
           {
             status: "ACTIVE",
             adjustmentType: {
-              in: ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION"],
+              in: ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION", "EXECUTION_QTY_OVERRIDE"],
             },
           },
         ],
@@ -286,25 +286,51 @@ export async function GET(request: Request) {
   }));
   const setupInference = inferSetupGroups(inferenceLots).diagnostics;
   const matchedCount = matchedLots.length;
-  const closeCandidateCount = closeCandidates.length;
+  const executionQtyOverrideMap = new Map<string, number>();
+  for (const adjustment of manualAdjustments) {
+    if (adjustment.status !== "ACTIVE" || adjustment.adjustmentType !== "EXECUTION_QTY_OVERRIDE") {
+      continue;
+    }
+
+    const payload = adjustment.payload as { executionId?: string; overrideQty?: number };
+    const overrideQty = payload.overrideQty;
+    if (!payload.executionId || typeof overrideQty !== "number" || !Number.isFinite(overrideQty)) {
+      continue;
+    }
+
+    executionQtyOverrideMap.set(payload.executionId, overrideQty);
+  }
+
+  const effectiveCloseCandidates = closeCandidates
+    .map((execution) => {
+      const rawQty = Number(execution.quantity);
+      const effectiveQty = executionQtyOverrideMap.get(execution.id) ?? rawQty;
+      return {
+        ...execution,
+        effectiveQty,
+      };
+    })
+    .filter((execution) => Number.isFinite(execution.effectiveQty) && execution.effectiveQty > 0);
+
+  const closeCandidateCount = effectiveCloseCandidates.length;
   const matchedCloseExecutionIds = new Set(
     matchedLots
       .map((lot) => lot.closeExecutionId)
       .filter((closeExecutionId): closeExecutionId is string => closeExecutionId !== null),
   );
 
-  const unmatchedCloseExecutions = closeCandidates
+  const unmatchedCloseExecutions = effectiveCloseCandidates
     .filter((execution) => !matchedCloseExecutionIds.has(execution.id))
     .slice(0, 25)
     .map((execution) => ({
       id: execution.id,
       symbol: execution.symbol,
       tradeDate: execution.tradeDate.toISOString(),
-      qty: execution.quantity.toString(),
+      qty: String(execution.effectiveQty),
       side: execution.side,
     }));
   const unmatchedCloseExecutionIdByAccountInstrumentKey = new Map(
-    closeCandidates
+    effectiveCloseCandidates
       .filter((execution) => !matchedCloseExecutionIds.has(execution.id) && execution.instrumentKey)
       .map((execution) => [buildAccountInstrumentKey(execution.accountId, execution.instrumentKey as string), execution.id]),
   );
@@ -332,8 +358,8 @@ export async function GET(request: Request) {
   const payload: DiagnosticsResponse = {
     parseCoverage: totalRows === 0 ? 1 : parsedRows / totalRows,
     unsupportedRowCount: skippedRows,
-    matchingCoverage: closeCandidateCount === 0 ? 1 : matchedCount / closeCandidateCount,
-    unmatchedCloseCount: Math.max(0, closeCandidateCount - matchedCount),
+    matchingCoverage: closeCandidateCount === 0 ? 1 : matchedCloseExecutionIds.size / closeCandidateCount,
+    unmatchedCloseCount: Math.max(0, closeCandidateCount - matchedCloseExecutionIds.size),
     partialMatchCount,
     unmatchedCloseExecutions,
     uncategorizedCount: setupInference.setupInferenceUncategorizedTotal,
