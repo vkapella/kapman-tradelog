@@ -8,6 +8,29 @@ function mapBrokerToContract(broker: string): ImportRecord["broker"] {
   return broker === "FIDELITY" ? "fidelity" : "schwab_thinkorswim";
 }
 
+interface ImportExecutionGroupByDelegate {
+  groupBy: (args: {
+    by: Array<"importId">;
+    where: {
+      importId: {
+        in: string[];
+      };
+    };
+    _count: {
+      _all: true;
+    };
+  }) => Promise<Array<{ importId: string; _count: { _all: number } }>>;
+}
+
+function getImportExecutionGroupByDelegate(): ImportExecutionGroupByDelegate | null {
+  const candidate = (prisma as unknown as { importExecution?: ImportExecutionGroupByDelegate }).importExecution;
+  if (!candidate || typeof candidate.groupBy !== "function") {
+    return null;
+  }
+
+  return candidate;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const { page, pageSize } = parsePagination(url.searchParams);
@@ -40,21 +63,31 @@ export async function GET(request: Request) {
   ]);
 
   const importIds = rows.map((row) => row.id);
-  const linkedCounts =
-    importIds.length === 0
-      ? []
-      : await prisma.importExecution.groupBy({
-          by: ["importId"],
-          where: {
-            importId: {
-              in: importIds,
-            },
+  const linkedExecutionCountByImportId = new Map<string, number>();
+  const importExecutionGroupBy = getImportExecutionGroupByDelegate();
+  if (importIds.length > 0 && importExecutionGroupBy) {
+    try {
+      const linkedCounts = await importExecutionGroupBy.groupBy({
+        by: ["importId"],
+        where: {
+          importId: {
+            in: importIds,
           },
-          _count: {
-            _all: true,
-          },
-        });
-  const linkedExecutionCountByImportId = new Map(linkedCounts.map((row) => [row.importId, row._count._all]));
+        },
+        _count: {
+          _all: true,
+        },
+      });
+
+      for (const row of linkedCounts) {
+        linkedExecutionCountByImportId.set(row.importId, row._count._all);
+      }
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2021") {
+        throw error;
+      }
+    }
+  }
 
   const data: ImportRecord[] = rows.map((row) => ({
     id: row.id,
