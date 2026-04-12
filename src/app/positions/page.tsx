@@ -317,7 +317,7 @@ export default function Page() {
           {quoteUnavailable ? <p className="text-xs text-amber-200">Live quotes unavailable. Showing cost basis only.</p> : null}
           <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
             <table className="min-w-full text-xs">
-              <thead className="bg-panel-2 text-muted">
+              <thead className="sticky top-0 z-10 bg-panel-2 text-muted">
                 <tr>
                   <th className="px-2 py-2 text-left">Symbol</th>
                   <th className="px-2 py-2 text-left">Type</th>
