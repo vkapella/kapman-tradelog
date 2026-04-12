@@ -29,7 +29,9 @@ export async function GET(request: Request) {
     });
   }
   if (importId) {
-    andClauses.push({ importId });
+    andClauses.push({
+      OR: [{ importId }, { importLinks: { some: { importId } } }],
+    });
   }
   if (executionId) {
     andClauses.push({ id: executionId });

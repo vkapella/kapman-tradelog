@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { parsePayloadByType } from "@/lib/adjustments/types";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { inferSetupGroups, type SetupInferenceLot } from "@/lib/analytics/setup-inference";
@@ -9,7 +10,82 @@ import {
   groupWarningRecords,
   type StoredDiagnosticWarning,
 } from "@/lib/diagnostics/case-file";
-import type { DiagnosticsResponse } from "@/types/api";
+import { computeOpenPositionsWithDiagnostics } from "@/lib/positions/compute-open-positions";
+import type { DiagnosticsResponse, ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
+
+function mapExecution(row: {
+  id: string;
+  accountId: string;
+  broker: string;
+  symbol: string;
+  tradeDate: Date;
+  eventTimestamp: Date;
+  eventType: string;
+  assetClass: string;
+  side: string | null;
+  quantity: { toString: () => string };
+  price: { toString: () => string } | null;
+  openingClosingEffect: string | null;
+  instrumentKey: string | null;
+  underlyingSymbol: string | null;
+  optionType: string | null;
+  strike: { toString: () => string } | null;
+  expirationDate: Date | null;
+  spreadGroupId: string | null;
+  importId: string;
+}): ExecutionRecord {
+  return {
+    id: row.id,
+    accountId: row.accountId,
+    broker: row.broker,
+    symbol: row.symbol,
+    tradeDate: row.tradeDate.toISOString(),
+    eventTimestamp: row.eventTimestamp.toISOString(),
+    eventType: row.eventType,
+    assetClass: row.assetClass,
+    side: row.side,
+    quantity: row.quantity.toString(),
+    price: row.price?.toString() ?? null,
+    openingClosingEffect: row.openingClosingEffect,
+    instrumentKey: row.instrumentKey,
+    underlyingSymbol: row.underlyingSymbol,
+    optionType: row.optionType,
+    strike: row.strike?.toString() ?? null,
+    expirationDate: row.expirationDate?.toISOString() ?? null,
+    spreadGroupId: row.spreadGroupId,
+    importId: row.importId,
+  };
+}
+
+function mapMatchedLot(row: {
+  id: string;
+  accountId: string;
+  openExecutionId: string;
+  closeExecutionId: string | null;
+  quantity: { toString: () => string };
+  realizedPnl: { toString: () => string };
+  holdingDays: number;
+  outcome: string;
+  openExecution: { symbol: string; underlyingSymbol: string | null; tradeDate: Date; importId: string };
+  closeExecution: { tradeDate: Date; importId: string } | null;
+}): MatchedLotRecord {
+  return {
+    id: row.id,
+    accountId: row.accountId,
+    symbol: row.openExecution.symbol,
+    underlyingSymbol: row.openExecution.underlyingSymbol,
+    openTradeDate: row.openExecution.tradeDate.toISOString(),
+    closeTradeDate: row.closeExecution?.tradeDate.toISOString() ?? null,
+    openImportId: row.openExecution.importId,
+    closeImportId: row.closeExecution?.importId ?? null,
+    quantity: row.quantity.toString(),
+    realizedPnl: row.realizedPnl.toString(),
+    holdingDays: row.holdingDays,
+    outcome: row.outcome,
+    openExecutionId: row.openExecutionId,
+    closeExecutionId: row.closeExecutionId,
+  };
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -18,6 +94,7 @@ export async function GET(request: Request) {
   const executionAccountScope = accountScope as Prisma.ExecutionWhereInput | undefined;
   const importAccountScope = accountScope as Prisma.ImportWhereInput | undefined;
   const matchedLotAccountScope = accountScope as Prisma.MatchedLotWhereInput | undefined;
+  const adjustmentAccountScope = accountScope as Prisma.ManualAdjustmentWhereInput | undefined;
 
   const closeCandidateWhere: Prisma.ExecutionWhereInput = {
     OR: [
@@ -28,7 +105,7 @@ export async function GET(request: Request) {
     ],
   };
 
-  const [imports, syntheticExecutions, matchedLots, closeCandidates] = await Promise.all([
+  const [imports, syntheticExecutions, matchedLots, closeCandidates, executionRows, adjustmentRows] = await Promise.all([
     prisma.import.findMany({
       where: importAccountScope,
       select: { accountId: true, warnings: true, parsedRows: true, skippedRows: true },
@@ -63,6 +140,52 @@ export async function GET(request: Request) {
         side: true,
       },
       orderBy: [{ tradeDate: "desc" }, { id: "desc" }],
+    }),
+    prisma.execution.findMany({
+      where: executionAccountScope,
+      select: {
+        id: true,
+        accountId: true,
+        broker: true,
+        symbol: true,
+        tradeDate: true,
+        eventTimestamp: true,
+        eventType: true,
+        assetClass: true,
+        side: true,
+        quantity: true,
+        price: true,
+        openingClosingEffect: true,
+        instrumentKey: true,
+        underlyingSymbol: true,
+        optionType: true,
+        strike: true,
+        expirationDate: true,
+        spreadGroupId: true,
+        importId: true,
+      },
+      orderBy: [{ eventTimestamp: "asc" }, { id: "asc" }],
+    }),
+    prisma.manualAdjustment.findMany({
+      where: {
+        AND: [
+          ...(adjustmentAccountScope ? [adjustmentAccountScope] : []),
+          {
+            status: "ACTIVE",
+            adjustmentType: {
+              in: ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION"],
+            },
+          },
+        ],
+      },
+      include: {
+        account: {
+          select: {
+            accountId: true,
+          },
+        },
+      },
+      orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     }),
   ]);
 
@@ -99,6 +222,49 @@ export async function GET(request: Request) {
         rowRef: "rowRef" in warning && warning.rowRef !== undefined ? String(warning.rowRef) : undefined,
       });
     }
+  }
+
+  const manualAdjustments: ManualAdjustmentRecord[] = adjustmentRows.flatMap((row) => {
+    try {
+      return [
+        {
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          createdBy: row.createdBy,
+          accountId: row.accountId,
+          accountExternalId: row.account.accountId,
+          symbol: row.symbol,
+          effectiveDate: row.effectiveDate.toISOString(),
+          adjustmentType: row.adjustmentType,
+          payload: parsePayloadByType(row.adjustmentType, row.payloadJson),
+          reason: row.reason,
+          evidenceRef: row.evidenceRef,
+          status: row.status,
+          reversedByAdjustmentId: row.reversedByAdjustmentId,
+        } satisfies ManualAdjustmentRecord,
+      ];
+    } catch {
+      return [];
+    }
+  });
+
+  const openPositionDiagnostics = computeOpenPositionsWithDiagnostics(
+    executionRows.map(mapExecution),
+    matchedLots.map(mapMatchedLot),
+    manualAdjustments,
+  );
+  for (const warning of openPositionDiagnostics.warnings) {
+    warningsCount += 1;
+    if (warningSamples.length < 10) {
+      warningSamples.push(warning.message);
+    }
+
+    storedWarnings.push({
+      code: warning.code,
+      message: warning.message,
+      accountId: warning.accountId,
+      rowRef: warning.adjustmentId,
+    });
   }
 
   const totalRows = parsedRows + skippedRows;

@@ -1,4 +1,8 @@
-import { applyExecutionSplitAdjustment, applyPositionAdjustments } from "@/lib/adjustments/apply-adjustments";
+import {
+  applyExecutionSplitAdjustment,
+  applyPositionAdjustmentsWithWarnings,
+  type PositionAdjustmentWarning,
+} from "@/lib/adjustments/apply-adjustments";
 import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord, OpenPosition } from "@/types/api";
 
 function signedQuantity(side: string | null, quantity: number): number {
@@ -22,6 +26,19 @@ export function computeOpenPositions(
   matchedLots: MatchedLotRecord[],
   adjustments: ManualAdjustmentRecord[] = [],
 ): OpenPosition[] {
+  return computeOpenPositionsWithDiagnostics(executions, matchedLots, adjustments).positions;
+}
+
+export interface ComputeOpenPositionsResult {
+  positions: OpenPosition[];
+  warnings: PositionAdjustmentWarning[];
+}
+
+export function computeOpenPositionsWithDiagnostics(
+  executions: ExecutionRecord[],
+  matchedLots: MatchedLotRecord[],
+  adjustments: ManualAdjustmentRecord[] = [],
+): ComputeOpenPositionsResult {
   const matchedQtyByOpenExecutionId = new Map<string, number>();
   for (const lot of matchedLots) {
     const quantity = Number(lot.quantity);
@@ -94,5 +111,9 @@ export function computeOpenPositions(
       return left.instrumentKey.localeCompare(right.instrumentKey);
     });
 
-  return applyPositionAdjustments(basePositions, adjustments);
+  const adjusted = applyPositionAdjustmentsWithWarnings(basePositions, adjustments);
+  return {
+    positions: adjusted.positions,
+    warnings: adjusted.warnings,
+  };
 }

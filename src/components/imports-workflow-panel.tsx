@@ -48,6 +48,8 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingImportId, setDeletingImportId] = useState<string | null>(null);
+  const [deleteConfirmationImport, setDeleteConfirmationImport] = useState<ImportRecord | null>(null);
   const [accountFilter, setAccountFilter] = useState("");
   const [importFilter, setImportFilter] = useState("");
 
@@ -212,6 +214,42 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     }
   }
 
+  async function executeDeleteImport(row: ImportRecord) {
+    setDeletingImportId(row.id);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/imports/${row.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: { message?: string } };
+        setError(payload.error?.message ?? "Delete failed. The import was not removed.");
+        return;
+      }
+
+      await response.json();
+      setDeleteConfirmationImport(null);
+      await loadHistory(accountFilter, importFilter, historyPage);
+    } finally {
+      setDeletingImportId(null);
+    }
+  }
+
+  async function requestDeleteImport(row: ImportRecord) {
+    if (deletingImportId) {
+      return;
+    }
+
+    if (row.status === "COMMITTED") {
+      setDeleteConfirmationImport(row);
+      return;
+    }
+
+    await executeDeleteImport(row);
+  }
+
   return (
     <section className="space-y-6 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
       <header className="space-y-1">
@@ -341,6 +379,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                     <th className="px-2 py-2 text-right">Skipped Duplicate</th>
                     <th className="px-2 py-2 text-right">Failed</th>
                     <th className="px-2 py-2 text-left">Link</th>
+                    <th className="px-2 py-2 text-center">Delete</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,6 +398,20 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                         <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
                           View executions
                         </a>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => void requestDeleteImport(row)}
+                          disabled={deletingImportId === row.id}
+                          className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label={`Delete import ${row.filename}`}
+                          title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
+                          </svg>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -396,6 +449,42 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
           </div>
         )}
       </div>
+      ) : null}
+
+      {deleteConfirmationImport ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5">
+            <h3 className="text-lg font-semibold text-slate-100">Delete committed import?</h3>
+            <dl className="mt-3 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-sm text-slate-200">
+              <dt className="text-slate-400">Filename</dt>
+              <dd>{deleteConfirmationImport.filename}</dd>
+              <dt className="text-slate-400">Inserted count</dt>
+              <dd>{deleteConfirmationImport.insertedExecutions}</dd>
+            </dl>
+            <p className="mt-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+              This will remove {deleteConfirmationImport.insertedExecutions} executions and all matched lots derived from them. Manual
+              adjustments will be preserved and re-applied on next import.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmationImport(null)}
+                disabled={Boolean(deletingImportId)}
+                className="rounded border border-slate-600 px-3 py-2 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeDeleteImport(deleteConfirmationImport)}
+                disabled={deletingImportId === deleteConfirmationImport.id}
+                className="rounded border border-red-500/40 bg-red-500/20 px-3 py-2 text-sm text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingImportId === deleteConfirmationImport.id ? "Deleting..." : "Delete Import"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </section>
   );

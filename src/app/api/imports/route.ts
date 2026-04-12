@@ -32,12 +32,29 @@ export async function GET(request: Request) {
     prisma.import.count({ where }),
     prisma.import.findMany({
       where,
-      include: { account: true },
+      include: { account: true, _count: { select: { executions: true } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
   ]);
+
+  const importIds = rows.map((row) => row.id);
+  const linkedCounts =
+    importIds.length === 0
+      ? []
+      : await prisma.importExecution.groupBy({
+          by: ["importId"],
+          where: {
+            importId: {
+              in: importIds,
+            },
+          },
+          _count: {
+            _all: true,
+          },
+        });
+  const linkedExecutionCountByImportId = new Map(linkedCounts.map((row) => [row.importId, row._count._all]));
 
   const data: ImportRecord[] = rows.map((row) => ({
     id: row.id,
@@ -47,6 +64,7 @@ export async function GET(request: Request) {
     status: row.status,
     parsedRows: row.parsedRows,
     inserted: row.persistedRows,
+    insertedExecutions: linkedExecutionCountByImportId.get(row.id) ?? row._count.executions,
     skipped_duplicate: row.skippedDuplicateRows,
     failed: row.failedRows,
     skipped_parse: row.skippedRows,

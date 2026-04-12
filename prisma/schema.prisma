@@ -96,7 +96,8 @@ model Import {
   accountId String  @map("account_id")
   account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  executions Execution[]
+  executions       Execution[]
+  importExecutions ImportExecution[]
 
   @@index([accountId])
   @@map("imports")
@@ -139,12 +140,28 @@ model Execution {
 
   openMatchedLots  MatchedLot[] @relation("open_execution")
   closeMatchedLots MatchedLot[] @relation("close_execution")
+  importLinks      ImportExecution[]
 
   @@unique([accountId, brokerTxId])
   @@index([accountId])
   @@index([importId])
   @@index([symbol])
   @@map("executions")
+}
+
+model ImportExecution {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  importId String @map("import_id")
+  import   Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  executionId String    @map("execution_id")
+  execution   Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, executionId])
+  @@index([executionId])
+  @@map("import_executions")
 }
 
 model MatchedLot {

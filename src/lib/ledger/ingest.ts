@@ -166,6 +166,25 @@ function resolveBrokerReferenceFromExecution(execution: LedgerIngestExecution): 
   return null;
 }
 
+export function computeBrokerTxIdFromExecution(execution: LedgerIngestExecution): string {
+  return computeBrokerTxId({
+    accountId: execution.accountId,
+    eventTimestamp: execution.eventTimestamp,
+    eventType: execution.eventType,
+    assetClass: execution.assetClass,
+    instrumentKey: execution.instrumentKey,
+    brokerRefNumber: resolveBrokerReferenceFromExecution(execution),
+    symbol: execution.symbol,
+    side: execution.side,
+    quantity: execution.quantity,
+    rawPrice: resolveRawPriceFromExecution(execution),
+    openingClosingEffect: execution.openingClosingEffect,
+    optionType: execution.optionType,
+    strike: execution.strike,
+    expirationDate: execution.expirationDate,
+  });
+}
+
 export function computeBrokerTxId(input: BrokerTxHashInput): string {
   const normalizedBrokerRef = normalizeToken(input.brokerRefNumber);
   if (normalizedBrokerRef) {
@@ -213,22 +232,7 @@ export async function ingestExecutions(
 
   for (const execution of executions) {
     try {
-      const brokerTxId = computeBrokerTxId({
-        accountId: execution.accountId,
-        eventTimestamp: execution.eventTimestamp,
-        eventType: execution.eventType,
-        assetClass: execution.assetClass,
-        instrumentKey: execution.instrumentKey,
-        brokerRefNumber: resolveBrokerReferenceFromExecution(execution),
-        symbol: execution.symbol,
-        side: execution.side,
-        quantity: execution.quantity,
-        rawPrice: resolveRawPriceFromExecution(execution),
-        openingClosingEffect: execution.openingClosingEffect,
-        optionType: execution.optionType,
-        strike: execution.strike,
-        expirationDate: execution.expirationDate,
-      });
+      const brokerTxId = computeBrokerTxIdFromExecution(execution);
 
       const existing = await tx.execution.findFirst({
         where: {
