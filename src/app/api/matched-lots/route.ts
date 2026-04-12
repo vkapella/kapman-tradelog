@@ -13,38 +13,49 @@ export async function GET(request: Request) {
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
 
-  const where: Prisma.MatchedLotWhereInput = {};
+  const andClauses: Prisma.MatchedLotWhereInput[] = [];
 
   if (symbol) {
-    where.openExecution = {
-      symbol: { equals: symbol, mode: "insensitive" },
-    };
+    andClauses.push({
+      OR: [
+        { openExecution: { symbol: { equals: symbol, mode: "insensitive" } } },
+        { openExecution: { underlyingSymbol: { equals: symbol, mode: "insensitive" } } },
+      ],
+    });
   }
 
   if (outcome) {
-    where.outcome = { equals: outcome, mode: "insensitive" };
+    andClauses.push({ outcome: { equals: outcome, mode: "insensitive" } });
   }
 
   if (account) {
-    where.account = {
-      accountId: { equals: account, mode: "insensitive" },
-    };
+    andClauses.push({
+      account: {
+        accountId: { equals: account, mode: "insensitive" },
+      },
+    });
   }
 
   if (importId) {
-    where.OR = [{ openExecution: { importId } }, { closeExecution: { is: { importId } } }];
+    andClauses.push({
+      OR: [{ openExecution: { importId } }, { closeExecution: { is: { importId } } }],
+    });
   }
 
   if (dateFrom || dateTo) {
-    where.closeExecution = {
-      is: {
-        tradeDate: {
-          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-          ...(dateTo ? { lte: new Date(dateTo) } : {}),
+    andClauses.push({
+      closeExecution: {
+        is: {
+          tradeDate: {
+            ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+            ...(dateTo ? { lte: new Date(dateTo) } : {}),
+          },
         },
       },
-    };
+    });
   }
+
+  const where: Prisma.MatchedLotWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   const [total, rows] = await Promise.all([
     prisma.matchedLot.count({ where }),
@@ -64,6 +75,7 @@ export async function GET(request: Request) {
     id: row.id,
     accountId: row.accountId,
     symbol: row.openExecution.symbol,
+    underlyingSymbol: row.openExecution.underlyingSymbol,
     openTradeDate: row.openExecution.tradeDate.toISOString(),
     closeTradeDate: row.closeExecution?.tradeDate.toISOString() ?? null,
     openImportId: row.openExecution.importId,

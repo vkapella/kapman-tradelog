@@ -14,7 +14,10 @@ export async function GET(request: Request) {
 
   const where: Record<string, unknown> = {};
   if (symbol) {
-    where.symbol = { equals: symbol, mode: "insensitive" as const };
+    where.OR = [
+      { symbol: { equals: symbol, mode: "insensitive" as const } },
+      { underlyingSymbol: { equals: symbol, mode: "insensitive" as const } },
+    ];
   }
   if (importId) {
     where.importId = importId;

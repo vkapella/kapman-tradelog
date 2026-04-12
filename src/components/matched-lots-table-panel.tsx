@@ -48,6 +48,10 @@ const defaultFilters: MatchedLotFilters = {
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_matched-lots_showAll";
 
+function displayMatchedLotSymbol(row: Pick<MatchedLotRecord, "symbol" | "underlyingSymbol">): string {
+  return row.underlyingSymbol ?? row.symbol;
+}
+
 function sortMatchedLots(rows: MatchedLotRecord[], column: SortColumn, direction: SortDirection): MatchedLotRecord[] {
   const sorted = [...rows].sort((left, right) => {
     if (column === "closeTradeDate") {
@@ -55,7 +59,7 @@ function sortMatchedLots(rows: MatchedLotRecord[], column: SortColumn, direction
     }
 
     if (column === "symbol") {
-      return left.symbol.localeCompare(right.symbol);
+      return displayMatchedLotSymbol(left).localeCompare(displayMatchedLotSymbol(right));
     }
 
     if (column === "realizedPnl") {
@@ -337,7 +341,7 @@ export function MatchedLotsTablePanel() {
                 {sortedRows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
-                    <td className="px-2 py-2">{row.symbol}</td>
+                    <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
                     <td className="px-2 py-2 text-right">{row.quantity}</td>
                     <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                       {formatCurrency(safeNumber(row.realizedPnl))}

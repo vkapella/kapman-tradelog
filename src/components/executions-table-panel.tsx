@@ -52,6 +52,10 @@ const defaultFilters: ExecutionFilters = {
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_executions_showAll";
 
+function displayExecutionSymbol(row: Pick<ExecutionRecord, "symbol" | "underlyingSymbol">): string {
+  return row.underlyingSymbol ?? row.symbol;
+}
+
 function sortExecutionRows(rows: ExecutionRecord[], column: SortColumn, direction: SortDirection): ExecutionRecord[] {
   const sorted = [...rows].sort((left, right) => {
     if (column === "eventTimestamp") {
@@ -66,7 +70,7 @@ function sortExecutionRows(rows: ExecutionRecord[], column: SortColumn, directio
       return Number(left.price ?? "-Infinity") - Number(right.price ?? "-Infinity");
     }
 
-    return left.symbol.localeCompare(right.symbol);
+    return displayExecutionSymbol(left).localeCompare(displayExecutionSymbol(right));
   });
 
   if (direction === "desc") {
@@ -442,7 +446,7 @@ export function ExecutionsTablePanel() {
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</td>
                     <td className="px-2 py-2">{row.tradeDate.slice(0, 10)}</td>
-                    <td className="px-2 py-2">{row.symbol}</td>
+                    <td className="px-2 py-2">{displayExecutionSymbol(row)}</td>
                     <td className="px-2 py-2">
                       {row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : "-"}
                     </td>
@@ -548,7 +552,7 @@ export function ExecutionsTablePanel() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Symbol</p>
-                  <p className="text-xs text-slate-100">{detail.symbol}</p>
+                  <p className="text-xs text-slate-100">{displayExecutionSymbol(detail)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Side</p>

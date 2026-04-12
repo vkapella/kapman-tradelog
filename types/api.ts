@@ -166,6 +166,7 @@ export interface MatchedLotRecord {
   id: string;
   accountId: string;
   symbol: string;
+  underlyingSymbol?: string | null;
   openTradeDate: string;
   closeTradeDate: string | null;
   openImportId: string;
