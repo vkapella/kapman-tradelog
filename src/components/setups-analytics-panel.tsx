@@ -366,7 +366,7 @@ export function SetupsAnalyticsPanel() {
             style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
           >
             <table className="min-w-full text-xs">
-              <thead className="bg-slate-900 text-slate-300">
+              <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
                 <tr>
                   <th className="px-2 py-2 text-left">Tag</th>
                   <th className="px-2 py-2 text-left">Underlying</th>
@@ -480,7 +480,7 @@ export function SetupsAnalyticsPanel() {
               </div>
               <div className="overflow-auto rounded border border-slate-700">
                 <table className="min-w-full text-xs">
-                  <thead className="bg-slate-900 text-slate-300">
+                  <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
                     <tr>
                       <th className="px-2 py-2 text-left">Symbol</th>
                       <th className="px-2 py-2 text-right">Qty</th>
