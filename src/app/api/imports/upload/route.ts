@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
+import { getBrokerDisplayName, getDefaultStartingCapital } from "@/lib/accounts/defaults";
 import { prisma } from "@/lib/db/prisma";
 import type { UploadImportResponse } from "@/types/api";
 
@@ -45,8 +46,11 @@ export async function POST(request: Request) {
       create: {
         accountId: parsed.accountMetadata.accountId,
         label: parsed.accountMetadata.label,
+        displayLabel: parsed.accountMetadata.label,
         broker,
+        brokerName: getBrokerDisplayName(broker),
         paperMoney: parsed.accountMetadata.paperMoney,
+        startingCapital: getDefaultStartingCapital(broker),
       },
     });
 

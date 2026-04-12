@@ -24,14 +24,17 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: "IMPORT & DATA",
-    items: [{ href: "/imports", label: "Imports & Connections", badgeKey: "importCount" }],
+    items: [
+      { href: "/imports", label: "Imports & Connections", badgeKey: "importCount" },
+      { href: "/accounts", label: "Accounts" },
+      { href: "/adjustments", label: "Adjustments" },
+    ],
   },
   {
     label: "EVIDENCE & AUDIT",
     items: [
       { href: "/tts-evidence", label: "TTS Evidence" },
       { href: "/diagnostics", label: "Diagnostics" },
-      { href: "/adjustments", label: "Adjustments" },
     ],
   },
 ];
@@ -64,6 +67,10 @@ export function getTopbarContextTags(pathname: string): string[] {
 
   if (pathname.startsWith("/positions")) {
     return ["Live marks"];
+  }
+
+  if (pathname.startsWith("/accounts")) {
+    return ["Account metadata"];
   }
 
   if (pathname.startsWith("/analytics")) {

@@ -59,13 +59,16 @@ enum AdjustmentStatus {
 }
 
 model Account {
-  id         String   @id @default(cuid())
-  accountId  String   @unique @map("account_id")
-  label      String
-  broker     Broker
-  paperMoney Boolean  @default(false) @map("paper_money")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  accountId       String   @unique @map("account_id")
+  label           String
+  displayLabel    String?  @map("display_label")
+  broker          Broker
+  brokerName      String?  @map("broker_name")
+  paperMoney      Boolean  @default(false) @map("paper_money")
+  startingCapital Decimal? @map("starting_capital") @db.Decimal(20, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   imports     Import[]
   executions  Execution[]
