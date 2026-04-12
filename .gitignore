@@ -28,6 +28,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# local account statement exports
+/fixtures/*AccountStatement*.csv
+/fixtures/History_for_Account_*.csv
+
 # vercel
 .vercel
 
