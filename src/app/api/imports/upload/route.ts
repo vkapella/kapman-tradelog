@@ -68,6 +68,20 @@ export async function POST(request: Request) {
       },
     });
 
+    const previewRows =
+      matched.adapter.id === "fidelity" && parsed.previewRows
+        ? parsed.previewRows.slice(0, 50)
+        : parsed.executions.slice(0, 10).map((row) => ({
+            kind: "legacy" as const,
+            eventTimestamp: row.eventTimestamp.toISOString(),
+            symbol: row.symbol,
+            side: row.side,
+            quantity: row.quantity,
+            price: row.price,
+            spread: row.spread,
+            openingClosingEffect: row.openingClosingEffect,
+          }));
+
     const payload: UploadImportResponse = {
       importId: createdImport.id,
       detection: {
@@ -83,15 +97,7 @@ export async function POST(request: Request) {
           rowRef: warning.rowRef,
         })),
       },
-      previewRows: parsed.executions.slice(0, 10).map((row) => ({
-        eventTimestamp: row.eventTimestamp.toISOString(),
-        symbol: row.symbol,
-        side: row.side,
-        quantity: row.quantity,
-        price: row.price,
-        spread: row.spread,
-        openingClosingEffect: row.openingClosingEffect,
-      })),
+      previewRows,
     };
 
     return detailResponse(payload);
