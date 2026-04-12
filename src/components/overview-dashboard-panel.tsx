@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 interface OverviewPayload {
@@ -11,6 +12,7 @@ interface OverviewPayload {
 }
 
 export function OverviewDashboardPanel() {
+  const { selectedAccounts } = useAccountFilterContext();
   const [data, setData] = useState<OverviewSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,12 @@ export function OverviewDashboardPanel() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/overview/summary", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (selectedAccounts.length > 0) {
+        params.set("accountIds", selectedAccounts.join(","));
+      }
+
+      const response = await fetch(`/api/overview/summary?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         setError("Unable to load overview summary.");
         setLoading(false);
@@ -33,7 +40,7 @@ export function OverviewDashboardPanel() {
     }
 
     void loadOverview();
-  }, []);
+  }, [selectedAccounts]);
 
   const hasData = Boolean(data && (data.executionCount > 0 || data.snapshotCount > 0 || data.matchedLotCount > 0));
   const snapshotPreview = useMemo(() => {

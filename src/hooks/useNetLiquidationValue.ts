@@ -28,6 +28,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
   const [cash, setCash] = useState(0);
   const [cashAsOf, setCashAsOf] = useState<Date | null>(null);
   const [marksAsOf, setMarksAsOf] = useState<Date | null>(null);
+  const [progressReference, setProgressReference] = useState<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,12 +59,16 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
 
         const latestSnapshot = accountSnapshots[0];
         const latestStatementSnapshot = accountSnapshots.find((snapshot) => snapshot.totalCash !== null);
+        const earliestSnapshot = accountSnapshots[accountSnapshots.length - 1];
 
         const latestCash = Number(latestStatementSnapshot?.totalCash ?? latestSnapshot?.balance ?? 0);
         const latestCashAsOfIso = latestStatementSnapshot?.snapshotDate ?? latestSnapshot?.snapshotDate ?? null;
+        const baselineValue = Number(earliestSnapshot?.totalCash ?? earliestSnapshot?.balance ?? 0);
+        const baseline = Number.isFinite(baselineValue) && baselineValue > 0 ? baselineValue : null;
         if (!cancelled) {
           setCash(latestCash);
           setCashAsOf(latestCashAsOfIso ? new Date(latestCashAsOfIso) : null);
+          setProgressReference(baseline);
         }
 
         const equityPositions = accountPositions.filter((position) => position.assetClass === "EQUITY");
@@ -145,6 +150,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
         if (quoteUnavailable) {
           setNlv(null);
           setMarksAsOf(null);
+          setProgressReference(baseline);
           setLastUpdated(null);
           setLoading(false);
           return;
@@ -160,6 +166,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
           setNlv(null);
           setCashAsOf(null);
           setMarksAsOf(null);
+          setProgressReference(null);
           setLastUpdated(null);
           setLoading(false);
         }
@@ -178,6 +185,7 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
     cash,
     cashAsOf,
     marksAsOf,
+    progressReference,
     lastUpdated,
     loading,
   };

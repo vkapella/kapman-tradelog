@@ -1,0 +1,21 @@
+{
+  "statementDate": "2026-04-09",
+  "accounts": [
+    {
+      "accountExternalId": "D-68011053",
+      "totalCash": 86657.95,
+      "netLiquidatingValue": 195172.55,
+      "impliedOpenPositionValue": 108514.6,
+      "equityLineItemCount": 4,
+      "optionLineItemCount": 14
+    },
+    {
+      "accountExternalId": "D-68011054",
+      "totalCash": 42776.36,
+      "netLiquidatingValue": 90653.36,
+      "impliedOpenPositionValue": 47877.0,
+      "equityLineItemCount": 2,
+      "optionLineItemCount": 2
+    }
+  ]
+}

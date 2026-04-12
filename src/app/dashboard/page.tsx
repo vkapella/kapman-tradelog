@@ -6,6 +6,7 @@ import { handleRemoveWidgetClick, stopDashboardControlPropagation } from "./inte
 import { WidgetPicker } from "@/components/WidgetPicker";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { DEFAULT_DASHBOARD_LAYOUT, WIDGET_REGISTRY } from "@/lib/widget-registry";
 import type { OverviewSummaryResponse } from "@/types/api";
 
@@ -91,6 +92,7 @@ function DashboardTile({
 }
 
 export default function Page() {
+  const { selectedAccounts } = useAccountFilterContext();
   const widgetMap = useMemo(() => new Map(WIDGET_REGISTRY.map((widget) => [widget.id, widget])), []);
   const validWidgetIds = useMemo(() => new Set(WIDGET_REGISTRY.map((widget) => widget.id)), []);
   const [layout, setLayout] = useState<string[]>(DEFAULT_DASHBOARD_LAYOUT);
@@ -133,7 +135,11 @@ export default function Page() {
 
     async function loadSummary() {
       try {
-        const response = await fetch("/api/overview/summary", { cache: "no-store" });
+        const params = new URLSearchParams();
+        if (selectedAccounts.length > 0) {
+          params.set("accountIds", selectedAccounts.join(","));
+        }
+        const response = await fetch(`/api/overview/summary?${params.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Unable to load dashboard summary.");
         }
@@ -158,7 +164,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedAccounts]);
 
   function onDragEnd(event: DragEndEvent) {
     const activeIndex = Number(String(event.active.id).replace("slot-", ""));

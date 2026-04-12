@@ -349,6 +349,7 @@ export interface NlvResult {
   cash: number;
   cashAsOf: Date | null;
   marksAsOf: Date | null;
+  progressReference: number | null;
   lastUpdated: Date | null;
   loading: boolean;
 }
