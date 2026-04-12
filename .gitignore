@@ -31,6 +31,11 @@ yarn-error.log*
 # local account statement exports
 /fixtures/*AccountStatement*.csv
 /fixtures/History_for_Account_*.csv
+fixtures/*account*.csv
+**/adapter/**/*account*.csv
+**/test/**/*account*.csv
+**/tests/**/*account*.csv
+**/*account*.csv
 
 # vercel
 .vercel
