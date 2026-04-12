@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
+import { getBrokerDisplayName, getDefaultStartingCapital } from "../src/lib/accounts/defaults";
 import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
 import { replaceImportCashEvents } from "../src/lib/imports/replace-import-cash-events";
@@ -85,8 +86,11 @@ async function main() {
       create: {
         accountId: metadata.accountId,
         label: metadata.label,
+        displayLabel: metadata.label,
         broker: metadata.broker,
+        brokerName: getBrokerDisplayName(metadata.broker),
         paperMoney: metadata.paperMoney,
+        startingCapital: getDefaultStartingCapital(metadata.broker),
       },
     });
 

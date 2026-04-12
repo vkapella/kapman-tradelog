@@ -24,6 +24,15 @@ export interface ApiDetailResponse<T> {
 export type BrokerId = "schwab_thinkorswim" | "fidelity";
 export type ImportStatus = "UPLOADED" | "PARSED" | "COMMITTED" | "FAILED";
 
+export interface AccountRecord {
+  id: string;
+  accountId: string;
+  displayLabel: string | null;
+  brokerName: string | null;
+  startingCapital: string | null;
+  createdAt: string;
+}
+
 export interface ImportRecord {
   id: string;
   filename: string;
