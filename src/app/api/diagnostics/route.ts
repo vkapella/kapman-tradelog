@@ -1,6 +1,7 @@
 import { detailResponse } from "@/lib/api/responses";
 import { inferSetupGroups, type SetupInferenceLot } from "@/lib/analytics/setup-inference";
 import { prisma } from "@/lib/db/prisma";
+import { groupSetupInferenceSamples, groupWarningRecords, type StoredDiagnosticWarning } from "@/lib/diagnostics/case-file";
 import type { DiagnosticsResponse } from "@/types/api";
 
 export async function GET() {
@@ -13,9 +14,13 @@ export async function GET() {
     ],
   };
 
-  const [imports, syntheticExpirationCount, matchedLots, closeCandidates] = await Promise.all([
+  const [imports, syntheticExecutions, matchedLots, closeCandidates] = await Promise.all([
     prisma.import.findMany({ select: { warnings: true, parsedRows: true, skippedRows: true } }),
-    prisma.execution.count({ where: { eventType: "EXPIRATION_INFERRED" } }),
+    prisma.execution.findMany({
+      where: { eventType: "EXPIRATION_INFERRED" },
+      select: { id: true, instrumentKey: true },
+      orderBy: [{ tradeDate: "desc" }, { id: "desc" }],
+    }),
     prisma.matchedLot.findMany({
       include: {
         openExecution: true,
@@ -28,6 +33,8 @@ export async function GET() {
       select: {
         id: true,
         symbol: true,
+        instrumentKey: true,
+        eventType: true,
         tradeDate: true,
         quantity: true,
         side: true,
@@ -39,15 +46,24 @@ export async function GET() {
   const parsedRows = imports.reduce((sum, row) => sum + row.parsedRows, 0);
   const skippedRows = imports.reduce((sum, row) => sum + row.skippedRows, 0);
   const warningSamples: string[] = [];
+  const storedWarnings: StoredDiagnosticWarning[] = [];
   const warningsCount = imports.reduce((sum, row) => {
     if (Array.isArray(row.warnings)) {
       for (const warning of row.warnings) {
-        if (typeof warning === "object" && warning !== null && "message" in warning) {
-          const message = String(warning.message);
-          if (warningSamples.length < 10) {
-            warningSamples.push(message);
-          }
+        if (typeof warning !== "object" || warning === null || !("message" in warning)) {
+          continue;
         }
+
+        const message = String(warning.message);
+        if (warningSamples.length < 10) {
+          warningSamples.push(message);
+        }
+
+        storedWarnings.push({
+          code: "code" in warning ? String(warning.code) : "WARNING",
+          message,
+          rowRef: "rowRef" in warning && warning.rowRef !== undefined ? String(warning.rowRef) : undefined,
+        });
       }
       return sum + row.warnings.length;
     }
@@ -90,6 +106,21 @@ export async function GET() {
       qty: execution.quantity.toString(),
       side: execution.side,
     }));
+  const unmatchedCloseExecutionIdByInstrumentKey = new Map(
+    closeCandidates
+      .filter((execution) => !matchedCloseExecutionIds.has(execution.id) && execution.instrumentKey)
+      .map((execution) => [execution.instrumentKey as string, execution.id]),
+  );
+  const syntheticExecutionIdByInstrumentKey = new Map(
+    syntheticExecutions
+      .filter((execution) => execution.instrumentKey)
+      .map((execution) => [execution.instrumentKey as string, execution.id]),
+  );
+  const warningGroups = groupWarningRecords(storedWarnings, {
+    unmatchedCloseExecutionIdByInstrumentKey,
+    syntheticExecutionIdByInstrumentKey,
+  });
+  const setupInferenceGroups = groupSetupInferenceSamples(setupInference.setupInferenceSamples);
 
   const partialMatchCount = matchedLots.reduce((count, lot) => {
     if (!lot.closeExecution) {
@@ -110,8 +141,10 @@ export async function GET() {
     unmatchedCloseExecutions,
     uncategorizedCount: setupInference.setupInferenceUncategorizedTotal,
     warningsCount,
-    syntheticExpirationCount,
+    syntheticExpirationCount: syntheticExecutions.length,
     warningSamples,
+    warningGroups,
+    setupInferenceGroups,
     setupInference,
   };
 

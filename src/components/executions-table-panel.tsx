@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
 interface ExecutionsPayload {
@@ -86,6 +87,10 @@ function renderOptionValue(row: Pick<ExecutionRecord, "optionType" | "strike" | 
   }
 
   return `${row.optionType} ${row.strike ?? "-"} ${row.expirationDate?.slice(0, 10) ?? "-"}`;
+}
+
+function canInvestigateExecution(row: Pick<ExecutionRecord, "eventType" | "openingClosingEffect">): boolean {
+  return row.eventType === "EXPIRATION_INFERRED" || row.openingClosingEffect === null || row.openingClosingEffect === "UNKNOWN";
 }
 
 export function ExecutionsTablePanel() {
@@ -439,6 +444,7 @@ export function ExecutionsTablePanel() {
                   <th className="px-2 py-2 text-left">Option</th>
                   <th className="px-2 py-2 text-left">Account</th>
                   <th className="px-2 py-2 text-left">Import</th>
+                  <th className="px-2 py-2 text-left">Investigate</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,6 +485,15 @@ export function ExecutionsTablePanel() {
                       <button type="button" onClick={() => setSelectedExecutionId(row.id)} className="text-blue-300 underline">
                         {row.importId.slice(0, 8)}...
                       </button>
+                    </td>
+                    <td className="px-2 py-2">
+                      {canInvestigateExecution(row) ? (
+                        <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-blue-300 underline">
+                          Case file
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -573,6 +588,11 @@ export function ExecutionsTablePanel() {
                 <div>
                   <p className="text-xs text-slate-400">Effect</p>
                   <p className="text-xs text-slate-100">{detail.openingClosingEffect ?? "UNKNOWN"}</p>
+                  {canInvestigateExecution(detail) ? (
+                    <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: detail.id })} className="text-xs text-blue-300 underline">
+                      Open diagnostics case file
+                    </Link>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Option</p>
