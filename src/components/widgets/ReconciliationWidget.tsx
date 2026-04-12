@@ -90,7 +90,7 @@ export function ReconciliationWidget() {
         <div className="space-y-2 text-xs">
           {!data.startingCapitalConfigured ? (
             <p className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-amber-300">
-              Set <code>STARTING_CAPITAL</code> in <code>.env</code> to reconcile against your initial portfolio value.
+              Set starting capital on the <code>/accounts</code> page to reconcile against your initial portfolio value.
             </p>
           ) : null}
           {rows.map((row) => {

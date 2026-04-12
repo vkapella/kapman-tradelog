@@ -13,6 +13,16 @@ export function parseAccountIds(value: string | null): string[] {
   );
 }
 
+export function buildAccountIdWhere(accountIds: string[]): Record<string, unknown> | undefined {
+  if (accountIds.length === 0) {
+    return undefined;
+  }
+
+  return {
+    OR: [{ id: { in: accountIds } }, { accountId: { in: accountIds } }],
+  };
+}
+
 export function applyAccountIdsToSearchParams(params: URLSearchParams, accountIds: string[]): void {
   if (accountIds.length > 0) {
     params.set("accountIds", accountIds.join(","));
