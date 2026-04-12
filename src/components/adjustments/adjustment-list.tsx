@@ -1,5 +1,6 @@
 "use client";
 
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { findSupersededExecutionQtyOverrideIds } from "@/lib/adjustments/execution-qty-overrides";
 import type { ManualAdjustmentRecord } from "@/types/api";
 
@@ -53,7 +54,9 @@ export function AdjustmentList({
               {adjustments.map((record) => (
                 <tr key={record.id} className="border-t border-border text-text">
                   <td className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</td>
-                  <td className="px-2 py-2 font-mono">{record.accountExternalId}</td>
+                  <td className="px-2 py-2">
+                    <AccountLabel accountId={record.accountId} />
+                  </td>
                   <td className="px-2 py-2">{record.symbol}</td>
                   <td className="px-2 py-2">
                     {record.adjustmentType}

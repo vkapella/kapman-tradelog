@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useNetLiquidationValue } from "@/hooks/useNetLiquidationValue";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
@@ -18,7 +19,7 @@ function formatTime(value: Date | null): string {
   return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function AccountBalanceRow({ accountId, displayAccountId, refreshSeed }: { accountId: string; displayAccountId: string; refreshSeed: number }) {
+function AccountBalanceRow({ accountId, refreshSeed }: { accountId: string; refreshSeed: number }) {
   void refreshSeed;
   const { nlv, cash, cashAsOf, marksAsOf, progressReference, loading } = useNetLiquidationValue(accountId);
 
@@ -30,7 +31,9 @@ function AccountBalanceRow({ accountId, displayAccountId, refreshSeed }: { accou
   return (
     <div className={["rounded-lg border bg-panel-2 p-3", staleCash ? "border-amber-400/70" : "border-border"].join(" ")}>
       <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-text">{displayAccountId}</p>
+        <p className="text-xs text-text">
+          <AccountLabel accountId={accountId} />
+        </p>
         <p className="text-[11px] text-muted">{loading ? "Updating..." : marksAsOf ? formatTime(marksAsOf) : "Quotes unavailable"}</p>
       </div>
       <p className="mt-1 text-xs text-muted">Cash: {formatCurrency(cash)}</p>
@@ -51,7 +54,7 @@ function AccountBalanceRow({ accountId, displayAccountId, refreshSeed }: { accou
 }
 
 export function AccountBalancesWidget() {
-  const { selectedAccounts, toExternalAccountId } = useAccountFilterContext();
+  const { selectedAccounts } = useAccountFilterContext();
   const [refreshSeed, setRefreshSeed] = useState(0);
 
   const action = useMemo(
@@ -72,12 +75,7 @@ export function AccountBalancesWidget() {
       <div className="space-y-2">
         {selectedAccounts.length === 0 ? <p className="text-xs text-muted">No accounts selected.</p> : null}
         {selectedAccounts.map((accountId) => (
-          <AccountBalanceRow
-            key={`${accountId}-${refreshSeed}`}
-            accountId={accountId}
-            displayAccountId={toExternalAccountId(accountId)}
-            refreshSeed={refreshSeed}
-          />
+          <AccountBalanceRow key={`${accountId}-${refreshSeed}`} accountId={accountId} refreshSeed={refreshSeed} />
         ))}
       </div>
     </WidgetCard>

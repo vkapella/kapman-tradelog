@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
@@ -365,7 +366,9 @@ export default function Page() {
                     <td className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
                       {row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}
                     </td>
-                    <td className="px-2 py-2 text-muted">{row.accountId.slice(-4)}</td>
+                    <td className="px-2 py-2 text-muted">
+                      <AccountLabel accountId={row.accountId} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

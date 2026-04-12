@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
@@ -129,7 +130,9 @@ export function OverviewDashboardPanel() {
                     {snapshotPreview.map((snapshot) => (
                       <tr key={`${snapshot.accountId}-${snapshot.snapshotDate}`} className="border-t border-slate-800 text-slate-200">
                         <td className="px-2 py-2">{snapshot.snapshotDate.slice(0, 10)}</td>
-                        <td className="px-2 py-2">{snapshot.accountId}</td>
+                        <td className="px-2 py-2">
+                          <AccountLabel accountId={snapshot.accountId} />
+                        </td>
                         <td className="px-2 py-2 text-right">{snapshot.balance}</td>
                       </tr>
                     ))}

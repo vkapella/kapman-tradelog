@@ -29,7 +29,7 @@ export function AdjustmentForm({
   onCreated: (created: ManualAdjustmentRecord) => void;
   onPreview: (preview: AdjustmentPreviewResponse | null) => void;
 }) {
-  const { availableAccounts, toExternalAccountId } = useAccountFilterContext();
+  const { availableAccounts, getAccountDisplayText } = useAccountFilterContext();
   const [accountId, setAccountId] = useState("");
   const [symbol, setSymbol] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(defaultEffectiveDate());
@@ -287,7 +287,7 @@ export function AdjustmentForm({
             <option value="">Select account</option>
             {availableAccounts.map((value) => (
               <option key={value} value={value}>
-                {toExternalAccountId(value)}
+                {getAccountDisplayText(value)}
               </option>
             ))}
           </select>

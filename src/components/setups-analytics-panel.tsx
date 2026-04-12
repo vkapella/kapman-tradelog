@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -63,7 +64,7 @@ export function SetupsAnalyticsPanel() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
   const [summaryRows, setSummaryRows] = useState<SetupSummaryRecord[]>([]);
@@ -306,7 +307,7 @@ export function SetupsAnalyticsPanel() {
           <option value="">All accounts</option>
           {accountOptions.map((accountId) => (
             <option key={accountId} value={accountId}>
-              {accountId}
+              {getAccountDisplayText(accountId)}
             </option>
           ))}
         </select>
@@ -369,6 +370,7 @@ export function SetupsAnalyticsPanel() {
                 <tr>
                   <th className="px-2 py-2 text-left">Tag</th>
                   <th className="px-2 py-2 text-left">Underlying</th>
+                  <th className="px-2 py-2 text-left">Account</th>
                   <th className="px-2 py-2 text-right">Realized P&L ($)</th>
                   <th
                     className="px-2 py-2 text-right"
@@ -389,6 +391,9 @@ export function SetupsAnalyticsPanel() {
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
                     <td className="px-2 py-2">{row.underlyingSymbol}</td>
+                    <td className="px-2 py-2">
+                      <AccountLabel accountId={row.accountId} />
+                    </td>
                     <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                       {formatCurrency(safeNumber(row.realizedPnl))}
                     </td>

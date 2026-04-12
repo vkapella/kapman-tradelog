@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
@@ -95,7 +96,7 @@ function canInvestigateExecution(row: Pick<ExecutionRecord, "eventType" | "openi
 
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const initializedFromSearch = useRef(false);
 
   const [imports, setImports] = useState<ImportRecord[]>([]);
@@ -251,8 +252,8 @@ export function ExecutionsTablePanel() {
   }, [selectedExecutionId, selectedAccounts]);
 
   const importOptions = useMemo(() => {
-    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
-  }, [imports]);
+    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${getAccountDisplayText(entry.accountId)})` }));
+  }, [getAccountDisplayText, imports]);
 
   const sortedRows = useMemo(() => {
     return sortExecutionRows(rows, sortColumn, sortDirection);
@@ -465,7 +466,9 @@ export function ExecutionsTablePanel() {
                         "-"
                       )}
                     </td>
-                    <td className="px-2 py-2">{row.accountId}</td>
+                    <td className="px-2 py-2">
+                      <AccountLabel accountId={row.accountId} />
+                    </td>
                     <td className="px-2 py-2">
                       <button type="button" onClick={() => setSelectedExecutionId(row.id)} className="text-blue-300 underline">
                         {row.importId.slice(0, 8)}...
