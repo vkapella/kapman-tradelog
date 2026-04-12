@@ -2,14 +2,34 @@ import { detailResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { OverviewSummaryResponse } from "@/types/api";
 
-export async function GET() {
+function parseAccountIds(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    ),
+  );
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const whereAccount = accountIds.length > 0 ? { accountId: { in: accountIds } } : undefined;
+
   const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots] = await Promise.all([
-    prisma.execution.count(),
-    prisma.matchedLot.findMany({ select: { realizedPnl: true, holdingDays: true } }),
-    prisma.setupGroup.count(),
-    prisma.import.findMany({ select: { status: true, parsedRows: true, skippedRows: true } }),
-    prisma.dailyAccountSnapshot.count(),
+    prisma.execution.count({ where: whereAccount }),
+    prisma.matchedLot.findMany({ where: whereAccount, select: { realizedPnl: true, holdingDays: true } }),
+    prisma.setupGroup.count({ where: whereAccount }),
+    prisma.import.findMany({ where: whereAccount, select: { status: true, parsedRows: true, skippedRows: true } }),
+    prisma.dailyAccountSnapshot.count({ where: whereAccount }),
     prisma.dailyAccountSnapshot.findMany({
+      where: whereAccount,
       include: {
         account: {
           select: { accountId: true },
