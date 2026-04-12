@@ -283,6 +283,8 @@ export interface DiagnosticsResponse {
   warningsCount: number;
   syntheticExpirationCount: number;
   warningSamples: string[];
+  warningGroups: DiagnosticGroupRecord[];
+  setupInferenceGroups: DiagnosticGroupRecord[];
   setupInference: {
     setupInferenceTotal: number;
     setupInferenceUncategorizedTotal: number;
@@ -302,6 +304,48 @@ export interface DiagnosticsResponse {
       lotIds: string[];
     }>;
   };
+}
+
+export interface DiagnosticCaseReference {
+  kind: "execution" | "matched_lot" | "setup" | "setup_inference";
+  executionId?: string;
+  matchedLotId?: string;
+  setupId?: string;
+  code?: string;
+  underlyingSymbol?: string | null;
+  lotIds?: string[];
+  message?: string;
+}
+
+export interface DiagnosticGroupRecord {
+  id: string;
+  code: string;
+  title: string;
+  count: number;
+  summary: string;
+  underlyingSymbol: string | null;
+  caseRef: DiagnosticCaseReference | null;
+}
+
+export interface DiagnosticCaseFileResponse {
+  target: {
+    kind: "execution" | "matched_lot" | "setup" | "setup_inference";
+    diagnosticCode: string;
+    title: string;
+    summary: string;
+    underlyingSymbol: string | null;
+  };
+  focusExecutionId: string | null;
+  focusMatchedLotId: string | null;
+  focusSetupId: string | null;
+  executions: ExecutionRecord[];
+  matchedLots: MatchedLotRecord[];
+  setups: SetupSummaryRecord[];
+  inferenceReasons: string[];
+  evidence: Array<{
+    label: string;
+    value: string;
+  }>;
 }
 
 export interface HealthResponse {
@@ -516,6 +560,7 @@ export type OverviewSummaryApiResponse = ApiDetailResponse<OverviewSummaryRespon
 export type ReconciliationApiResponse = ApiDetailResponse<ReconciliationResponse> | ApiErrorResponse;
 export type TtsEvidenceApiResponse = ApiDetailResponse<TtsEvidenceResponse> | ApiErrorResponse;
 export type DiagnosticsApiResponse = ApiDetailResponse<DiagnosticsResponse> | ApiErrorResponse;
+export type DiagnosticCaseFileApiResponse = ApiDetailResponse<DiagnosticCaseFileResponse> | ApiErrorResponse;
 export type HealthApiResponse = HealthResponse;
 export type AdapterListApiResponse = ApiListResponse<AdapterSummaryRecord> | ApiErrorResponse;
 export type AdjustmentsListApiResponse = ApiListResponse<ManualAdjustmentRecord> | ApiErrorResponse;

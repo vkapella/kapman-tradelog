@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
 
@@ -371,6 +372,7 @@ export function SetupsAnalyticsPanel() {
                   </th>
                   <th className="px-2 py-2 text-right">Avg Hold</th>
                   <th className="px-2 py-2 text-left">Detail</th>
+                  <th className="px-2 py-2 text-left">Investigate</th>
                 </tr>
               </thead>
               <tbody>
@@ -387,6 +389,11 @@ export function SetupsAnalyticsPanel() {
                     <td className="px-2 py-2">
                       <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
                         View detail
+                      </Link>
+                    </td>
+                    <td className="px-2 py-2">
+                      <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-blue-300 underline">
+                        Case file
                       </Link>
                     </td>
                   </tr>
@@ -437,9 +444,14 @@ export function SetupsAnalyticsPanel() {
           {!detailLoading && detailError ? <p className="text-xs text-red-200">{detailError}</p> : null}
           {!detailLoading && detail ? (
             <div className="space-y-3">
-              <p className="text-xs text-slate-300">
-                {detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}
-              </p>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                <p>
+                  {detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}
+                </p>
+                <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: detail.setup.id })} className="text-blue-300 underline">
+                  Open diagnostics case file
+                </Link>
+              </div>
               <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
                 <h4 className="text-xs font-semibold text-slate-100">Inference Notes</h4>
                 {detail.inference.reasons.length === 0 ? (

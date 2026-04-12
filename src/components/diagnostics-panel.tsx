@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { DiagnosticCaseFilePanel } from "@/components/diagnostic-case-file-panel";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { DiagnosticsResponse } from "@/types/api";
+import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 
 interface DiagnosticsPayload {
   data: DiagnosticsResponse;
 }
 
 export function DiagnosticsPanel() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +45,16 @@ export function DiagnosticsPanel() {
         data.syntheticExpirationCount > 0 ||
         data.setupInference.setupInferenceTotal > 0),
   );
+  const caseQuery = {
+    kind: searchParams.get("case_kind") ?? "",
+    executionId: searchParams.get("execution_id"),
+    matchedLotId: searchParams.get("matched_lot_id"),
+    setupId: searchParams.get("setup_id"),
+    code: searchParams.get("code"),
+    underlyingSymbol: searchParams.get("underlying_symbol"),
+    lotIds: searchParams.get("lot_ids"),
+    message: searchParams.get("message"),
+  };
 
   return (
     <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
@@ -123,32 +137,60 @@ export function DiagnosticsPanel() {
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
-            <h3 className="text-sm font-semibold text-slate-100">Surfaced Warnings / Assumptions</h3>
-            {data.warningSamples.length === 0 ? (
-              <p className="mt-2 text-xs text-slate-400">No warning samples available.</p>
+            <h3 className="text-sm font-semibold text-slate-100">Grouped Warning Signals</h3>
+            {data.warningGroups.length === 0 ? (
+              <p className="mt-2 text-xs text-slate-400">No grouped warnings available.</p>
             ) : (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-200">
-                {data.warningSamples.map((warning, index) => (
-                  <li key={`${warning}-${index}`}>{warning}</li>
+              <div className="mt-2 space-y-2">
+                {data.warningGroups.map((group) => (
+                  <div key={group.id} className="rounded border border-slate-700 bg-slate-950/70 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-100">
+                          {group.title} · {group.count}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-200">{group.summary}</p>
+                      </div>
+                      {group.caseRef ? (
+                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="shrink-0 text-xs text-blue-300 underline">
+                          Open case file
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
-            <h3 className="text-sm font-semibold text-slate-100">Setup Inference Samples</h3>
-            {data.setupInference.setupInferenceSamples.length === 0 ? (
-              <p className="mt-2 text-xs text-slate-400">No setup inference samples available.</p>
+            <h3 className="text-sm font-semibold text-slate-100">Grouped Setup Inference Signals</h3>
+            {data.setupInferenceGroups.length === 0 ? (
+              <p className="mt-2 text-xs text-slate-400">No grouped setup inference samples available.</p>
             ) : (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-100">
-                {data.setupInference.setupInferenceSamples.map((sample, index) => (
-                  <li key={`${sample.code}-${index}`}>
-                    [{sample.code}] {sample.underlyingSymbol}: {sample.message}
-                  </li>
+              <div className="mt-2 space-y-2">
+                {data.setupInferenceGroups.map((group) => (
+                  <div key={group.id} className="rounded border border-slate-700 bg-slate-950/70 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-100">
+                          [{group.code}] {group.underlyingSymbol ?? "N/A"} · {group.count}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-100">{group.summary}</p>
+                      </div>
+                      {group.caseRef ? (
+                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="shrink-0 text-xs text-blue-300 underline">
+                          Open case file
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
+
+          <DiagnosticCaseFilePanel query={caseQuery} closeHref="/diagnostics" />
         </div>
       ) : null}
     </section>

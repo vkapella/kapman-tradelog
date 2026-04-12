@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
 
@@ -335,6 +336,7 @@ export function MatchedLotsTablePanel() {
                   <th className="px-2 py-2 text-left">Outcome</th>
                   <th className="px-2 py-2 text-left">Open Execution</th>
                   <th className="px-2 py-2 text-left">Close Execution</th>
+                  <th className="px-2 py-2 text-left">Investigate</th>
                 </tr>
               </thead>
               <tbody>
@@ -369,6 +371,11 @@ export function MatchedLotsTablePanel() {
                       ) : (
                         "-"
                       )}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-blue-300 underline">
+                        Case file
+                      </Link>
                     </td>
                   </tr>
                 ))}
