@@ -20,6 +20,14 @@ export function formatPercent(value: number, digits = 1): string {
   return `${value.toFixed(digits)}%`;
 }
 
+export function formatInteger(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+}
+
+export function formatDays(value: number, digits = 1): string {
+  return `${value.toFixed(digits)}d`;
+}
+
 export function formatNullablePercent(value: number | null, digits = 1): string {
   if (value === null || !Number.isFinite(value)) {
     return "N/A";

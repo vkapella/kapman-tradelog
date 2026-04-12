@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import type { OverviewSummaryResponse } from "@/types/api";
 
@@ -74,11 +75,11 @@ export function OverviewDashboardPanel() {
       {!loading && !error && data && hasData ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <KpiCard label="Net P&L" value={data.netPnl} colorVariant={Number(data.netPnl) >= 0 ? "pos" : "neg"} />
-            <KpiCard label="Executions" value={data.executionCount} colorVariant="accent" />
-            <KpiCard label="Matched Lots" value={data.matchedLotCount} colorVariant="accent" />
-            <KpiCard label="Setup Groups" value={data.setupCount} colorVariant="accent" />
-            <KpiCard label="Average Hold Days" value={data.averageHoldDays} colorVariant="neutral" />
+            <KpiCard label="Net P&L" value={formatCurrency(Number(data.netPnl))} colorVariant={Number(data.netPnl) >= 0 ? "pos" : "neg"} />
+            <KpiCard label="Executions" value={formatInteger(data.executionCount)} colorVariant="accent" />
+            <KpiCard label="Matched Lots" value={formatInteger(data.matchedLotCount)} colorVariant="accent" />
+            <KpiCard label="Setup Groups" value={formatInteger(data.setupCount)} colorVariant="accent" />
+            <KpiCard label="Average Hold Days" value={formatDays(Number(data.averageHoldDays), 1)} colorVariant="neutral" />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

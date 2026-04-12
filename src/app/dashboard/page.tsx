@@ -6,6 +6,7 @@ import { handleRemoveWidgetClick, stopDashboardControlPropagation } from "./inte
 import { WidgetPicker } from "@/components/WidgetPicker";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { DEFAULT_DASHBOARD_LAYOUT, WIDGET_REGISTRY } from "@/lib/widget-registry";
 import type { OverviewSummaryResponse } from "@/types/api";
@@ -196,12 +197,12 @@ export default function Page() {
 
       {!loading && !error && summary ? (
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Realized P&L" value={summary.netPnl} colorVariant={Number(summary.netPnl) < 0 ? "neg" : "pos"} />
-          <KpiCard label="Executions" value={summary.executionCount} colorVariant="accent" />
-          <KpiCard label="Matched Lots" value={summary.matchedLotCount} colorVariant="accent" />
-          <KpiCard label="Setups" value={summary.setupCount} colorVariant="accent" />
-          <KpiCard label="Average Hold Days" value={summary.averageHoldDays} colorVariant="accent" />
-          <KpiCard label="Snapshots" value={summary.snapshotCount} colorVariant="neutral" />
+          <KpiCard label="Realized P&L" value={formatCurrency(Number(summary.netPnl))} colorVariant={Number(summary.netPnl) < 0 ? "neg" : "pos"} />
+          <KpiCard label="Executions" value={formatInteger(summary.executionCount)} colorVariant="accent" />
+          <KpiCard label="Matched Lots" value={formatInteger(summary.matchedLotCount)} colorVariant="accent" />
+          <KpiCard label="Setups" value={formatInteger(summary.setupCount)} colorVariant="accent" />
+          <KpiCard label="Average Hold Days" value={formatDays(Number(summary.averageHoldDays), 1)} colorVariant="accent" />
+          <KpiCard label="Snapshots" value={formatInteger(summary.snapshotCount)} colorVariant="neutral" />
         </div>
       ) : null}
 
