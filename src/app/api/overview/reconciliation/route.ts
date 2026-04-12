@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
+import { warnDeprecatedStartingCapitalEnvVar } from "@/lib/accounts/env";
+import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { detailResponse } from "@/lib/api/responses";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
@@ -192,6 +194,7 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  warnDeprecatedStartingCapitalEnvVar();
   const accountScope = buildAccountScopeWhere(accountIds);
   const executionScope = accountScope as Prisma.ExecutionWhereInput | undefined;
   const matchedLotScope = accountScope as Prisma.MatchedLotWhereInput | undefined;
@@ -253,11 +256,9 @@ export async function GET(request: Request) {
   const matchedLots = mapMatchedLotRowsToRecords(matchedLotRows);
   const manualAdjustments = mapAdjustmentRowsToRecords(adjustmentRows);
   const openPositions = computeOpenPositions(executions, matchedLots, manualAdjustments);
-
-  const startingCapitalRaw = process.env.STARTING_CAPITAL?.trim() ?? "";
-  const startingCapitalConfigured = startingCapitalRaw.length > 0;
-  const parsedStartingCapital = Number(startingCapitalRaw);
-  const startingCapital = startingCapitalConfigured && Number.isFinite(parsedStartingCapital) ? parsedStartingCapital : 0;
+  const startingCapitalSummary = await getStartingCapitalSummary(accountIds);
+  const startingCapital = startingCapitalSummary.total;
+  const startingCapitalConfigured = startingCapital > 0;
 
   const latestNlvByAccount = new Set<string>();
   let currentNlv = 0;

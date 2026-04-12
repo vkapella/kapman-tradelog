@@ -33,6 +33,11 @@ export interface AccountRecord {
   createdAt: string;
 }
 
+export interface AccountStartingCapitalSummary {
+  total: number;
+  byAccount: Record<string, number>;
+}
+
 export interface ImportRecord {
   id: string;
   filename: string;

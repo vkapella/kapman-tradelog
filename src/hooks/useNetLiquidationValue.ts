@@ -5,6 +5,7 @@ import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
 import type {
+  AccountStartingCapitalSummary,
   NlvResult,
   OptionQuoteRecord,
   OptionQuoteResponse,
@@ -15,6 +16,10 @@ import type {
 
 interface OverviewPayload {
   data: OverviewSummaryResponse;
+}
+
+interface StartingCapitalPayload {
+  data: AccountStartingCapitalSummary;
 }
 
 function isUnavailable(value: unknown): value is QuoteUnavailableResponse {
@@ -49,13 +54,25 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
 
       try {
         const summaryQuery = new URLSearchParams();
+        const startingCapitalQuery = new URLSearchParams();
         applyAccountIdsToSearchParams(summaryQuery, [accountId]);
-        const summaryResponse = await fetch(`/api/overview/summary?${summaryQuery.toString()}`, { cache: "no-store" });
+        applyAccountIdsToSearchParams(startingCapitalQuery, [accountId]);
+        const [summaryResponse, startingCapitalResponse] = await Promise.all([
+          fetch(`/api/overview/summary?${summaryQuery.toString()}`, { cache: "no-store" }),
+          fetch(`/api/accounts/starting-capital?${startingCapitalQuery.toString()}`, { cache: "no-store" }),
+        ]);
+
         if (!summaryResponse.ok) {
           throw new Error("Unable to load overview summary for NLV.");
         }
+        if (!startingCapitalResponse.ok) {
+          throw new Error("Unable to load starting capital for NLV.");
+        }
 
-        const summaryPayload = (await summaryResponse.json()) as OverviewPayload;
+        const [summaryPayload, startingCapitalPayload] = (await Promise.all([
+          summaryResponse.json(),
+          startingCapitalResponse.json(),
+        ])) as [OverviewPayload, StartingCapitalPayload];
         const accountSnapshots = [...summaryPayload.data.snapshotSeries]
           .filter((snapshot) => snapshot.accountId === externalAccountId)
           .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime());
@@ -63,11 +80,17 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
         const latestSnapshot = accountSnapshots[0];
         const latestStatementSnapshot = accountSnapshots.find((snapshot) => snapshot.totalCash !== null);
         const earliestSnapshot = accountSnapshots[accountSnapshots.length - 1];
+        const configuredStartingCapital = startingCapitalPayload.data.byAccount[externalAccountId] ?? 0;
 
         const latestCash = Number(latestStatementSnapshot?.totalCash ?? latestSnapshot?.balance ?? 0);
         const latestCashAsOfIso = latestStatementSnapshot?.snapshotDate ?? latestSnapshot?.snapshotDate ?? null;
         const baselineValue = Number(earliestSnapshot?.totalCash ?? earliestSnapshot?.balance ?? 0);
-        const baseline = Number.isFinite(baselineValue) && baselineValue > 0 ? baselineValue : null;
+        const baseline =
+          Number.isFinite(configuredStartingCapital) && configuredStartingCapital > 0
+            ? configuredStartingCapital
+            : Number.isFinite(baselineValue) && baselineValue > 0
+              ? baselineValue
+              : null;
         if (!cancelled) {
           setCash(latestCash);
           setCashAsOf(latestCashAsOfIso ? new Date(latestCashAsOfIso) : null);
