@@ -162,6 +162,18 @@ function effectiveClosePrice(execution: LedgerExecution): number | null {
   return null;
 }
 
+function sameTimestampExecutionPriority(execution: LedgerExecution): number {
+  if (execution.openingClosingEffect === "TO_OPEN") {
+    return 0;
+  }
+
+  if (isCloseExecution(execution)) {
+    return 2;
+  }
+
+  return 1;
+}
+
 function applyWashSaleFlag(
   matchedLots: MatchedLotCandidate[],
   executions: LedgerExecution[],
@@ -206,6 +218,11 @@ export function runFifoMatcher(executions: LedgerExecution[], asOfDate: Date): F
     const timestampDiff = a.eventTimestamp.getTime() - b.eventTimestamp.getTime();
     if (timestampDiff !== 0) {
       return timestampDiff;
+    }
+
+    const priorityDiff = sameTimestampExecutionPriority(a) - sameTimestampExecutionPriority(b);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
     }
 
     return a.id.localeCompare(b.id);
@@ -284,6 +301,10 @@ export function runFifoMatcher(executions: LedgerExecution[], asOfDate: Date): F
       }
 
       if (openLot.execution.expirationDate >= asOfDate) {
+        continue;
+      }
+
+      if (openLot.remainingQty <= 0) {
         continue;
       }
 
