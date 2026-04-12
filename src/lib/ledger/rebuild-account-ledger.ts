@@ -15,7 +15,8 @@ export interface RebuildAccountLedgerResult {
 
 export interface RebuildAccountLedgerOptions {
   executionQtyOverrides?: Array<{
-    payload: unknown;
+    executionId: string;
+    overrideQty: number;
   }>;
 }
 
@@ -66,13 +67,17 @@ function buildOptionInstrumentKey(underlyingSymbol: string, optionType: string, 
   return `${underlyingSymbol}|${optionType}|${strike}|${expirationDateIso}`;
 }
 
-function toExecutionQtyOverrideAdjustments(
-  overrides: Array<{ payload: unknown }>,
-  accountId: string,
-): ManualAdjustmentRecord[] {
+function toExecutionQtyOverrideAdjustments(overrides: RebuildAccountLedgerOptions["executionQtyOverrides"], accountId: string): ManualAdjustmentRecord[] {
+  if (!overrides || overrides.length === 0) {
+    return [];
+  }
+
   return overrides.flatMap((override, index) => {
     try {
-      const payload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", override.payload);
+      const payload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", {
+        executionId: override.executionId,
+        overrideQty: override.overrideQty,
+      });
       const createdAt = new Date(index).toISOString();
 
       return [

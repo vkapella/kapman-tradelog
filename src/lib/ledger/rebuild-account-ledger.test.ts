@@ -80,8 +80,8 @@ describe("rebuildAccountLedger execution qty overrides", () => {
       new Date("2026-04-10T00:00:00.000Z"),
       {
         executionQtyOverrides: [
-          { payload: { executionId: "cmnw7y63w00zr7hl4onohf70n", overrideQty: 2 } },
-          { payload: { executionId: "cmnw7y63u00zp7hl4ez0ohvjz", overrideQty: 0 } },
+          { executionId: "cmnw7y63w00zr7hl4onohf70n", overrideQty: 2 },
+          { executionId: "cmnw7y63u00zp7hl4ez0ohvjz", overrideQty: 0 },
         ],
       },
     );

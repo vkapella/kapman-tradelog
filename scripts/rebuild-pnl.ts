@@ -74,7 +74,8 @@ async function main() {
 
         const ledger = await rebuildAccountLedger(tx, account.id, new Date(), {
           executionQtyOverrides: executionQtyOverrides.map((override) => ({
-            payload: override.payloadJson,
+            executionId: (override.payloadJson as { executionId: string; overrideQty: number }).executionId,
+            overrideQty: (override.payloadJson as { executionId: string; overrideQty: number }).overrideQty,
           })),
         });
         const setups = await rebuildAccountSetups(tx, account.id);
