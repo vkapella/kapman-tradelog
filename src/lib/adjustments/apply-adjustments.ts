@@ -1,6 +1,20 @@
 import type { ExecutionRecord, ManualAdjustmentRecord, OpenPosition } from "@/types/api";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 
+export interface PositionAdjustmentWarning {
+  code: "ADJUSTMENT_NO_TARGET";
+  adjustmentId: string;
+  accountId: string;
+  adjustmentType: "QTY_OVERRIDE" | "PRICE_OVERRIDE";
+  instrumentKey: string;
+  message: string;
+}
+
+export interface ApplyPositionAdjustmentsResult {
+  positions: OpenPosition[];
+  warnings: PositionAdjustmentWarning[];
+}
+
 export function sortAdjustments(adjustments: ManualAdjustmentRecord[]): ManualAdjustmentRecord[] {
   return [...adjustments].sort((left, right) => {
     const leftEffective = new Date(left.effectiveDate).getTime();
@@ -66,8 +80,16 @@ function parseInstrumentSymbol(instrumentKey: string): string {
 }
 
 export function applyPositionAdjustments(positions: OpenPosition[], adjustments: ManualAdjustmentRecord[]): OpenPosition[] {
+  return applyPositionAdjustmentsWithWarnings(positions, adjustments).positions;
+}
+
+export function applyPositionAdjustmentsWithWarnings(
+  positions: OpenPosition[],
+  adjustments: ManualAdjustmentRecord[],
+): ApplyPositionAdjustmentsResult {
   const activeAdjustments = sortAdjustments(adjustments.filter((adjustment) => adjustment.status === "ACTIVE"));
   const grouped = new Map(positions.map((position) => [position.accountId + "::" + position.instrumentKey, { ...position }]));
+  const warnings: PositionAdjustmentWarning[] = [];
 
   for (const adjustment of activeAdjustments) {
     const accountPrefix = adjustment.accountId + "::";
@@ -81,6 +103,15 @@ export function applyPositionAdjustments(positions: OpenPosition[], adjustments:
           const costBasisPerShare = target.netQty !== 0 ? target.costBasis / (target.netQty * multiplier) : 0;
           target.netQty = payload.overrideQty;
           target.costBasis = payload.overrideQty * multiplier * costBasisPerShare;
+        } else {
+          warnings.push({
+            code: "ADJUSTMENT_NO_TARGET",
+            adjustmentId: adjustment.id,
+            accountId: adjustment.accountId,
+            adjustmentType: "QTY_OVERRIDE",
+            instrumentKey: payload.instrumentKey,
+            message: `QTY_OVERRIDE adjustment ${adjustment.id} has no target position for instrument ${payload.instrumentKey}.`,
+          });
         }
         continue;
       }
@@ -91,6 +122,15 @@ export function applyPositionAdjustments(positions: OpenPosition[], adjustments:
         if (target) {
           const multiplier = target.assetClass === "OPTION" ? 100 : 1;
           target.costBasis = target.netQty * multiplier * payload.overridePrice;
+        } else {
+          warnings.push({
+            code: "ADJUSTMENT_NO_TARGET",
+            adjustmentId: adjustment.id,
+            accountId: adjustment.accountId,
+            adjustmentType: "PRICE_OVERRIDE",
+            instrumentKey: payload.instrumentKey,
+            message: `PRICE_OVERRIDE adjustment ${adjustment.id} has no target position for instrument ${payload.instrumentKey}.`,
+          });
         }
         continue;
       }
@@ -128,7 +168,7 @@ export function applyPositionAdjustments(positions: OpenPosition[], adjustments:
     }
   }
 
-  return Array.from(grouped.values())
+  const resolvedPositions = Array.from(grouped.values())
     .filter((position) => position.netQty !== 0)
     .sort((left, right) => {
       const symbolOrder = left.underlyingSymbol.localeCompare(right.underlyingSymbol);
@@ -138,4 +178,9 @@ export function applyPositionAdjustments(positions: OpenPosition[], adjustments:
 
       return left.instrumentKey.localeCompare(right.instrumentKey);
     });
+
+  return {
+    positions: resolvedPositions,
+    warnings,
+  };
 }

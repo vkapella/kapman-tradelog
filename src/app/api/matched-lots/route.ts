@@ -44,7 +44,12 @@ export async function GET(request: Request) {
 
   if (importId) {
     andClauses.push({
-      OR: [{ openExecution: { importId } }, { closeExecution: { is: { importId } } }],
+      OR: [
+        { openExecution: { importId } },
+        { openExecution: { importLinks: { some: { importId } } } },
+        { closeExecution: { is: { importId } } },
+        { closeExecution: { is: { importLinks: { some: { importId } } } } },
+      ],
     });
   }
 

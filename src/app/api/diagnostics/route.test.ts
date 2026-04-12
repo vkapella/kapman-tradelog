@@ -11,6 +11,9 @@ const diagnosticsRouteMocks = vi.hoisted(() => {
     matchedLot: {
       findMany: vi.fn(),
     },
+    manualAdjustment: {
+      findMany: vi.fn(),
+    },
   };
 });
 
@@ -20,6 +23,7 @@ vi.mock("@/lib/db/prisma", () => {
       import: diagnosticsRouteMocks.import,
       execution: diagnosticsRouteMocks.execution,
       matchedLot: diagnosticsRouteMocks.matchedLot,
+      manualAdjustment: diagnosticsRouteMocks.manualAdjustment,
     },
   };
 });
@@ -68,8 +72,10 @@ describe("GET /api/diagnostics", () => {
           quantity: 1,
           side: "SELL",
         },
-      ]);
+      ])
+      .mockResolvedValueOnce([]);
     diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([]);
 
     const { GET } = await import("./route");
     const response = await GET(new Request("http://localhost/api/diagnostics"));
@@ -85,8 +91,9 @@ describe("GET /api/diagnostics", () => {
 
   it("applies accountIds scope to diagnostics source queries", async () => {
     diagnosticsRouteMocks.import.findMany.mockResolvedValueOnce([]);
-    diagnosticsRouteMocks.execution.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.execution.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([]);
 
     const { GET } = await import("./route");
     await GET(new Request("http://localhost/api/diagnostics?accountIds=acct-1,acct-2"));
@@ -95,5 +102,44 @@ describe("GET /api/diagnostics", () => {
     expect(importsArgs.where).toEqual({
       OR: [{ accountId: { in: ["acct-1", "acct-2"] } }, { account: { accountId: { in: ["acct-1", "acct-2"] } } }],
     });
+  });
+
+  it("surfaces ADJUSTMENT_NO_TARGET warnings for orphaned qty/price overrides", async () => {
+    diagnosticsRouteMocks.import.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.execution.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([
+      {
+        id: "adj-1",
+        createdAt: new Date("2026-01-02T00:00:00.000Z"),
+        createdBy: "tester",
+        accountId: "account-a",
+        symbol: "SDS",
+        effectiveDate: new Date("2026-01-03T00:00:00.000Z"),
+        adjustmentType: "QTY_OVERRIDE",
+        payloadJson: { instrumentKey: "SDS|EQUITY|||", overrideQty: 30 },
+        reason: "Reconcile split drift",
+        evidenceRef: null,
+        status: "ACTIVE",
+        reversedByAdjustmentId: null,
+        account: { accountId: "D-68011053" },
+      },
+    ]);
+
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/diagnostics"));
+    const payload = (await response.json()) as {
+      data: { warningsCount: number; warningGroups: Array<{ code: string; summary: string }> };
+    };
+
+    expect(payload.data.warningsCount).toBe(1);
+    expect(payload.data.warningGroups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "ADJUSTMENT_NO_TARGET",
+          summary: expect.stringContaining("has no target position"),
+        }),
+      ]),
+    );
   });
 });

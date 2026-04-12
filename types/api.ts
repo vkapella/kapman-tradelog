@@ -32,6 +32,7 @@ export interface ImportRecord {
   status: ImportStatus;
   parsedRows: number;
   inserted: number;
+  insertedExecutions: number;
   skipped_duplicate: number;
   failed: number;
   skipped_parse: number;
@@ -68,6 +69,29 @@ export interface ImportResult {
 export interface CommitImportResponse extends ImportResult {
   importId: string;
   warnings: string[];
+}
+
+export interface DeleteImportResponse {
+  importId: string;
+  accountId: string;
+  status: ImportStatus;
+  deleted: {
+    importRows: number;
+    importExecutionLinks: number;
+    executions: number;
+    matchedLots: number;
+    setupGroups: number;
+    snapshots: number;
+    cashEvents: number;
+  };
+  reassignedExecutions: number;
+  manualAdjustmentsPreserved: number;
+  rebuild: {
+    ran: boolean;
+    matchedLotsPersisted: number;
+    syntheticExecutionsPersisted: number;
+    setupGroupsPersisted: number;
+  };
 }
 
 export interface ImportsListQuery {
@@ -559,6 +583,7 @@ export interface StreakSummaryResponse {
 export type ImportsListApiResponse = ApiListResponse<ImportRecord> | ApiErrorResponse;
 export type UploadImportApiResponse = ApiDetailResponse<UploadImportResponse> | ApiErrorResponse;
 export type CommitImportApiResponse = ApiDetailResponse<CommitImportResponse> | ApiErrorResponse;
+export type DeleteImportApiResponse = ApiDetailResponse<DeleteImportResponse> | ApiErrorResponse;
 export type ExecutionsListApiResponse = ApiListResponse<ExecutionRecord> | ApiErrorResponse;
 export type CashEventsListApiResponse = ApiListResponse<CashEventResponse> | ApiErrorResponse;
 export type MatchedLotsListApiResponse = ApiListResponse<MatchedLotRecord> | ApiErrorResponse;
