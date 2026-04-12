@@ -83,6 +83,7 @@ export async function POST(_request: Request, context: { params: { id: string } 
     strike: execution.strike,
     expirationDate: execution.expirationDate,
     spreadGroupId: execution.spreadGroupId,
+    brokerRefNumber: execution.brokerRefNumber,
     sourceRowRef: execution.sourceRowRef,
     rawRowJson: execution.rawRowJson,
   }));

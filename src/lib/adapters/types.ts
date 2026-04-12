@@ -80,6 +80,7 @@ export interface NormalizedExecution {
   expirationDate: Date | null;
   spread: string;
   spreadGroupId: string | null;
+  brokerRefNumber: string | null;
   sourceRowRef: string;
   rawRowJson: Record<string, string | null>;
 }

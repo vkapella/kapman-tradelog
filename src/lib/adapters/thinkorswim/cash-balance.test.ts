@@ -55,4 +55,22 @@ describe("parseCashBalanceSnapshots", () => {
       amount: 120.5,
     });
   });
+
+  it("extracts TRD rows as trade references with broker ref numbers", () => {
+    const csv = [
+      "Cash Balance",
+      "DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE",
+      "12/23/25,09:31:01,TRD,=\"5278319313\",SOLD -2 RKLB 100 20 MAR 26 55 CALL @23.00,-0.09,-1.30,\"4,600.00\",\"152,759.85\"",
+      "12/23/25,09:31:01,TRD,=\"5278319395\",SOLD -2 RKLB 100 20 MAR 26 55 CALL @23.00,-0.09,-1.30,\"4,600.00\",\"157,358.46\"",
+      "Account Trade History",
+    ].join("\n");
+
+    const parsed = parseCashBalanceRows(csv);
+
+    expect(parsed.tradeReferences).toHaveLength(2);
+    expect(parsed.tradeReferences.map((entry) => entry.refNumber)).toEqual(["5278319313", "5278319395"]);
+    expect(parsed.tradeReferences.every((entry) => entry.symbol === "RKLB")).toBe(true);
+    expect(parsed.tradeReferences.every((entry) => entry.side === "SELL")).toBe(true);
+    expect(parsed.tradeReferences.every((entry) => entry.quantity === 2)).toBe(true);
+  });
 });
