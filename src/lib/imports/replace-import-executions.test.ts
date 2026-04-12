@@ -97,6 +97,7 @@ function asLedgerExecutions(rows: unknown[]): LedgerIngestExecution[] {
       strike: entry.strike === null ? null : Number(entry.strike),
       expirationDate: entry.expirationDate ? new Date(String(entry.expirationDate)) : null,
       spreadGroupId: (entry.spreadGroupId as string | null) ?? null,
+      brokerRefNumber: (entry.brokerRefNumber as string | null) ?? null,
       sourceRowRef: (entry.sourceRowRef as string | null) ?? null,
       rawRowJson: (entry.rawRowJson as LedgerIngestExecution["rawRowJson"]) ?? null,
     };

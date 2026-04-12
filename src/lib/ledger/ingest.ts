@@ -23,6 +23,7 @@ export interface LedgerIngestExecution {
   strike: number | null;
   expirationDate: Date | null;
   spreadGroupId: string | null;
+  brokerRefNumber?: string | null;
   sourceRowRef: string | null;
   rawRowJson: Prisma.JsonObject | Prisma.JsonArray | null;
 }
@@ -34,6 +35,7 @@ export interface BrokerTxHashInput {
   assetClass: AssetClass | `${AssetClass}`;
   instrumentKey: string | null;
   dedupeDiscriminator?: string | null;
+  brokerRefNumber?: string | null;
   symbol: string;
   side: Side | "BUY" | "SELL";
   quantity: number | string;
@@ -148,7 +150,35 @@ function resolveRawPriceFromExecution(execution: LedgerIngestExecution): string 
   return execution.price.toString();
 }
 
+function resolveBrokerReferenceFromExecution(execution: LedgerIngestExecution): string | null {
+  const directRef = execution.brokerRefNumber?.trim();
+  if (directRef) {
+    return directRef;
+  }
+
+  if (execution.rawRowJson && typeof execution.rawRowJson === "object" && !Array.isArray(execution.rawRowJson)) {
+    const rowRef = execution.rawRowJson.refNumber;
+    if (typeof rowRef === "string" && rowRef.trim()) {
+      return rowRef.trim();
+    }
+  }
+
+  return null;
+}
+
 export function computeBrokerTxId(input: BrokerTxHashInput): string {
+  const normalizedBrokerRef = normalizeToken(input.brokerRefNumber);
+  if (normalizedBrokerRef) {
+    const refKeyFields = [
+      input.accountId.trim(),
+      new Date(input.eventTimestamp).toISOString(),
+      normalizeSymbol(input.symbol),
+      normalizedBrokerRef,
+    ];
+
+    return createHash("sha256").update(refKeyFields.join("|")).digest("hex");
+  }
+
   const canonicalFields = [
     input.accountId.trim(),
     new Date(input.eventTimestamp).toISOString(),
@@ -189,6 +219,7 @@ export async function ingestExecutions(
         eventType: execution.eventType,
         assetClass: execution.assetClass,
         instrumentKey: execution.instrumentKey,
+        brokerRefNumber: resolveBrokerReferenceFromExecution(execution),
         symbol: execution.symbol,
         side: execution.side,
         quantity: execution.quantity,

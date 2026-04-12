@@ -1,6 +1,6 @@
 import { parseAccountMetadataFromCsv } from "../../accounts/parse-account-metadata";
 import { parseThinkorswimAccountSummary } from "./account-summary";
-import { parseCashBalanceRows } from "./cash-balance";
+import { parseCashBalanceRows, type ParsedCashTradeReference } from "./cash-balance";
 import type { AdapterWarning, NormalizedCashEvent, NormalizedDailyAccountSnapshot, NormalizedExecution, ParseResult } from "../types";
 
 const TRADE_HISTORY_HEADER = ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type";
@@ -161,6 +161,149 @@ function applyAccountSummaryToSnapshots(
   return nextSnapshots.sort((left, right) => left.snapshotDate.getTime() - right.snapshotDate.getTime());
 }
 
+function normalizeToken(value: string | null | undefined): string {
+  return value?.trim().toUpperCase() ?? "";
+}
+
+function normalizeQuantity(quantity: number): string {
+  return Math.abs(quantity).toString();
+}
+
+function normalizePrice(value: string | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const normalized = value.trim().replace(/[,$]/g, "");
+  if (!normalized || normalized === "~") {
+    return "";
+  }
+
+  const parsed = Number(normalized);
+  if (Number.isFinite(parsed)) {
+    return parsed.toString();
+  }
+
+  return normalized.toUpperCase();
+}
+
+function readExecutionPrice(execution: NormalizedExecution): string | null {
+  const rowPrice = execution.rawRowJson.price;
+  if (typeof rowPrice === "string") {
+    return rowPrice;
+  }
+
+  if (execution.price === null) {
+    return null;
+  }
+
+  return execution.price.toString();
+}
+
+function buildTradeRefKey(
+  eventTimestamp: Date,
+  symbol: string,
+  side: "BUY" | "SELL",
+  quantity: number,
+  optionType: string | null,
+  price: string | null,
+): string {
+  return [
+    eventTimestamp.toISOString(),
+    normalizeToken(symbol),
+    normalizeToken(side),
+    normalizeQuantity(quantity),
+    normalizeToken(optionType),
+    normalizePrice(price),
+  ].join("|");
+}
+
+function buildTradeRefNoPriceKey(
+  eventTimestamp: Date,
+  symbol: string,
+  side: "BUY" | "SELL",
+  quantity: number,
+  optionType: string | null,
+): string {
+  return [eventTimestamp.toISOString(), normalizeToken(symbol), normalizeToken(side), normalizeQuantity(quantity), normalizeToken(optionType)].join(
+    "|",
+  );
+}
+
+interface TradeRefCandidate {
+  refNumber: string;
+  used: boolean;
+}
+
+function assignBrokerReferenceNumbers(executions: NormalizedExecution[], tradeReferences: ParsedCashTradeReference[]): void {
+  const byFullKey = new Map<string, TradeRefCandidate[]>();
+  const byNoPriceKey = new Map<string, TradeRefCandidate[]>();
+
+  for (const reference of tradeReferences) {
+    const candidate: TradeRefCandidate = {
+      refNumber: reference.refNumber,
+      used: false,
+    };
+
+    const fullKey = buildTradeRefKey(
+      reference.eventTimestamp,
+      reference.symbol,
+      reference.side,
+      reference.quantity,
+      reference.optionType,
+      reference.price,
+    );
+    const noPriceKey = buildTradeRefNoPriceKey(
+      reference.eventTimestamp,
+      reference.symbol,
+      reference.side,
+      reference.quantity,
+      reference.optionType,
+    );
+
+    const fullEntries = byFullKey.get(fullKey) ?? [];
+    fullEntries.push(candidate);
+    byFullKey.set(fullKey, fullEntries);
+
+    const noPriceEntries = byNoPriceKey.get(noPriceKey) ?? [];
+    noPriceEntries.push(candidate);
+    byNoPriceKey.set(noPriceKey, noPriceEntries);
+  }
+
+  for (const execution of executions) {
+    const fullKey = buildTradeRefKey(
+      execution.eventTimestamp,
+      execution.symbol,
+      execution.side,
+      execution.quantity,
+      execution.optionType,
+      readExecutionPrice(execution),
+    );
+    const noPriceKey = buildTradeRefNoPriceKey(
+      execution.eventTimestamp,
+      execution.symbol,
+      execution.side,
+      execution.quantity,
+      execution.optionType,
+    );
+
+    const fullCandidates = byFullKey.get(fullKey) ?? [];
+    const noPriceCandidates = byNoPriceKey.get(noPriceKey) ?? [];
+    const matched =
+      fullCandidates.find((candidate) => !candidate.used) ?? noPriceCandidates.find((candidate) => !candidate.used) ?? null;
+
+    if (!matched) {
+      execution.brokerRefNumber = null;
+      execution.rawRowJson.refNumber = null;
+      continue;
+    }
+
+    matched.used = true;
+    execution.brokerRefNumber = matched.refNumber;
+    execution.rawRowJson.refNumber = matched.refNumber;
+  }
+}
+
 export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
   const accountMetadata = parseAccountMetadataFromCsv(csvText);
   const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
@@ -298,6 +441,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
       expirationDate,
       spread: effectiveSpread,
       spreadGroupId: continuation ? activeGroupId : activeGroupId,
+      brokerRefNumber: null,
       sourceRowRef: String(lineIndex + 1),
       rawRowJson: {
         execTime: execTimeRaw || null,
@@ -312,6 +456,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
         price: priceRaw || null,
         netPrice: netPriceRaw || null,
         orderType: (row[12] ?? "").trim() || null,
+        refNumber: null,
       },
     };
 
@@ -338,6 +483,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
   }
 
   const cashBalanceRows = parseCashBalanceRows(csvText);
+  assignBrokerReferenceNumbers(executions, cashBalanceRows.tradeReferences);
   const snapshots = applyAccountSummaryToSnapshots(cashBalanceRows.snapshots, csvText);
   const cashEvents: NormalizedCashEvent[] = cashBalanceRows.cashEvents;
 

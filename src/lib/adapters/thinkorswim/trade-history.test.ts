@@ -39,6 +39,22 @@ describe("parseThinkorswimTradeHistory", () => {
     expect(continuationRows.every((row) => typeof row.spreadGroupId === "string" && row.spreadGroupId.length > 0)).toBe(true);
   });
 
+  it("assigns distinct broker ref numbers to same-timestamp duplicate trade rows", () => {
+    const fixture = readFileSync("fixtures/2026-04-06-AccountStatement.csv", "utf8");
+    const result = parseThinkorswimTradeHistory(fixture);
+
+    const rklbRows = result.executions.filter(
+      (row) =>
+        row.eventTimestamp.toISOString() === "2025-12-23T09:31:01.000Z" &&
+        row.symbol === "RKLB" &&
+        row.optionType === "CALL" &&
+        row.strike === 55,
+    );
+
+    expect(rklbRows).toHaveLength(2);
+    expect(new Set(rklbRows.map((row) => row.brokerRefNumber))).toEqual(new Set(["5278319313", "5278319395"]));
+  });
+
   it("handles price '~' as null and warns on unknown spread", () => {
     const synthetic = [
       "This document was exported from the paperMoney platform.",

@@ -96,6 +96,7 @@ function asLedgerExecutions(rows: unknown[]): LedgerIngestExecution[] {
       strike: entry.strike === null ? null : Number(entry.strike),
       expirationDate: entry.expirationDate ? new Date(String(entry.expirationDate)) : null,
       spreadGroupId: (entry.spreadGroupId as string | null) ?? null,
+      brokerRefNumber: (entry.brokerRefNumber as string | null) ?? null,
       sourceRowRef: (entry.sourceRowRef as string | null) ?? null,
       rawRowJson: (entry.rawRowJson as LedgerIngestExecution["rawRowJson"]) ?? null,
     };
@@ -145,6 +146,15 @@ describe("computeBrokerTxId", () => {
     const a = computeBrokerTxId(baseInput);
     const b = computeBrokerTxId({ ...baseInput, accountId: "account-2" });
     expect(a).not.toBe(b);
+  });
+
+  it("uses broker reference as dedupe tiebreaker when present", () => {
+    const baseWithRef = { ...baseInput, brokerRefNumber: "5278319313" };
+    const sameRefDifferentPrice = { ...baseWithRef, rawPrice: "101.25" };
+    const differentRefSamePrice = { ...baseWithRef, brokerRefNumber: "5278319395" };
+
+    expect(computeBrokerTxId(baseWithRef)).toBe(computeBrokerTxId(sameRefDifferentPrice));
+    expect(computeBrokerTxId(baseWithRef)).not.toBe(computeBrokerTxId(differentRefSamePrice));
   });
 
   it("matches for same canonical trade across brokers", () => {
@@ -278,6 +288,43 @@ describe("ingestExecutions fixtures", () => {
     ]);
 
     expect(first.inserted).toBe(1);
+    expect(second.inserted).toBe(0);
+    expect(second.skipped_duplicate).toBe(1);
+  });
+
+  it("keeps same-timestamp executions when broker reference numbers differ", async () => {
+    const store = new InMemoryExecutionStore();
+    const baseExecution: LedgerIngestExecution = {
+      importId: "import-a",
+      accountId: "account-1",
+      broker: "SCHWAB_THINKORSWIM",
+      eventTimestamp: new Date("2025-12-23T09:31:01.000Z"),
+      tradeDate: new Date("2025-12-23T00:00:00.000Z"),
+      eventType: "TRADE",
+      assetClass: "OPTION",
+      symbol: "RKLB",
+      instrumentKey: "RKLB|CALL|55|2026-03-20",
+      side: "SELL",
+      quantity: 2,
+      price: 23,
+      grossAmount: 46,
+      netAmount: 46,
+      openingClosingEffect: "TO_CLOSE",
+      underlyingSymbol: "RKLB",
+      optionType: "CALL",
+      strike: 55,
+      expirationDate: new Date("2026-03-20T00:00:00.000Z"),
+      spreadGroupId: null,
+      brokerRefNumber: "5278319313",
+      sourceRowRef: "1868",
+      rawRowJson: { price: "23.00", refNumber: "5278319313" },
+    };
+
+    const first = await ingestExecutions(store.tx as never, [baseExecution, { ...baseExecution, brokerRefNumber: "5278319395", sourceRowRef: "1869", rawRowJson: { price: "23.00", refNumber: "5278319395" } }]);
+    const second = await ingestExecutions(store.tx as never, [{ ...baseExecution, importId: "import-b", sourceRowRef: "9999", rawRowJson: { price: "23.00", refNumber: "5278319313" } }]);
+
+    expect(first.inserted).toBe(2);
+    expect(first.skipped_duplicate).toBe(0);
     expect(second.inserted).toBe(0);
     expect(second.skipped_duplicate).toBe(1);
   });
