@@ -35,6 +35,21 @@ function arraysEqual(left: string[] | undefined, right: string[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
 
+function filtersEqual(left: DataTableFiltersState, right: DataTableFiltersState): boolean {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+
+  if (!arraysEqual(leftKeys, rightKeys)) {
+    return false;
+  }
+
+  return leftKeys.every((key) => arraysEqual(left[key], right[key] ?? []));
+}
+
+function sortsEqual(left: DataTableSortState, right: DataTableSortState): boolean {
+  return left.columnId === right.columnId && left.direction === right.direction;
+}
+
 export function useDataTableState<Row>({
   tableName,
   rows,
@@ -42,25 +57,38 @@ export function useDataTableState<Row>({
   initialSort = { columnId: null, direction: null },
 }: UseDataTableStateArgs<Row>) {
   const storageKey = `kapman_table_filters_${tableName}`;
+  const defaultSort = useMemo(
+    () =>
+      normalizePersistedSort({
+        columnId: initialSort.columnId ?? null,
+        direction: initialSort.direction ?? null,
+      }),
+    [initialSort.columnId, initialSort.direction],
+  );
   const [filters, setFilters] = useState<DataTableFiltersState>({});
-  const [sort, setSort] = useState<DataTableSortState>(initialSort);
+  const [sort, setSort] = useState<DataTableSortState>(() => defaultSort);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    let nextFilters: DataTableFiltersState = {};
+    let nextSort = defaultSort;
+
     try {
       const raw = window.sessionStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<DataTablePersistedState>;
-        setFilters(normalizePersistedFilters(parsed.filters));
-        setSort(normalizePersistedSort(parsed.sort));
+        nextFilters = normalizePersistedFilters(parsed.filters);
+        nextSort = normalizePersistedSort(parsed.sort);
       }
     } catch {
-      setFilters({});
-      setSort(initialSort);
-    } finally {
-      setIsHydrated(true);
+      nextFilters = {};
+      nextSort = defaultSort;
     }
-  }, [initialSort, storageKey]);
+
+    setFilters((current) => (filtersEqual(current, nextFilters) ? current : nextFilters));
+    setSort((current) => (sortsEqual(current, nextSort) ? current : nextSort));
+    setIsHydrated(true);
+  }, [defaultSort, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -115,8 +143,8 @@ export function useDataTableState<Row>({
 
   const clearAllFilters = useCallback(() => {
     setFilters({});
-    setSort(initialSort);
-  }, [initialSort]);
+    setSort(defaultSort);
+  }, [defaultSort]);
 
   return {
     activeFilterCount,
