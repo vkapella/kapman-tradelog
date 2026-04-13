@@ -100,7 +100,7 @@ function buildCashEventDedupKey(input: {
   ].join("|");
 }
 
-export async function POST(_request: Request, context: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: { id: string } }) {
   const importId = context.params.id;
 
   const existingImport = await prisma.import.findUnique({ where: { id: importId } });
@@ -439,6 +439,14 @@ export async function POST(_request: Request, context: { params: { id: string } 
     failed: transactionResult.updatedImport.failedRows,
     warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
+
+  void fetch(new URL("/api/positions/snapshot/compute", request.url), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ accountIds: [existingImport.accountId] }),
+  }).catch(() => {});
 
   return detailResponse(payload);
 }
