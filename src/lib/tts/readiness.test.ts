@@ -10,6 +10,7 @@ const baseEvidence: TtsEvidenceResponse = {
   annualizedTradeCount: 720,
   grossProceedsProxy: "10000.00",
   holdingPeriodDistribution: [],
+  monthlySeries: [],
 };
 
 describe("TTS readiness thresholds", () => {

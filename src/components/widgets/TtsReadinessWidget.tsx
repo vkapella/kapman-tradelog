@@ -56,6 +56,7 @@ export function TtsReadinessWidget() {
     medianHoldingPeriodDays: 0,
     grossProceedsProxy: "0",
     holdingPeriodDistribution: [],
+    monthlySeries: [],
   };
   const overallStatus = getOverallTtsReadinessStatus(values);
   const cells = [

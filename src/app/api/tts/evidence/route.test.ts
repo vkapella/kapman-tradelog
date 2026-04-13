@@ -58,14 +58,32 @@ describe("GET /api/tts/evidence", () => {
         price: 10,
       },
     ]);
-    ttsEvidenceRouteMocks.matchedLot.findMany.mockResolvedValueOnce([{ holdingDays: 3 }, { holdingDays: 7 }]);
+    ttsEvidenceRouteMocks.matchedLot.findMany.mockResolvedValueOnce([
+      {
+        holdingDays: 3,
+        createdAt: new Date("2026-01-10T00:00:00.000Z"),
+        closeExecution: { tradeDate: new Date("2026-01-10T00:00:00.000Z") },
+      },
+      {
+        holdingDays: 7,
+        createdAt: new Date("2026-01-12T00:00:00.000Z"),
+        closeExecution: { tradeDate: new Date("2026-01-12T00:00:00.000Z") },
+      },
+    ]);
     const { GET } = await import("./route");
 
     const response = await GET(new Request("http://localhost/api/tts/evidence?accountIds=acct-1"));
-    const payload = (await response.json()) as { data: { tradesPerMonth: number; annualizedTradeCount: number; grossProceedsProxy: string } };
+    const payload = (await response.json()) as {
+      data: { tradesPerMonth: number; annualizedTradeCount: number; grossProceedsProxy: string; monthlySeries: Array<{ month: string }> };
+    };
 
     expect(payload.data.tradesPerMonth).toBe(2);
     expect(payload.data.annualizedTradeCount).toBe(24);
     expect(payload.data.grossProceedsProxy).toBe("20.00");
+    expect(payload.data.monthlySeries).toEqual([
+      expect.objectContaining({
+        month: "2026-01",
+      }),
+    ]);
   });
 });

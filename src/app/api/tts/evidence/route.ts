@@ -4,6 +4,31 @@ import { detailResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { TtsEvidenceResponse } from "@/types/api";
 
+function getMonthKey(date: Date): string {
+  return date.toISOString().slice(0, 7);
+}
+
+function getWeeksInMonth(monthKey: string): number {
+  const [year, month] = monthKey.split("-").map((value) => Number(value));
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return Math.max(1, daysInMonth / 7);
+}
+
+function computeMedian(values: number[]): number | null {
+  if (values.length === 0) {
+    return null;
+  }
+
+  const ordered = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(ordered.length / 2);
+
+  if (ordered.length % 2 === 0) {
+    return (ordered[middle - 1]! + ordered[middle]!) / 2;
+  }
+
+  return ordered[middle]!;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
@@ -23,6 +48,12 @@ export async function GET(request: Request) {
       where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
       select: {
         holdingDays: true,
+        createdAt: true,
+        closeExecution: {
+          select: {
+            tradeDate: true,
+          },
+        },
       },
     }),
   ]);
@@ -71,6 +102,62 @@ export async function GET(request: Request) {
 
   const tradesPerMonth = monthCount > 0 ? totalTrades / monthCount : totalTrades;
   const activeDaysPerWeek = activeDays / weekCount;
+  const executionMonths = new Map<
+    string,
+    {
+      tradeCount: number;
+      activeDays: Set<string>;
+      grossProceedsProxy: number;
+    }
+  >();
+  const holdingMonths = new Map<string, number[]>();
+
+  for (const execution of executions) {
+    const month = getMonthKey(execution.tradeDate);
+    const current = executionMonths.get(month) ?? {
+      tradeCount: 0,
+      activeDays: new Set<string>(),
+      grossProceedsProxy: 0,
+    };
+
+    current.tradeCount += 1;
+    current.activeDays.add(execution.tradeDate.toISOString().slice(0, 10));
+    current.grossProceedsProxy += Math.abs(Number(execution.quantity)) * Number(execution.price ?? 0);
+    executionMonths.set(month, current);
+  }
+
+  for (const lot of matchedLots) {
+    const referenceDate = lot.closeExecution?.tradeDate ?? lot.createdAt;
+    const month = getMonthKey(referenceDate);
+    const current = holdingMonths.get(month) ?? [];
+    current.push(lot.holdingDays);
+    holdingMonths.set(month, current);
+  }
+
+  const monthlySeries = Array.from(new Set([...Array.from(executionMonths.keys()), ...Array.from(holdingMonths.keys())]))
+    .sort()
+    .slice(-6)
+    .map((month) => {
+      const executionMonth = executionMonths.get(month);
+      const holdingMonth = holdingMonths.get(month) ?? [];
+      const averageHoldingPeriodDays =
+        holdingMonth.length > 0 ? holdingMonth.reduce((sum, value) => sum + value, 0) / holdingMonth.length : null;
+      const medianHoldingPeriodDays = computeMedian(holdingMonth);
+      const tradeCount = executionMonth?.tradeCount ?? 0;
+
+      return {
+        month,
+        tradeCount,
+        tradesPerMonth: tradeCount,
+        activeDaysPerWeek: (executionMonth?.activeDays.size ?? 0) / getWeeksInMonth(month),
+        averageHoldingPeriodDays:
+          averageHoldingPeriodDays === null ? null : Number(averageHoldingPeriodDays.toFixed(2)),
+        medianHoldingPeriodDays:
+          medianHoldingPeriodDays === null ? null : Number(medianHoldingPeriodDays.toFixed(2)),
+        annualizedTradeCount: tradeCount * 12,
+        grossProceedsProxy: (executionMonth?.grossProceedsProxy ?? 0).toFixed(2),
+      };
+    });
 
   const payload: TtsEvidenceResponse = {
     tradesPerMonth: Number(tradesPerMonth.toFixed(2)),
@@ -80,6 +167,7 @@ export async function GET(request: Request) {
     annualizedTradeCount: Math.round(tradesPerMonth * 12),
     grossProceedsProxy: grossProceeds.toFixed(2),
     holdingPeriodDistribution,
+    monthlySeries,
   };
 
   return detailResponse(payload);
