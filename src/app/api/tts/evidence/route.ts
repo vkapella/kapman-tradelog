@@ -1,10 +1,17 @@
+import { Prisma } from "@prisma/client";
+import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { TtsEvidenceResponse } from "@/types/api";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const whereAccount = buildAccountScopeWhere(accountIds);
+
   const [executions, matchedLots] = await Promise.all([
     prisma.execution.findMany({
+      where: whereAccount as Prisma.ExecutionWhereInput | undefined,
       select: {
         tradeDate: true,
         quantity: true,
@@ -13,6 +20,7 @@ export async function GET() {
       orderBy: [{ tradeDate: "asc" }, { id: "asc" }],
     }),
     prisma.matchedLot.findMany({
+      where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
       select: {
         holdingDays: true,
       },
