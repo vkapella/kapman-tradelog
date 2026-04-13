@@ -1,8 +1,13 @@
 "use client";
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { handleRemoveWidgetClick, stopDashboardControlPropagation } from "./interactions";
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type DashboardWidgetColSpan,
+  handleRemoveWidgetClick,
+  resolveWidgetColSpan,
+  stopDashboardControlPropagation,
+} from "./interactions";
 import { WidgetPicker } from "@/components/WidgetPicker";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -19,12 +24,77 @@ interface OverviewPayload {
   data: OverviewSummaryResponse;
 }
 
+interface DashboardWidgetLayoutItem {
+  widgetId: string;
+  colSpan: DashboardWidgetColSpan;
+}
+
 function sanitizeStoredLayout(value: unknown, validIds: ReadonlySet<string>, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return fallback;
   }
 
   const filtered = value.filter((item): item is string => typeof item === "string" && validIds.has(item));
+  return filtered.length > 0 ? filtered : fallback;
+}
+
+function clampColSpan(value: number): DashboardWidgetColSpan {
+  if (value <= 1) {
+    return 1;
+  }
+
+  if (value >= 3) {
+    return 3;
+  }
+
+  return value as DashboardWidgetColSpan;
+}
+
+function buildDefaultWidgetLayout(): DashboardWidgetLayoutItem[] {
+  return DEFAULT_DASHBOARD_LAYOUT.map((widgetId) => ({
+    widgetId,
+    colSpan: clampColSpan(WIDGET_REGISTRY.find((widget) => widget.id === widgetId)?.defaultColSpan ?? 1),
+  }));
+}
+
+function sanitizeStoredWidgetLayout(value: unknown, validWidgetIds: ReadonlySet<string>): DashboardWidgetLayoutItem[] {
+  const fallback = buildDefaultWidgetLayout();
+
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const filtered = value.flatMap((item) => {
+    if (typeof item === "string") {
+      if (!validWidgetIds.has(item)) {
+        return [];
+      }
+
+      return [
+        {
+          widgetId: item,
+          colSpan: clampColSpan(WIDGET_REGISTRY.find((widget) => widget.id === item)?.defaultColSpan ?? 1),
+        },
+      ];
+    }
+
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const candidate = item as { widgetId?: unknown; colSpan?: unknown };
+    if (typeof candidate.widgetId !== "string" || !validWidgetIds.has(candidate.widgetId)) {
+      return [];
+    }
+
+    return [
+      {
+        widgetId: candidate.widgetId,
+        colSpan: clampColSpan(Number(candidate.colSpan ?? 1)),
+      },
+    ];
+  });
+
   return filtered.length > 0 ? filtered : fallback;
 }
 
@@ -40,12 +110,14 @@ function DashboardTile({
   colSpan,
   editMode,
   remove,
+  onResize,
   children,
 }: {
   slotId: string;
-  colSpan?: 1 | 2;
+  colSpan?: DashboardWidgetColSpan;
   editMode: boolean;
   remove: () => void;
+  onResize?: (nextSpan: DashboardWidgetColSpan) => void;
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
@@ -61,13 +133,37 @@ function DashboardTile({
     setDropRef(node);
   }
 
+  function handleResizePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!onResize || !colSpan) {
+      return;
+    }
+
+    stopDashboardControlPropagation(event);
+
+    const startX = event.clientX;
+    const startSpan = colSpan;
+    const resize = onResize;
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      resize(resolveWidgetColSpan(startSpan, moveEvent.clientX - startX));
+    }
+
+    function handlePointerUp() {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={[
         "relative",
-        colSpan === 2 ? "md:col-span-2" : "",
+        colSpan === 3 ? "md:col-span-3" : colSpan === 2 ? "md:col-span-2" : "",
       ].join(" ")}
     >
       {editMode ? (
@@ -90,6 +186,21 @@ function DashboardTile({
           >
             ×
           </button>
+          {onResize ? (
+            <button
+              type="button"
+              aria-label="Resize widget"
+              onPointerDown={handleResizePointerDown}
+              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 cursor-ew-resize items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text"
+            >
+              <>
+                <span className="sr-only">Resize</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 fill-current">
+                  <path d="M7 17h2v-2H7v2zm4 0h2v-4h-2v4zm4 0h2V9h-2v8z" />
+                </svg>
+              </>
+            </button>
+          ) : null}
         </>
       ) : null}
       {children}
@@ -104,7 +215,7 @@ export default function Page() {
   const kpiMap = useMemo(() => new Map(KPI_REGISTRY.map((kpi) => [kpi.id, kpi])), []);
   const validKpiIds = useMemo(() => new Set(KPI_REGISTRY.map((kpi) => kpi.id)), []);
 
-  const [layout, setLayout] = useState<string[]>(DEFAULT_DASHBOARD_LAYOUT);
+  const [layout, setLayout] = useState<DashboardWidgetLayoutItem[]>(buildDefaultWidgetLayout());
   const [layoutHydrated, setLayoutHydrated] = useState(false);
   const [kpiLayout, setKpiLayout] = useState<string[]>(DEFAULT_KPI_LAYOUT);
   const [kpiLayoutHydrated, setKpiLayoutHydrated] = useState(false);
@@ -121,10 +232,10 @@ export default function Page() {
       const stored = window.localStorage.getItem(WIDGET_LAYOUT_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as unknown;
-        setLayout(sanitizeStoredLayout(parsed, validWidgetIds, DEFAULT_DASHBOARD_LAYOUT));
+        setLayout(sanitizeStoredWidgetLayout(parsed, validWidgetIds));
       }
     } catch {
-      setLayout(DEFAULT_DASHBOARD_LAYOUT);
+      setLayout(buildDefaultWidgetLayout());
     } finally {
       setLayoutHydrated(true);
     }
@@ -288,8 +399,8 @@ export default function Page() {
 
       <DndContext onDragEnd={onWidgetDragEnd}>
         <div className="grid gap-3 md:grid-cols-3">
-          {layout.map((widgetId, index) => {
-            const definition = widgetMap.get(widgetId);
+          {layout.map((entry, index) => {
+            const definition = widgetMap.get(entry.widgetId);
             if (!definition) {
               return null;
             }
@@ -298,11 +409,16 @@ export default function Page() {
 
             return (
               <DashboardTile
-                key={widgetId + "-" + String(index)}
+                key={entry.widgetId + "-" + String(index)}
                 slotId={`widget-slot-${String(index)}`}
-                colSpan={definition.defaultColSpan}
+                colSpan={entry.colSpan}
                 editMode={editMode}
                 remove={() => setLayout((current) => current.filter((_value, valueIndex) => valueIndex !== index))}
+                onResize={(nextSpan) => {
+                  setLayout((current) =>
+                    current.map((item, itemIndex) => (itemIndex === index ? { ...item, colSpan: nextSpan } : item)),
+                  );
+                }}
               >
                 <Component />
               </DashboardTile>
@@ -325,7 +441,16 @@ export default function Page() {
         open={pickerOpen}
         widgets={WIDGET_REGISTRY}
         onClose={() => setPickerOpen(false)}
-        onSelect={(widgetId) => setLayout((current) => [...current, widgetId])}
+        onSelect={(widgetId) => {
+          const definition = widgetMap.get(widgetId);
+          setLayout((current) => [
+            ...current,
+            {
+              widgetId,
+              colSpan: clampColSpan(definition?.defaultColSpan ?? 1),
+            },
+          ]);
+        }}
       />
 
       <KpiPicker
