@@ -7,6 +7,7 @@ const routeMocks = vi.hoisted(() => {
     },
     execution: {
       findMany: vi.fn(),
+      groupBy: vi.fn(),
     },
     matchedLot: {
       findMany: vi.fn(),
@@ -20,6 +21,7 @@ const routeMocks = vi.hoisted(() => {
     },
     cashEvent: {
       aggregate: vi.fn(),
+      groupBy: vi.fn(),
     },
     positionSnapshot: {
       create: vi.fn(),
@@ -70,10 +72,11 @@ describe("POST /api/positions/snapshot/compute", () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    routeMocks.account.findMany.mockResolvedValue([{ id: "acct-internal-1" }]);
+    routeMocks.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "acct-external-1" }]);
     routeMocks.positionSnapshot.create.mockResolvedValue({ id: "snapshot-1", status: "PENDING" });
     routeMocks.positionSnapshot.update.mockResolvedValue({ id: "snapshot-1" });
     routeMocks.execution.findMany.mockResolvedValue([]);
+    routeMocks.execution.groupBy.mockResolvedValue([]);
     routeMocks.matchedLot.findMany.mockResolvedValue([]);
     routeMocks.manualAdjustment.findMany.mockResolvedValue([]);
     routeMocks.dailyAccountSnapshot.findMany.mockResolvedValue([
@@ -82,10 +85,13 @@ describe("POST /api/positions/snapshot/compute", () => {
         brokerNetLiquidationValue: { toString: () => "12345.67" },
         snapshotDate: new Date("2026-04-13T00:00:00.000Z"),
         id: "daily-1",
+        balance: { toString: () => "12345.67" },
+        totalCash: { toString: () => "2345.67" },
       },
     ]);
     routeMocks.matchedLot.aggregate.mockResolvedValue({ _sum: { realizedPnl: { toString: () => "55.50" } } });
     routeMocks.cashEvent.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => "10.00" } } });
+    routeMocks.cashEvent.groupBy.mockResolvedValue([]);
     routeMocks.getStartingCapitalSummary.mockResolvedValue({ total: 10000, byAccount: { "acct-internal-1": 10000 } });
     routeMocks.getEquityQuotes.mockResolvedValue({ SPY: { mark: 510, bid: 509, ask: 511, last: 510, netChange: 0, netPctChange: 0 } });
     routeMocks.getOptionQuotesBatch.mockResolvedValue(new Map());
@@ -163,5 +169,46 @@ describe("POST /api/positions/snapshot/compute", () => {
         details: ["Expected body shape: { accountIds?: string[] }."],
       },
     });
+  });
+
+  it("falls back to cash plus marked positions when broker NLV snapshots are unavailable", async () => {
+    routeMocks.dailyAccountSnapshot.findMany.mockResolvedValue([]);
+    routeMocks.execution.groupBy.mockResolvedValue([
+      {
+        accountId: "acct-internal-1",
+        _sum: { netAmount: { toString: () => "250.00" } },
+        _max: { tradeDate: new Date("2026-04-10T00:00:00.000Z") },
+      },
+    ]);
+    routeMocks.cashEvent.groupBy.mockResolvedValue([
+      {
+        accountId: "acct-internal-1",
+        _sum: { amount: { toString: () => "750.00" } },
+        _max: { eventDate: new Date("2026-04-11T00:00:00.000Z") },
+      },
+    ]);
+
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("http://localhost/api/positions/snapshot/compute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountIds: ["acct-internal-1"] }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(routeMocks.positionSnapshot.update).toHaveBeenCalled();
+    });
+
+    const completedUpdate = routeMocks.positionSnapshot.update.mock.calls.find(
+      ([payload]) => payload?.data?.status === "COMPLETE",
+    )?.[0];
+
+    expect(completedUpdate).toBeDefined();
+    expect(completedUpdate.data.currentNlv.toString()).toBe("2020");
   });
 });

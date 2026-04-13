@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { resolvePanelPosition } from "@/components/data-table/panel-position";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
 interface ColumnFilterPanelProps<Row> {
+  anchorRef: RefObject<HTMLElement>;
   column: DataTableColumnDefinition<Row>;
   currentSortDirection: SortDirection | null;
   currentValues: string[];
@@ -13,6 +16,7 @@ interface ColumnFilterPanelProps<Row> {
 }
 
 export function ColumnFilterPanel<Row>({
+  anchorRef,
   column,
   currentSortDirection,
   currentValues,
@@ -21,9 +25,15 @@ export function ColumnFilterPanel<Row>({
   options,
 }: ColumnFilterPanelProps<Row>) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [draftSearch, setDraftSearch] = useState("");
   const [draftValues, setDraftValues] = useState<string[]>(currentValues);
   const [draftSortDirection, setDraftSortDirection] = useState<SortDirection | null>(currentSortDirection);
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
 
   useEffect(() => {
     setDraftValues(currentValues);
@@ -65,6 +75,55 @@ export function ColumnFilterPanel<Row>({
     return options.filter((option) => option.label.toLowerCase().includes(query));
   }, [draftSearch, options]);
 
+  useLayoutEffect(() => {
+    if (!anchorRef.current || !panelRef.current) {
+      return;
+    }
+
+    let frameId = 0;
+    const panelElement = panelRef.current;
+    const anchorElement = anchorRef.current;
+
+    const updatePosition = () => {
+      if (!panelRef.current || !anchorRef.current) {
+        return;
+      }
+
+      const anchorRect = anchorRef.current.getBoundingClientRect();
+      const panelRect = panelRef.current.getBoundingClientRect();
+      setPosition(
+        resolvePanelPosition({
+          anchorRect,
+          panelRect,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        }),
+      );
+    };
+
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updatePosition);
+    };
+
+    scheduleUpdate();
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleUpdate();
+    });
+    resizeObserver.observe(panelElement);
+    resizeObserver.observe(anchorElement);
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("scroll", scheduleUpdate, true);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("scroll", scheduleUpdate, true);
+    };
+  }, [anchorRef, column.panelWidthClassName, column.sortMode, draftSearch, filteredOptions.length]);
+
   function toggleValue(value: string) {
     setDraftValues((current) => (current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]));
   }
@@ -74,11 +133,21 @@ export function ColumnFilterPanel<Row>({
     onClose();
   }
 
-  return (
+  if (!portalTarget) {
+    return null;
+  }
+
+  return createPortal(
     <div
       ref={panelRef}
+      style={{
+        left: position?.left ?? 12,
+        top: position?.top ?? 12,
+        maxWidth: "calc(100vw - 24px)",
+        visibility: position ? "visible" : "hidden",
+      }}
       className={[
-        "absolute right-0 top-full z-30 mt-2 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
+        "fixed z-40 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
         column.panelWidthClassName ?? "w-72",
       ].join(" ")}
     >
@@ -153,6 +222,7 @@ export function ColumnFilterPanel<Row>({
           Apply
         </button>
       </div>
-    </div>
+    </div>,
+    portalTarget,
   );
 }

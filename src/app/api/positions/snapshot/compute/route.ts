@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { parsePayloadByType } from "@/lib/adjustments/types";
+import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
@@ -194,7 +195,11 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
   };
 
   try {
-    const [executionRows, matchedLotRows, adjustmentRows, nlvRows, realizedAggregate, cashAggregate] = await Promise.all([
+    const [accountRows, executionRows, matchedLotRows, adjustmentRows, realizedAggregate, cashAggregate] = await Promise.all([
+      prisma.account.findMany({
+        where: accountScope ? { id: { in: accountIds } } : undefined,
+        select: { id: true, accountId: true },
+      }),
       prisma.execution.findMany({
         where: accountScope,
         select: {
@@ -230,22 +235,15 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
         where: manualAdjustmentWhere,
         include: { account: { select: { accountId: true } } },
       }),
-      prisma.dailyAccountSnapshot.findMany({
-        where: {
-          AND: [{ brokerNetLiquidationValue: { not: null } }, ...(accountScope ? [accountScope] : [])],
-        },
-        select: { accountId: true, brokerNetLiquidationValue: true, snapshotDate: true, id: true },
-        orderBy: [{ accountId: "asc" }, { snapshotDate: "desc" }, { id: "desc" }],
-      }),
       prisma.matchedLot.aggregate({ where: accountScope, _sum: { realizedPnl: true } }),
       prisma.cashEvent.aggregate({ where: accountScope, _sum: { amount: true } }),
     ]);
 
     detailLog(snapshotId, "loaded-inputs", startedAtMs, {
+      accountCount: accountRows.length,
       executionCount: executionRows.length,
       matchedLotCount: matchedLotRows.length,
       adjustmentCount: adjustmentRows.length,
-      nlvSnapshotCount: nlvRows.length,
     });
 
     const executions = mapExecutionRowsToRecords(executionRows);
@@ -305,16 +303,27 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const unrealizedPnl = totalMarkedValue - totalCostBasis;
     const startingCapitalSummary = await getStartingCapitalSummary(accountIds);
     const startingCapital = startingCapitalSummary.total;
-
-    const latestNlvByAccount = new Set<string>();
-    let currentNlv = 0;
-    for (const snapshot of nlvRows) {
-      if (latestNlvByAccount.has(snapshot.accountId)) {
+    const balanceContext = await loadAccountBalanceContext(accountIds);
+    const accountExternalIdByInternal = new Map(accountRows.map((row) => [row.id, row.accountId]));
+    const markedValueByAccount = new Map<string, number>();
+    for (const position of pricedPositions) {
+      if (typeof position.mark !== "number") {
         continue;
       }
 
-      latestNlvByAccount.add(snapshot.accountId);
-      currentNlv += Number(snapshot.brokerNetLiquidationValue ?? 0);
+      const currentValue = markedValueByAccount.get(position.accountId) ?? 0;
+      markedValueByAccount.set(
+        position.accountId,
+        currentValue + position.mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1),
+      );
+    }
+
+    let currentNlv = 0;
+    for (const accountId of accountIds) {
+      const accountExternalId = accountExternalIdByInternal.get(accountId);
+      const accountBalance = balanceContext.find((entry) => entry.accountExternalId === accountExternalId);
+      const markedValue = markedValueByAccount.get(accountId) ?? 0;
+      currentNlv += accountBalance?.brokerNetLiquidationValue ?? (accountBalance?.cash ?? 0) + markedValue;
     }
 
     const realizedPnl = toMoneyNumber(realizedAggregate._sum.realizedPnl);
