@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { ColumnFilterPanel } from "@/components/data-table/ColumnFilterPanel";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
@@ -35,12 +36,14 @@ export function DataTableHeader<Row>({
   options,
 }: DataTableHeaderProps<Row>) {
   const isActive = currentValues.length > 0 || Boolean(currentSortDirection);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   return (
     <th className="relative px-2 py-2" title={column.title}>
       <div className={["flex items-center gap-2", alignmentClassName(column.align)].join(" ")}>
         <span className="font-medium">{column.label}</span>
         <button
+          ref={filterButtonRef}
           type="button"
           onClick={onToggle}
           className={isActive ? "rounded border border-blue-400/50 bg-blue-500/20 p-1 text-blue-100" : "rounded border border-transparent p-1 text-inherit hover:border-slate-600 hover:bg-slate-800/60"}
@@ -54,6 +57,7 @@ export function DataTableHeader<Row>({
       </div>
       {isOpen ? (
         <ColumnFilterPanel
+          anchorRef={filterButtonRef}
           column={column}
           currentSortDirection={currentSortDirection}
           currentValues={currentValues}

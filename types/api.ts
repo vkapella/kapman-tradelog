@@ -285,6 +285,12 @@ export interface OverviewSummaryResponse {
     totalCash: string | null;
     brokerNetLiquidationValue: string | null;
   }>;
+  accountBalances: Array<{
+    accountId: string;
+    cash: string;
+    cashAsOf: string | null;
+    brokerNetLiquidationValue: string | null;
+  }>;
 }
 
 export interface ReconciliationResponse {

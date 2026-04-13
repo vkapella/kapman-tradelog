@@ -18,6 +18,7 @@ interface StartingCapitalPayload {
 }
 
 interface AccountBalanceMetrics {
+  brokerNlv: number | null;
   cash: number;
   cashAsOf: Date | null;
   marksAsOf: Date | null;
@@ -49,17 +50,16 @@ function deriveAccountMetrics(
 ): AccountBalanceMetrics {
   const marksAsOf = snapshotAt ? new Date(snapshotAt) : null;
   const positions = snapshotPositions.filter((position) => position.accountId === accountId);
+  const accountBalance = summary?.accountBalances.find((entry) => entry.accountId === externalAccountId) ?? null;
 
   const accountSnapshots = [...(summary?.snapshotSeries ?? [])]
     .filter((entry) => entry.accountId === externalAccountId)
     .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime());
-  const latestSnapshot = accountSnapshots[0];
-  const latestStatementSnapshot = accountSnapshots.find((entry) => entry.totalCash !== null);
   const earliestSnapshot = accountSnapshots[accountSnapshots.length - 1];
   const configuredStartingCapital = startingCapital?.byAccount[externalAccountId] ?? 0;
 
-  const cash = Number(latestStatementSnapshot?.totalCash ?? latestSnapshot?.balance ?? 0);
-  const cashAsOfIso = latestStatementSnapshot?.snapshotDate ?? latestSnapshot?.snapshotDate ?? null;
+  const cash = Number(accountBalance?.cash ?? 0);
+  const cashAsOfIso = accountBalance?.cashAsOf ?? null;
   const cashAsOf = cashAsOfIso ? new Date(cashAsOfIso) : null;
   const baselineValue = Number(earliestSnapshot?.totalCash ?? earliestSnapshot?.balance ?? 0);
   const progressReference =
@@ -68,6 +68,9 @@ function deriveAccountMetrics(
       : Number.isFinite(baselineValue) && baselineValue > 0
         ? baselineValue
         : null;
+  const brokerNlv = accountBalance?.brokerNetLiquidationValue === null || accountBalance?.brokerNetLiquidationValue === undefined
+    ? null
+    : Number(accountBalance.brokerNetLiquidationValue);
 
   let markedValue: number | null = null;
   if (marksAsOf) {
@@ -82,18 +85,21 @@ function deriveAccountMetrics(
     }
   }
 
+  const nlv = brokerNlv ?? (positions.length === 0 ? cash : markedValue === null ? null : cash + markedValue);
+
   return {
+    brokerNlv,
     cash,
     cashAsOf,
     marksAsOf,
     progressReference,
-    nlv: markedValue === null ? null : cash + markedValue,
+    nlv,
     loading,
   };
 }
 
 function AccountBalanceRow({ accountId, metrics }: { accountId: string; metrics: AccountBalanceMetrics }) {
-  const { nlv, cash, cashAsOf, marksAsOf, progressReference, loading } = metrics;
+  const { brokerNlv, nlv, cash, cashAsOf, marksAsOf, progressReference, loading } = metrics;
   const value = nlv ?? cash;
   const base = progressReference ?? Math.max(Math.abs(value), 1);
   const progress = Math.max(0, Math.min(100, (value / base) * 100));
@@ -116,6 +122,7 @@ function AccountBalanceRow({ accountId, metrics }: { accountId: string; metrics:
         </p>
       ) : null}
       <p className="text-sm font-semibold text-text">{nlv === null ? "NLV unavailable" : "NLV: " + formatCurrency(nlv)}</p>
+      {brokerNlv !== null ? <p className="text-[10px] text-muted">Using broker NLV snapshot when available.</p> : null}
       <p className="text-[10px] text-muted">Scale base: {formatCurrency(base)}</p>
       <div className="mt-2 h-2 rounded bg-panel">
         <div className="h-2 rounded bg-accent" style={{ width: `${progress}%` }} />
