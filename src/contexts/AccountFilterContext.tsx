@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { openPositionsStore } from "@/store/openPositionsStore";
 import type { AccountRecord, ApiListResponse } from "@/types/api";
 
 interface ResolvedAccountLabel {
@@ -89,6 +90,14 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (availableAccounts.length === 0) {
+      return;
+    }
+
+    openPositionsStore.hydrate(availableAccounts);
+  }, [availableAccounts]);
 
   const value = useMemo<AccountFilterContextValue>(() => {
     const selectedSet = new Set(selectedAccounts);

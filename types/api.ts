@@ -451,6 +451,20 @@ export interface OptionQuoteRecord {
 
 export type OptionQuoteResponse = OptionQuoteRecord | QuoteUnavailableResponse;
 
+export interface OptionQuoteContractRequest {
+  instrumentKey: string;
+  symbol: string;
+  strike: string;
+  expDate: string;
+  contractType: "CALL" | "PUT";
+}
+
+export interface OptionQuotesRequest {
+  contracts: OptionQuoteContractRequest[];
+}
+
+export type OptionQuotesMap = Record<string, OptionQuoteResponse>;
+
 export interface OpenPosition {
   symbol: string;
   underlyingSymbol: string;
@@ -614,3 +628,4 @@ export type AdjustmentsListApiResponse = ApiListResponse<ManualAdjustmentRecord>
 export type AdjustmentCreateApiResponse = ApiDetailResponse<ManualAdjustmentRecord> | ApiErrorResponse;
 export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjustmentResponse> | ApiErrorResponse;
 export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;
+export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
