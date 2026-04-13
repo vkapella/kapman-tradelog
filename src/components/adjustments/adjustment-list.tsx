@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
@@ -201,7 +202,8 @@ export function AdjustmentList({
                       currentValues={table.filters[column.id] ?? []}
                       isOpen={openColumnId === column.id}
                       onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                      onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
                       options={table.filterOptions[column.id] ?? []}
                     />
                   ))}
