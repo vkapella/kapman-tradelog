@@ -27,14 +27,10 @@ export function ColumnFilterPanel<Row>({
 }: ColumnFilterPanelProps<Row>) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [draftSearch, setDraftSearch] = useState("");
   const [draftValues, setDraftValues] = useState<string[]>(currentValues);
   const [draftSortDirection, setDraftSortDirection] = useState<SortDirection | null>(currentSortDirection);
-
-  useEffect(() => {
-    setPortalTarget(document.body);
-  }, []);
+  const portalTarget = typeof document === "undefined" ? null : document.body;
 
   useEffect(() => {
     setDraftValues(currentValues);
@@ -107,7 +103,7 @@ export function ColumnFilterPanel<Row>({
       frameId = window.requestAnimationFrame(updatePosition);
     };
 
-    scheduleUpdate();
+    updatePosition();
 
     const resizeObserver = new ResizeObserver(() => {
       scheduleUpdate();
@@ -145,7 +141,6 @@ export function ColumnFilterPanel<Row>({
         left: position?.left ?? 12,
         top: position?.top ?? 12,
         maxWidth: "calc(100vw - 24px)",
-        visibility: position ? "visible" : "hidden",
       }}
       className={[
         "fixed z-40 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
