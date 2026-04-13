@@ -198,7 +198,7 @@ function parseFidelity(file: UploadedFile): ParseResult {
       paperMoney: false,
     },
     executions,
-    snapshots: [],
+    snapshots: parsed.snapshots,
     cashEvents,
     parsedRows: parsed.rawRowCount,
     skippedRows: parsed.skippedBlankCount + parsed.unknownSkippedCount,
@@ -236,9 +236,9 @@ export const fidelityAdapter: BrokerAdapter = {
       equities: true,
       options: true,
       multiLeg: false,
-      snapshots: false,
+      snapshots: true,
       feesFromCashBalance: false,
-      notes: "Fidelity History for Account CSV adapter with option/equity execution and cash-event support.",
+      notes: "Fidelity History for Account CSV adapter with option/equity execution, money-market cash-event support, and import-level cash snapshots.",
     };
   },
 };

@@ -1,4 +1,5 @@
-import { extractAccountIdFromFilename, parseFidelityCsv } from "./parser";
+import type { NormalizedDailyAccountSnapshot } from "../types";
+import { buildFidelityImportSnapshot, extractAccountIdFromFilename, parseFidelityCsv } from "./parser";
 import { transformFidelityRows } from "./transformer";
 import type { ImportRecord, ImportRecordStatus, ImportWarning, TransformResult } from "./types";
 
@@ -11,6 +12,7 @@ export interface ValidationResult {
 export interface FidelityParseResult extends TransformResult {
   accountId: string | null;
   rawRowCount: number;
+  snapshots: NormalizedDailyAccountSnapshot[];
 }
 
 export class FidelityAdapter {
@@ -27,6 +29,7 @@ export class FidelityAdapter {
       ...transformed,
       accountId,
       rawRowCount: rows.length,
+      snapshots: buildFidelityImportSnapshot(rows, transformed.moneyMarketHolding),
     };
   }
 

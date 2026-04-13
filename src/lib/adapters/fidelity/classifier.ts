@@ -31,8 +31,16 @@ export function classifyAction(rawAction: string): ActionClassification {
     return { kind: "EXECUTION", side: "BUY", openClose: null, assetClass: "EQUITY" };
   }
 
+  if (normalized.includes("YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER EXCHANGE")) {
+    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_EXCHANGE_IN" };
+  }
+
   if (normalized.includes("YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER")) {
     return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_BUY" };
+  }
+
+  if (normalized.includes("YOU SOLD EXCHANGE")) {
+    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_EXCHANGE_OUT" };
   }
 
   if (normalized.includes("DIVIDEND RECEIVED")) {
@@ -44,7 +52,7 @@ export function classifyAction(rawAction: string): ActionClassification {
   }
 
   if (normalized.includes("REDEMPTION FROM CORE ACCOUNT")) {
-    return { kind: "CASH_EVENT", cashEventType: "REDEMPTION" };
+    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_REDEEM" };
   }
 
   if (normalized.includes("TRANSFERRED FROM")) {

@@ -7,6 +7,8 @@ interface StoredSnapshot {
   accountId: string;
   snapshotDate: Date;
   balance: number;
+  totalCash: number | null;
+  brokerNetLiquidationValue: number | null;
   sourceRef: string | null;
 }
 
@@ -66,8 +68,20 @@ class InMemorySnapshotStore {
           create,
         }: {
           where: { accountId_snapshotDate: { accountId: string; snapshotDate: Date } };
-          update: { balance: number; sourceRef: string };
-          create: { accountId: string; snapshotDate: Date; balance: number; sourceRef: string };
+          update: {
+            balance: number;
+            totalCash: number | null;
+            brokerNetLiquidationValue: number | null;
+            sourceRef: string;
+          };
+          create: {
+            accountId: string;
+            snapshotDate: Date;
+            balance: number;
+            totalCash: number | null;
+            brokerNetLiquidationValue: number | null;
+            sourceRef: string;
+          };
         }) => {
           const key = this.buildKey(where.accountId_snapshotDate.accountId, where.accountId_snapshotDate.snapshotDate);
           const existing = this.rowsByKey.get(key);
@@ -75,6 +89,8 @@ class InMemorySnapshotStore {
             const updated: StoredSnapshot = {
               ...existing,
               balance: update.balance,
+              totalCash: update.totalCash,
+              brokerNetLiquidationValue: update.brokerNetLiquidationValue,
               sourceRef: update.sourceRef,
             };
             this.rowsByKey.set(key, updated);
@@ -87,6 +103,8 @@ class InMemorySnapshotStore {
             accountId: create.accountId,
             snapshotDate: create.snapshotDate,
             balance: create.balance,
+            totalCash: create.totalCash,
+            brokerNetLiquidationValue: create.brokerNetLiquidationValue,
             sourceRef: create.sourceRef,
           };
           this.rowsByKey.set(key, created);
@@ -138,12 +156,16 @@ describe("replaceImportSnapshots", () => {
       accountId,
       snapshotDate: new Date("2026-03-01T00:00:00.000Z"),
       balance: 100000,
+      totalCash: null,
+      brokerNetLiquidationValue: null,
       sourceRef: importId,
     });
     store.seed({
       accountId,
       snapshotDate: new Date("2026-03-02T00:00:00.000Z"),
       balance: 99000,
+      totalCash: null,
+      brokerNetLiquidationValue: null,
       sourceRef: importId,
     });
 
@@ -166,6 +188,8 @@ describe("replaceImportSnapshots", () => {
       accountId,
       snapshotDate: new Date("2026-03-01T00:00:00.000Z"),
       balance: 100000,
+      totalCash: null,
+      brokerNetLiquidationValue: null,
       sourceRef: otherImportId,
     });
 
@@ -175,5 +199,30 @@ describe("replaceImportSnapshots", () => {
     expect(store.snapshotCount()).toBe(1);
     expect(store.getRow(accountId, new Date("2026-03-01T00:00:00.000Z"))?.sourceRef).toBe(otherImportId);
   });
-});
 
+  it("keeps the most informative snapshot when duplicate dates are present", async () => {
+    const store = new InMemorySnapshotStore();
+    const importId = "import-a";
+    const accountId = "account-1";
+    const snapshotDate = new Date("2026-04-10T00:00:00.000Z");
+
+    const result = await replaceImportSnapshots(store.tx as never, importId, accountId, [
+      { snapshotDate, balance: 10000 },
+      {
+        snapshotDate,
+        balance: 53125.91,
+        totalCash: 53125.91,
+      },
+      { snapshotDate, balance: 10000 },
+    ]);
+
+    expect(result.parsed).toBe(3);
+    expect(result.upserted).toBe(1);
+    expect(store.snapshotCount()).toBe(1);
+    expect(store.getRow(accountId, snapshotDate)).toMatchObject({
+      balance: 53125.91,
+      totalCash: 53125.91,
+      sourceRef: importId,
+    });
+  });
+});

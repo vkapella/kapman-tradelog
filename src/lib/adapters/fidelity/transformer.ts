@@ -14,7 +14,7 @@ import type {
   TransformResult,
 } from "./types";
 
-const MONEY_MARKET_SYMBOLS = new Set(["SPAXX", "FSIXX"]);
+const MONEY_MARKET_SYMBOLS = new Set(["SPAXX", "FSIXX", "FISXX"]);
 
 function toIsoDate(value: Date | null): string | null {
   return value ? value.toISOString().slice(0, 10) : null;
@@ -95,8 +95,170 @@ interface CancelRebookPreprocessResult {
   cancelRebookOriginalDropCount: number;
 }
 
+type MoneyMarketHoldingRowType =
+  | "MONEY_MARKET"
+  | "MONEY_MARKET_BUY"
+  | "MONEY_MARKET_REDEEM"
+  | "MONEY_MARKET_DIVIDEND"
+  | "MONEY_MARKET_EXCHANGE_OUT"
+  | "MONEY_MARKET_EXCHANGE_IN"
+  | "REDEMPTION";
+
 function toSettlementDateKey(settlementDate: Date | null): string | null {
   return settlementDate ? settlementDate.toISOString().slice(0, 10) : null;
+}
+
+function normalizeMoneyMarketSymbol(value: string): string | null {
+  const normalized = value.trim().toUpperCase();
+  return MONEY_MARKET_SYMBOLS.has(normalized) ? normalized : null;
+}
+
+function normalizeMoneyMarketClassification(
+  classification: ActionClassification,
+  moneyMarketSymbol: string | null,
+): ActionClassification {
+  if (!moneyMarketSymbol) {
+    return classification;
+  }
+
+  if (classification.kind === "EXECUTION") {
+    if (classification.side === "BUY") {
+      return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_BUY" };
+    }
+
+    if (classification.side === "SELL") {
+      return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_REDEEM" };
+    }
+  }
+
+  if (classification.kind !== "CASH_EVENT") {
+    return classification;
+  }
+
+  if (classification.cashEventType === "DIVIDEND" || classification.cashEventType === "REINVESTMENT") {
+    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_DIVIDEND" };
+  }
+
+  if (classification.cashEventType === "REDEMPTION") {
+    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_REDEEM" };
+  }
+
+  return classification;
+}
+
+function updateMoneyMarketHolding(input: {
+  holdingsBySymbol: Map<string, number>;
+  eligibleSymbols: Set<string>;
+  totalHolding: number;
+  symbol: string;
+  cashEventType: MoneyMarketHoldingRowType;
+  amount: number | null;
+}): number {
+  const absoluteAmount = Math.abs(input.amount ?? 0);
+  const currentHolding = input.holdingsBySymbol.get(input.symbol) ?? 0;
+  let nextHolding = currentHolding;
+
+  if (input.cashEventType === "MONEY_MARKET" || input.cashEventType === "MONEY_MARKET_BUY" || input.cashEventType === "MONEY_MARKET_EXCHANGE_IN") {
+    nextHolding = currentHolding + absoluteAmount;
+    input.eligibleSymbols.add(input.symbol);
+  } else if (input.cashEventType === "REDEMPTION" || input.cashEventType === "MONEY_MARKET_REDEEM") {
+    nextHolding = currentHolding - absoluteAmount;
+  } else if (input.cashEventType === "MONEY_MARKET_DIVIDEND") {
+    if (input.amount === null || input.amount >= 0 || !input.eligibleSymbols.has(input.symbol)) {
+      return input.totalHolding;
+    }
+
+    nextHolding = currentHolding + absoluteAmount;
+  } else if (input.cashEventType === "MONEY_MARKET_EXCHANGE_OUT") {
+    nextHolding = 0;
+    input.eligibleSymbols.delete(input.symbol);
+  } else {
+    return input.totalHolding;
+  }
+
+  if (nextHolding === 0) {
+    input.holdingsBySymbol.delete(input.symbol);
+  } else {
+    input.holdingsBySymbol.set(input.symbol, nextHolding);
+  }
+
+  return input.totalHolding + (nextHolding - currentHolding);
+}
+
+function moneyMarketEventPriority(cashEventType: MoneyMarketHoldingRowType, amount: number | null): number {
+  if (cashEventType === "MONEY_MARKET" || cashEventType === "MONEY_MARKET_BUY" || cashEventType === "MONEY_MARKET_EXCHANGE_IN") {
+    return 1;
+  }
+
+  if (cashEventType === "MONEY_MARKET_DIVIDEND") {
+    return amount !== null && amount < 0 ? 2 : 3;
+  }
+
+  if (cashEventType === "REDEMPTION" || cashEventType === "MONEY_MARKET_REDEEM") {
+    return 4;
+  }
+
+  if (cashEventType === "MONEY_MARKET_EXCHANGE_OUT") {
+    return 5;
+  }
+
+  return 6;
+}
+
+function computeMoneyMarketHolding(records: ImportRecord[]): number {
+  const holdingsBySymbol = new Map<string, number>();
+  const eligibleSymbols = new Set<string>();
+  let totalHolding = 0;
+
+  const moneyMarketRecords = records
+    .filter(
+      (record): record is CashEventImportRecord =>
+        record.kind === "CASH_EVENT" &&
+        record.eventDate !== null &&
+        normalizeMoneyMarketSymbol(record.symbol) !== null &&
+        (
+          record.cashEventType === "MONEY_MARKET" ||
+          record.cashEventType === "MONEY_MARKET_BUY" ||
+          record.cashEventType === "MONEY_MARKET_REDEEM" ||
+          record.cashEventType === "MONEY_MARKET_DIVIDEND" ||
+          record.cashEventType === "MONEY_MARKET_EXCHANGE_OUT" ||
+          record.cashEventType === "MONEY_MARKET_EXCHANGE_IN" ||
+          record.cashEventType === "REDEMPTION"
+        ),
+    )
+    .sort((left, right) => {
+      const dateDelta = left.eventDate!.getTime() - right.eventDate!.getTime();
+      if (dateDelta !== 0) {
+        return dateDelta;
+      }
+
+      const priorityDelta =
+        moneyMarketEventPriority(left.cashEventType as MoneyMarketHoldingRowType, left.amount) -
+        moneyMarketEventPriority(right.cashEventType as MoneyMarketHoldingRowType, right.amount);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+
+      return left.rowIndex - right.rowIndex;
+    });
+
+  for (const record of moneyMarketRecords) {
+    const moneyMarketSymbol = normalizeMoneyMarketSymbol(record.symbol);
+    if (!moneyMarketSymbol) {
+      continue;
+    }
+
+    totalHolding = updateMoneyMarketHolding({
+      holdingsBySymbol,
+      eligibleSymbols,
+      totalHolding,
+      symbol: moneyMarketSymbol,
+      cashEventType: record.cashEventType as MoneyMarketHoldingRowType,
+      amount: record.amount,
+    });
+  }
+
+  return totalHolding;
 }
 
 function isCancelAction(rawActionUpper: string): boolean {
@@ -471,13 +633,8 @@ export function transformFidelityRows(rows: RawFidelityRow[], accountId: string 
     }
 
     const normalizedSymbol = row.symbol.trim();
-    let effectiveClassification = classification;
-
-    if (effectiveClassification.kind === "EXECUTION" && MONEY_MARKET_SYMBOLS.has(normalizedSymbol.toUpperCase())) {
-      // SPAXX/FSIXX are Fidelity core cash equivalents: keep them out of execution/open-position paths
-      // and surface their value through account cash balance derivation instead.
-      effectiveClassification = { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET" };
-    }
+    const moneyMarketSymbol = normalizeMoneyMarketSymbol(normalizedSymbol);
+    const effectiveClassification = normalizeMoneyMarketClassification(classification, moneyMarketSymbol);
 
     if (effectiveClassification.kind === "CASH_EVENT") {
       const record: CashEventImportRecord = {
@@ -515,6 +672,10 @@ export function transformFidelityRows(rows: RawFidelityRow[], accountId: string 
 
       previewRowByCsvRow.set(csvRowIndex, previewRows.length);
       previewRows.push(preview);
+      return;
+    }
+
+    if (effectiveClassification.kind !== "EXECUTION") {
       return;
     }
 
@@ -617,11 +778,14 @@ export function transformFidelityRows(rows: RawFidelityRow[], accountId: string 
     }
   }
 
+  const moneyMarketHolding = computeMoneyMarketHolding(records);
+
   return {
     records,
     previewRows,
     warnings,
     cancelRebookInfos: cancelRebookPreprocess.infos,
+    moneyMarketHolding,
     cancelledCount,
     cancelRebookOriginalDropCount: cancelRebookPreprocess.cancelRebookOriginalDropCount,
     skippedBlankCount,
