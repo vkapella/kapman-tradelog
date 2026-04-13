@@ -58,6 +58,7 @@ describe("loadAccountBalanceContext", () => {
         brokerNetLiquidationValue: null,
         cash: 2345.67,
         cashAsOf: "2026-04-13T00:00:00.000Z",
+        cashSource: "snapshot",
       },
     ]);
   });
@@ -97,6 +98,7 @@ describe("loadAccountBalanceContext", () => {
         brokerNetLiquidationValue: null,
         cash: 6000,
         cashAsOf: "2026-04-10T00:00:00.000Z",
+        cashSource: "heuristic_fallback",
       },
     ]);
   });

@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseCashBalanceRows, parseCashBalanceSnapshots } from "./cash-balance";
+import { parseThinkorswimTradeHistory } from "./trade-history";
 
 describe("parseCashBalanceSnapshots", () => {
   it("extracts BAL rows from the Cash Balance section", () => {
@@ -72,5 +74,28 @@ describe("parseCashBalanceSnapshots", () => {
     expect(parsed.tradeReferences.every((entry) => entry.symbol === "RKLB")).toBe(true);
     expect(parsed.tradeReferences.every((entry) => entry.side === "SELL")).toBe(true);
     expect(parsed.tradeReferences.every((entry) => entry.quantity === 2)).toBe(true);
+  });
+
+  it("stops before Forex Statements and preserves the statement-enriched cash snapshot", () => {
+    const csv = readFileSync("fixtures/2026-04-10-AccountStatement-54.csv", "utf8");
+
+    const cashRows = parseCashBalanceRows(csv);
+    const parsed = parseThinkorswimTradeHistory(csv);
+    const matchingRawSnapshots = cashRows.snapshots.filter((snapshot) => snapshot.snapshotDate.toISOString().startsWith("2026-04-10"));
+    const matchingSnapshots = parsed.snapshots.filter((snapshot) => snapshot.snapshotDate.toISOString().startsWith("2026-04-10"));
+
+    expect(cashRows.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "CASH_BALANCE_SKIPPED_FUTURES_SECTION" }),
+      ]),
+    );
+    expect(matchingRawSnapshots).toHaveLength(1);
+    expect(matchingRawSnapshots[0]?.balance).toBe(42776.36);
+    expect(matchingSnapshots).toHaveLength(1);
+    expect(matchingSnapshots[0]).toMatchObject({
+      balance: 42776.36,
+      totalCash: 42879.69,
+      brokerNetLiquidationValue: 90658.69,
+    });
   });
 });

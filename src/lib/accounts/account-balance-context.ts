@@ -7,6 +7,7 @@ export interface AccountBalanceContextRecord {
   brokerNetLiquidationValue: number | null;
   cash: number;
   cashAsOf: string | null;
+  cashSource: "snapshot" | "heuristic_fallback";
 }
 
 const INTERNAL_CASH_EQUIVALENT_ROW_TYPES = new Set([
@@ -122,7 +123,8 @@ export async function loadAccountBalanceContext(accountIds: string[]): Promise<A
     const fallbackCash = (executionSummary?.cashDelta ?? 0) + (cashEventSummary?.cashDelta ?? 0) - internalCashEquivalentDelta;
     // Imported accounts should read from persisted snapshots. The fallback only protects
     // brand-new or otherwise empty accounts that still have zero snapshot rows.
-    const cash = latestSnapshot !== undefined ? Number(latestSnapshot.totalCash ?? latestSnapshot.balance) : fallbackCash;
+    const hasSnapshot = latestSnapshot !== undefined;
+    const cash = hasSnapshot ? Number(latestSnapshot.totalCash ?? latestSnapshot.balance) : fallbackCash;
     const cashAsOf =
       latestSnapshot?.snapshotDate.toISOString() ??
       maxIsoDate(executionSummary?.latestDate ?? null, cashEventSummary?.latestDate ?? null);
@@ -131,6 +133,7 @@ export async function loadAccountBalanceContext(accountIds: string[]): Promise<A
       accountExternalId: account.accountId,
       cash,
       cashAsOf,
+      cashSource: hasSnapshot ? "snapshot" : "heuristic_fallback",
       brokerNetLiquidationValue:
         latestSnapshot?.brokerNetLiquidationValue != null ? Number(latestSnapshot.brokerNetLiquidationValue) : null,
     };
