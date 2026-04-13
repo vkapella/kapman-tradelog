@@ -270,6 +270,13 @@ export interface OverviewSummaryResponse {
   matchedLotCount: number;
   setupCount: number;
   averageHoldDays: string;
+  winRate: string | null;
+  totalReturnPct: string | null;
+  profitFactor: string | null;
+  expectancy: string | null;
+  maxDrawdown: string | null;
+  startingCapital: string;
+  currentNlv: string;
   snapshotCount: number;
   importQuality: {
     totalImports: number;

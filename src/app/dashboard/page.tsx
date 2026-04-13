@@ -1,29 +1,31 @@
 "use client";
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { handleRemoveWidgetClick, stopDashboardControlPropagation } from "./interactions";
 import { WidgetPicker } from "@/components/WidgetPicker";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
-import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
+import { KpiPicker } from "@/components/widgets/KpiPicker";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { DEFAULT_KPI_LAYOUT, KPI_REGISTRY } from "@/lib/registries/kpi-registry";
 import { DEFAULT_DASHBOARD_LAYOUT, WIDGET_REGISTRY } from "@/lib/widget-registry";
 import type { OverviewSummaryResponse } from "@/types/api";
 
-const LAYOUT_STORAGE_KEY = "kapman_dashboard_layout";
+const WIDGET_LAYOUT_STORAGE_KEY = "kapman_dashboard_layout";
+const KPI_LAYOUT_STORAGE_KEY = "kapman_kpi_layout";
 
 interface OverviewPayload {
   data: OverviewSummaryResponse;
 }
 
-function sanitizeStoredLayout(value: unknown, validWidgetIds: ReadonlySet<string>): string[] {
+function sanitizeStoredLayout(value: unknown, validIds: ReadonlySet<string>, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
-    return DEFAULT_DASHBOARD_LAYOUT;
+    return fallback;
   }
 
-  const filtered = value.filter((item): item is string => typeof item === "string" && validWidgetIds.has(item));
-  return filtered.length > 0 ? filtered : DEFAULT_DASHBOARD_LAYOUT;
+  const filtered = value.filter((item): item is string => typeof item === "string" && validIds.has(item));
+  return filtered.length > 0 ? filtered : fallback;
 }
 
 function reorder<T>(items: T[], from: number, to: number): T[] {
@@ -41,12 +43,15 @@ function DashboardTile({
   children,
 }: {
   slotId: string;
-  colSpan: 1 | 2;
+  colSpan?: 1 | 2;
   editMode: boolean;
   remove: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: slotId, disabled: !editMode });
+  const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
+    id: slotId,
+    disabled: !editMode,
+  });
   const { setNodeRef: setDropRef } = useDroppable({ id: slotId });
 
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: isDragging ? 20 : 1 } : undefined;
@@ -62,7 +67,7 @@ function DashboardTile({
       style={style}
       className={[
         "relative",
-        colSpan === 2 ? "md:col-span-2" : "md:col-span-1",
+        colSpan === 2 ? "md:col-span-2" : "",
       ].join(" ")}
     >
       {editMode ? (
@@ -70,7 +75,7 @@ function DashboardTile({
           <button
             ref={setActivatorNodeRef}
             type="button"
-            aria-label="Drag widget"
+            aria-label="Drag tile"
             className="absolute left-2 top-2 z-30 flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text active:cursor-grabbing"
             {...attributes}
             {...listeners}
@@ -96,10 +101,16 @@ export default function Page() {
   const { selectedAccounts } = useAccountFilterContext();
   const widgetMap = useMemo(() => new Map(WIDGET_REGISTRY.map((widget) => [widget.id, widget])), []);
   const validWidgetIds = useMemo(() => new Set(WIDGET_REGISTRY.map((widget) => widget.id)), []);
+  const kpiMap = useMemo(() => new Map(KPI_REGISTRY.map((kpi) => [kpi.id, kpi])), []);
+  const validKpiIds = useMemo(() => new Set(KPI_REGISTRY.map((kpi) => kpi.id)), []);
+
   const [layout, setLayout] = useState<string[]>(DEFAULT_DASHBOARD_LAYOUT);
   const [layoutHydrated, setLayoutHydrated] = useState(false);
+  const [kpiLayout, setKpiLayout] = useState<string[]>(DEFAULT_KPI_LAYOUT);
+  const [kpiLayoutHydrated, setKpiLayoutHydrated] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [kpiPickerOpen, setKpiPickerOpen] = useState(false);
 
   const [summary, setSummary] = useState<OverviewSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,10 +118,10 @@ export default function Page() {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
+      const stored = window.localStorage.getItem(WIDGET_LAYOUT_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as unknown;
-        setLayout(sanitizeStoredLayout(parsed, validWidgetIds));
+        setLayout(sanitizeStoredLayout(parsed, validWidgetIds, DEFAULT_DASHBOARD_LAYOUT));
       }
     } catch {
       setLayout(DEFAULT_DASHBOARD_LAYOUT);
@@ -120,16 +131,42 @@ export default function Page() {
   }, [validWidgetIds]);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(KPI_LAYOUT_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as unknown;
+        setKpiLayout(sanitizeStoredLayout(parsed, validKpiIds, DEFAULT_KPI_LAYOUT));
+      }
+    } catch {
+      setKpiLayout(DEFAULT_KPI_LAYOUT);
+    } finally {
+      setKpiLayoutHydrated(true);
+    }
+  }, [validKpiIds]);
+
+  useEffect(() => {
     if (!layoutHydrated) {
       return;
     }
 
     try {
-      window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+      window.localStorage.setItem(WIDGET_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
     } catch {
       // Ignore localStorage errors.
     }
   }, [layout, layoutHydrated]);
+
+  useEffect(() => {
+    if (!kpiLayoutHydrated) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(KPI_LAYOUT_STORAGE_KEY, JSON.stringify(kpiLayout));
+    } catch {
+      // Ignore localStorage errors.
+    }
+  }, [kpiLayout, kpiLayoutHydrated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +185,7 @@ export default function Page() {
         const payload = (await response.json()) as OverviewPayload;
         if (!cancelled) {
           setSummary(payload.data);
+          setError(null);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -167,15 +205,30 @@ export default function Page() {
     };
   }, [selectedAccounts]);
 
-  function onDragEnd(event: DragEndEvent) {
-    const activeIndex = Number(String(event.active.id).replace("slot-", ""));
-    const overIndex = Number(String(event.over?.id ?? "").replace("slot-", ""));
+  const availableKpis = useMemo(() => {
+    return KPI_REGISTRY.filter((kpi) => !kpiLayout.includes(kpi.id));
+  }, [kpiLayout]);
+
+  function onWidgetDragEnd(event: DragEndEvent) {
+    const activeIndex = Number(String(event.active.id).replace("widget-slot-", ""));
+    const overIndex = Number(String(event.over?.id ?? "").replace("widget-slot-", ""));
 
     if (!Number.isFinite(activeIndex) || !Number.isFinite(overIndex) || activeIndex === overIndex) {
       return;
     }
 
     setLayout((current) => reorder(current, activeIndex, overIndex));
+  }
+
+  function onKpiDragEnd(event: DragEndEvent) {
+    const activeIndex = Number(String(event.active.id).replace("kpi-slot-", ""));
+    const overIndex = Number(String(event.over?.id ?? "").replace("kpi-slot-", ""));
+
+    if (!Number.isFinite(activeIndex) || !Number.isFinite(overIndex) || activeIndex === overIndex) {
+      return;
+    }
+
+    setKpiLayout((current) => reorder(current, activeIndex, overIndex));
   }
 
   return (
@@ -196,17 +249,44 @@ export default function Page() {
       {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
 
       {!loading && !error && summary ? (
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Realized P&L" value={formatCurrency(Number(summary.netPnl))} colorVariant={Number(summary.netPnl) < 0 ? "neg" : "pos"} />
-          <KpiCard label="Executions" value={formatInteger(summary.executionCount)} colorVariant="accent" />
-          <KpiCard label="Matched Lots" value={formatInteger(summary.matchedLotCount)} colorVariant="accent" />
-          <KpiCard label="Setups" value={formatInteger(summary.setupCount)} colorVariant="accent" />
-          <KpiCard label="Average Hold Days" value={formatDays(Number(summary.averageHoldDays), 1)} colorVariant="accent" />
-          <KpiCard label="Snapshots" value={formatInteger(summary.snapshotCount)} colorVariant="neutral" />
-        </div>
+        <DndContext onDragEnd={onKpiDragEnd}>
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {kpiLayout.map((kpiId, index) => {
+              const definition = kpiMap.get(kpiId);
+              if (!definition) {
+                return null;
+              }
+
+              return (
+                <DashboardTile
+                  key={kpiId + "-" + String(index)}
+                  slotId={`kpi-slot-${String(index)}`}
+                  editMode={editMode}
+                  remove={() => setKpiLayout((current) => current.filter((_value, valueIndex) => valueIndex !== index))}
+                >
+                  <KpiCard
+                    label={definition.name}
+                    value={definition.formatValue(summary)}
+                    colorVariant={definition.getColorVariant(summary)}
+                  />
+                </DashboardTile>
+              );
+            })}
+
+            {editMode ? (
+              <button
+                type="button"
+                onClick={() => setKpiPickerOpen(true)}
+                className="rounded-xl border border-dashed border-border bg-panel-2 p-6 text-left text-sm text-muted"
+              >
+                + Add KPI
+              </button>
+            ) : null}
+          </div>
+        </DndContext>
       ) : null}
 
-      <DndContext onDragEnd={onDragEnd}>
+      <DndContext onDragEnd={onWidgetDragEnd}>
         <div className="grid gap-3 md:grid-cols-3">
           {layout.map((widgetId, index) => {
             const definition = widgetMap.get(widgetId);
@@ -219,7 +299,7 @@ export default function Page() {
             return (
               <DashboardTile
                 key={widgetId + "-" + String(index)}
-                slotId={"slot-" + String(index)}
+                slotId={`widget-slot-${String(index)}`}
                 colSpan={definition.defaultColSpan}
                 editMode={editMode}
                 remove={() => setLayout((current) => current.filter((_value, valueIndex) => valueIndex !== index))}
@@ -246,6 +326,15 @@ export default function Page() {
         widgets={WIDGET_REGISTRY}
         onClose={() => setPickerOpen(false)}
         onSelect={(widgetId) => setLayout((current) => [...current, widgetId])}
+      />
+
+      <KpiPicker
+        open={kpiPickerOpen}
+        kpis={availableKpis}
+        onClose={() => setKpiPickerOpen(false)}
+        onSelect={(kpiId) => {
+          setKpiLayout((current) => (current.includes(kpiId) ? current : [...current, kpiId]));
+        }}
       />
     </section>
   );

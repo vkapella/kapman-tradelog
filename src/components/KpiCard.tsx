@@ -1,11 +1,13 @@
+export type KpiCardColorVariant = "pos" | "neg" | "neutral" | "accent";
+
 interface KpiCardProps {
   label: string;
   value: string | number;
   sub?: string;
-  colorVariant?: "pos" | "neg" | "neutral" | "accent";
+  colorVariant?: KpiCardColorVariant;
 }
 
-const valueColorByVariant: Record<NonNullable<KpiCardProps["colorVariant"]>, string> = {
+const valueColorByVariant: Record<KpiCardColorVariant, string> = {
   pos: "text-accent-2",
   neg: "text-red-300",
   neutral: "text-text",
