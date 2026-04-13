@@ -478,6 +478,17 @@ export interface OpenPosition {
   accountId: string;
 }
 
+export type PositionSnapshotStatus = "PENDING" | "COMPLETE" | "FAILED";
+
+export interface PositionSnapshotOpenPosition extends OpenPosition {
+  mark: number | null;
+}
+
+export interface PositionSnapshotComputeResponse {
+  snapshotId: string;
+  status: PositionSnapshotStatus;
+}
+
 export interface NlvResult {
   nlv: number | null;
   cash: number;
@@ -629,3 +640,4 @@ export type AdjustmentCreateApiResponse = ApiDetailResponse<ManualAdjustmentReco
 export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjustmentResponse> | ApiErrorResponse;
 export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;
 export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
+export type PositionSnapshotComputeApiResponse = ApiDetailResponse<PositionSnapshotComputeResponse> | ApiErrorResponse;
