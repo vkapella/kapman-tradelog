@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { warnDeprecatedStartingCapitalEnvVar } from "@/lib/accounts/env";
@@ -5,12 +7,138 @@ import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { detailResponse } from "@/lib/api/responses";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
-import { getEquityQuotes, getOptionQuote } from "@/lib/mcp/market-data";
+import { getEquityQuotes, getOptionQuote, getOptionQuotes, type OptionQuoteRequest } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
-import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord, OpenPosition, ReconciliationResponse } from "@/types/api";
+import type { EquityQuoteRecord, ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord, OpenPosition, OptionQuoteRecord, ReconciliationResponse } from "@/types/api";
+
+const RECONCILIATION_CACHE_TTL_MS = 60_000;
+const RECONCILIATION_CACHE_FILE = path.join(process.cwd(), ".next", "cache", "kapman-reconciliation-cache.json");
+
+interface ReconciliationCacheEntry {
+  expiresAtMs: number;
+  value: ReconciliationResponse;
+}
+
+interface EquityQuotesCacheEntry {
+  expiresAtMs: number;
+  value: Record<string, EquityQuoteRecord>;
+}
+
+interface OptionQuoteCacheEntry {
+  expiresAtMs: number;
+  value: OptionQuoteRecord;
+}
+
+const reconciliationCache = new Map<string, ReconciliationCacheEntry>();
+const equityQuoteCache = new Map<string, EquityQuotesCacheEntry>();
+const optionQuoteCache = new Map<string, OptionQuoteCacheEntry>();
+let reconciliationCacheHydrated = false;
 
 function toMoneyString(value: number): string {
   return value.toFixed(2);
+}
+
+function buildReconciliationCacheKey(accountIds: string[]): string {
+  return accountIds.length > 0 ? [...accountIds].sort((left, right) => left.localeCompare(right)).join(",") : "__all__";
+}
+
+function buildOptionQuoteCacheKey(symbol: string, strike: number, expDate: string, contractType: "CALL" | "PUT"): string {
+  return [symbol, String(strike), expDate, contractType].join("|");
+}
+
+async function hydrateReconciliationCache(): Promise<void> {
+  if (reconciliationCacheHydrated) {
+    return;
+  }
+
+  reconciliationCacheHydrated = true;
+
+  try {
+    const raw = await readFile(RECONCILIATION_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw) as {
+      entries?: Record<string, ReconciliationCacheEntry>;
+    };
+
+    for (const [cacheKey, entry] of Object.entries(parsed.entries ?? {})) {
+      if (!entry || typeof entry.expiresAtMs !== "number" || !entry.value) {
+        continue;
+      }
+
+      reconciliationCache.set(cacheKey, entry);
+    }
+  } catch {
+    // Ignore missing or malformed cache files.
+  }
+}
+
+async function persistReconciliationCache(): Promise<void> {
+  try {
+    await mkdir(path.dirname(RECONCILIATION_CACHE_FILE), { recursive: true });
+    await writeFile(
+      RECONCILIATION_CACHE_FILE,
+      JSON.stringify({
+        entries: Object.fromEntries(reconciliationCache.entries()),
+      }),
+      "utf8",
+    );
+  } catch {
+    // Ignore cache persistence failures.
+  }
+}
+
+function readCachedOptionQuote(symbol: string, strike: number, expDate: string, contractType: "CALL" | "PUT"): OptionQuoteRecord | null {
+  const cacheKey = buildOptionQuoteCacheKey(symbol, strike, expDate, contractType);
+  const now = Date.now();
+  const cached = optionQuoteCache.get(cacheKey);
+  return cached && cached.expiresAtMs > now ? cached.value : null;
+}
+
+async function getCachedEquityQuotes(symbols: string[]): Promise<Record<string, EquityQuoteRecord> | null> {
+  const sortedSymbols = [...symbols].sort((left, right) => left.localeCompare(right));
+  const cacheKey = sortedSymbols.join(",");
+  const now = Date.now();
+  const cached = equityQuoteCache.get(cacheKey);
+
+  if (cached && cached.expiresAtMs > now) {
+    return cached.value;
+  }
+
+  const responsePayload = await getEquityQuotes(sortedSymbols);
+  if (responsePayload === null) {
+    return cached?.value ?? null;
+  }
+
+  equityQuoteCache.set(cacheKey, {
+    value: responsePayload,
+    expiresAtMs: now + RECONCILIATION_CACHE_TTL_MS,
+  });
+
+  return responsePayload;
+}
+
+async function getCachedOptionQuote(
+  symbol: string,
+  strike: number,
+  expDate: string,
+  contractType: "CALL" | "PUT",
+): Promise<OptionQuoteRecord | null> {
+  const cacheKey = buildOptionQuoteCacheKey(symbol, strike, expDate, contractType);
+  const cached = readCachedOptionQuote(symbol, strike, expDate, contractType);
+  if (cached) {
+    return cached;
+  }
+
+  const responsePayload = await getOptionQuote(symbol, strike, expDate, contractType);
+  if (responsePayload === null) {
+    return null;
+  }
+
+  optionQuoteCache.set(cacheKey, {
+    value: responsePayload,
+    expiresAtMs: Date.now() + RECONCILIATION_CACHE_TTL_MS,
+  });
+
+  return responsePayload;
 }
 
 function mapExecutionRowsToRecords(rows: Array<{
@@ -158,7 +286,7 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
 
   if (equities.length > 0) {
     const symbols = Array.from(new Set(equities.map((position) => position.symbol)));
-    const quotes = await getEquityQuotes(symbols);
+    const quotes = await getCachedEquityQuotes(symbols);
     if (quotes === null) {
       return 0;
     }
@@ -173,6 +301,8 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
     }
   }
 
+  const optionRequests = new Map<string, OptionQuoteRequest>();
+
   for (const position of options) {
     const expDate = position.expirationDate?.slice(0, 10);
     const strike = Number(position.strike);
@@ -180,7 +310,58 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
       continue;
     }
 
-    const quote = await getOptionQuote(position.underlyingSymbol, strike, expDate, position.optionType);
+    const contractKey = [position.underlyingSymbol, String(strike), expDate, position.optionType].join("|");
+    if (!optionRequests.has(contractKey)) {
+      optionRequests.set(contractKey, {
+        symbol: position.underlyingSymbol,
+        strike,
+        expDate,
+        contractType: position.optionType,
+      });
+    }
+  }
+
+  const optionQuotes = new Map<string, OptionQuoteRecord | null>();
+  const missingRequests: OptionQuoteRequest[] = [];
+
+  for (const [contractKey, request] of Array.from(optionRequests.entries())) {
+    const cachedQuote = readCachedOptionQuote(request.symbol, request.strike, request.expDate, request.contractType);
+    if (cachedQuote) {
+      optionQuotes.set(contractKey, cachedQuote);
+      continue;
+    }
+
+    missingRequests.push(request);
+  }
+
+  if (missingRequests.length > 0) {
+    const batchQuotes = await getOptionQuotes(missingRequests);
+    if (batchQuotes === null) {
+      return 0;
+    }
+
+    for (const request of missingRequests) {
+      const contractKey = [request.symbol, String(request.strike), request.expDate, request.contractType].join("|");
+      const quote = batchQuotes[contractKey] ?? null;
+      if (quote) {
+        optionQuoteCache.set(contractKey, {
+          value: quote,
+          expiresAtMs: Date.now() + RECONCILIATION_CACHE_TTL_MS,
+        });
+      }
+      optionQuotes.set(contractKey, quote);
+    }
+  }
+
+  for (const position of options) {
+    const expDate = position.expirationDate?.slice(0, 10);
+    const strike = Number(position.strike);
+    if (!position.optionType || !expDate || !Number.isFinite(strike)) {
+      continue;
+    }
+
+    const contractKey = [position.underlyingSymbol, String(strike), expDate, position.optionType].join("|");
+    const quote = optionQuotes.get(contractKey);
     if (!quote) {
       return 0;
     }
@@ -192,8 +373,17 @@ async function computeUnrealizedPnl(positions: OpenPosition[]): Promise<number> 
 }
 
 export async function GET(request: Request) {
+  await hydrateReconciliationCache();
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const cacheKey = buildReconciliationCacheKey(accountIds);
+  const now = Date.now();
+  const cached = reconciliationCache.get(cacheKey);
+
+  if (cached && cached.expiresAtMs > now) {
+    return detailResponse(cached.value);
+  }
+
   warnDeprecatedStartingCapitalEnvVar();
   const accountScope = buildAccountScopeWhere(accountIds);
   const executionScope = accountScope as Prisma.ExecutionWhereInput | undefined;
@@ -289,6 +479,12 @@ export async function GET(request: Request) {
     manualAdjustments: toMoneyString(manualAdjustmentsTotal),
     unexplainedDelta: toMoneyString(unexplainedDelta),
   };
+
+  reconciliationCache.set(cacheKey, {
+    value: payload,
+    expiresAtMs: now + RECONCILIATION_CACHE_TTL_MS,
+  });
+  await persistReconciliationCache();
 
   return detailResponse(payload);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
@@ -28,6 +28,56 @@ interface ImportsWorkflowPanelProps {
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_imports_showAll";
 
+const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
+  rows,
+  deletingImportId,
+  onRequestDeleteImport,
+}: {
+  rows: ImportRecord[];
+  deletingImportId: string | null;
+  onRequestDeleteImport: (row: ImportRecord) => Promise<void>;
+}) {
+  return (
+    <tbody>
+      {rows.map((row) => (
+        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+          <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
+          <td className="px-2 py-2">{row.filename}</td>
+          <td className="px-2 py-2">{row.broker}</td>
+          <td className="px-2 py-2">
+            <AccountLabel accountId={row.accountId} />
+          </td>
+          <td className="px-2 py-2">{row.status}</td>
+          <td className="px-2 py-2 text-right">{row.parsedRows}</td>
+          <td className="px-2 py-2 text-right">{row.insertedExecutions}</td>
+          <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
+          <td className="px-2 py-2 text-right">{row.failed}</td>
+          <td className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</td>
+          <td className="px-2 py-2">
+            <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
+              View executions
+            </a>
+          </td>
+          <td className="px-2 py-2 text-center">
+            <button
+              type="button"
+              onClick={() => void onRequestDeleteImport(row)}
+              disabled={deletingImportId === row.id}
+              className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Delete import ${row.filename}`}
+              title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
+              </svg>
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+});
+
 export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps) {
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
@@ -48,6 +98,13 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [deletingImportId, setDeletingImportId] = useState<string | null>(null);
   const [deleteConfirmationImport, setDeleteConfirmationImport] = useState<ImportRecord | null>(null);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const canCommit = Boolean(uploadResult && !uploading && !committing && !commitResult);
 
@@ -56,17 +113,25 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       return;
     }
 
-    setHistoryLoading(true);
+    if (isMountedRef.current) {
+      setHistoryLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       applyAccountIdsToSearchParams(params, selectedAccounts);
       const payload = await fetchAllPages<ImportRecord>("/api/imports", params);
-      setHistory(payload.data);
+      if (isMountedRef.current) {
+        setHistory(payload.data);
+      }
     } catch {
-      setHistory([]);
-      setError("Unable to load import history right now.");
+      if (isMountedRef.current) {
+        setHistory([]);
+        setError("Unable to load import history right now.");
+      }
     } finally {
-      setHistoryLoading(false);
+      if (isMountedRef.current) {
+        setHistoryLoading(false);
+      }
     }
   }, [selectedAccounts, showHistory]);
 
@@ -101,7 +166,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       request.open("POST", "/api/imports/upload");
 
       request.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
+        if (event.lengthComputable && isMountedRef.current) {
           setUploadProgress(Math.round((event.loaded / event.total) * 100));
         }
       };
@@ -110,23 +175,33 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
         try {
           const payload = JSON.parse(request.responseText) as UploadPayload;
           if (request.status >= 200 && request.status < 300) {
-            setUploadResult(payload.data);
-            setUploadProgress(100);
+            if (isMountedRef.current) {
+              setUploadResult(payload.data);
+              setUploadProgress(100);
+            }
           } else {
-            setError("Upload failed. Review the file and retry.");
+            if (isMountedRef.current) {
+              setError("Upload failed. Review the file and retry.");
+            }
           }
         } catch {
-          setError("Upload failed due to an invalid server response.");
+          if (isMountedRef.current) {
+            setError("Upload failed due to an invalid server response.");
+          }
         } finally {
-          setUploading(false);
+          if (isMountedRef.current) {
+            setUploading(false);
+          }
           void loadHistory();
           resolve();
         }
       };
 
       request.onerror = () => {
-        setError("Network error while uploading file.");
-        setUploading(false);
+        if (isMountedRef.current) {
+          setError("Network error while uploading file.");
+          setUploading(false);
+        }
         resolve();
       };
 
@@ -148,15 +223,21 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       });
 
       if (!response.ok) {
-        setError("Commit failed. Import remains recoverable and can be retried.");
+        if (isMountedRef.current) {
+          setError("Commit failed. Import remains recoverable and can be retried.");
+        }
         return;
       }
 
       const payload = (await response.json()) as CommitPayload;
-      setCommitResult(payload.data);
+      if (isMountedRef.current) {
+        setCommitResult(payload.data);
+      }
       await loadHistory();
     } finally {
-      setCommitting(false);
+      if (isMountedRef.current) {
+        setCommitting(false);
+      }
     }
   }
 
@@ -186,15 +267,21 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
       if (!response.ok) {
         const payload = (await response.json()) as { error?: { message?: string } };
-        setError(payload.error?.message ?? "Delete failed. The import was not removed.");
+        if (isMountedRef.current) {
+          setError(payload.error?.message ?? "Delete failed. The import was not removed.");
+        }
         return;
       }
 
       await response.json();
-      setDeleteConfirmationImport(null);
+      if (isMountedRef.current) {
+        setDeleteConfirmationImport(null);
+      }
       await loadHistory();
     } finally {
-      setDeletingImportId(null);
+      if (isMountedRef.current) {
+        setDeletingImportId(null);
+      }
     }
   }
 
@@ -376,7 +463,10 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const totalRows = table.sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(historyPage, totalPages);
-  const pagedRows = showAllHistory ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const pagedRows = useMemo(
+    () => (showAllHistory ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
+    [currentPage, showAllHistory, table.sortedRows],
+  );
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
@@ -498,43 +588,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {pagedRows.map((row) => (
-                      <tr key={row.id} className="border-t border-slate-800 text-slate-200">
-                        <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
-                        <td className="px-2 py-2">{row.filename}</td>
-                        <td className="px-2 py-2">{row.broker}</td>
-                        <td className="px-2 py-2">
-                          <AccountLabel accountId={row.accountId} />
-                        </td>
-                        <td className="px-2 py-2">{row.status}</td>
-                        <td className="px-2 py-2 text-right">{row.parsedRows}</td>
-                        <td className="px-2 py-2 text-right">{row.insertedExecutions}</td>
-                        <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
-                        <td className="px-2 py-2 text-right">{row.failed}</td>
-                        <td className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</td>
-                        <td className="px-2 py-2">
-                          <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
-                            View executions
-                          </a>
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => void requestDeleteImport(row)}
-                            disabled={deletingImportId === row.id}
-                            className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                            aria-label={`Delete import ${row.filename}`}
-                            title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
-                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
-                            </svg>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <ImportsHistoryTableBody rows={pagedRows} deletingImportId={deletingImportId} onRequestDeleteImport={requestDeleteImport} />
                 </table>
               </div>
 

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const getEquityQuotesMock = vi.fn().mockResolvedValue({});
+const getOptionQuoteMock = vi.fn().mockResolvedValue(null);
+const getOptionQuotesMock = vi.fn();
+
 const reconciliationRouteMocks = vi.hoisted(() => {
   return {
     execution: {
@@ -24,6 +28,14 @@ const reconciliationRouteMocks = vi.hoisted(() => {
   };
 });
 
+vi.mock("node:fs/promises", () => {
+  return {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockRejectedValue(new Error("missing cache")),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 vi.mock("@/lib/db/prisma", () => {
   return {
     prisma: {
@@ -39,8 +51,9 @@ vi.mock("@/lib/db/prisma", () => {
 
 vi.mock("@/lib/mcp/market-data", () => {
   return {
-    getEquityQuotes: vi.fn().mockResolvedValue({}),
-    getOptionQuote: vi.fn().mockResolvedValue(null),
+    getEquityQuotes: getEquityQuotesMock,
+    getOptionQuote: getOptionQuoteMock,
+    getOptionQuotes: getOptionQuotesMock,
   };
 });
 
@@ -73,6 +86,18 @@ describe("GET /api/overview/reconciliation", () => {
       { accountId: "D-68011053", startingCapital: { toString: () => "100000" } },
       { accountId: "D-68011054", startingCapital: { toString: () => "100000" } },
     ]);
+    getEquityQuotesMock.mockResolvedValue({});
+    getOptionQuoteMock.mockResolvedValue(null);
+    getOptionQuotesMock.mockImplementation(async (requests: Array<{ symbol: string; strike: number; expDate: string; contractType: "CALL" | "PUT" }>) => {
+      const entries = await Promise.all(
+        requests.map(async (request) => {
+          const quote = await getOptionQuoteMock(request.symbol, request.strike, request.expDate, request.contractType);
+          return [[request.symbol, String(request.strike), request.expDate, request.contractType].join("|"), quote] as const;
+        }),
+      );
+
+      return Object.fromEntries(entries);
+    });
   });
 
   it("uses Account.startingCapital instead of the STARTING_CAPITAL env var", async () => {
@@ -87,5 +112,90 @@ describe("GET /api/overview/reconciliation", () => {
         startingCapitalConfigured: true,
       }),
     );
+  });
+
+  it("deduplicates option quote lookups for matching open contracts", async () => {
+    reconciliationRouteMocks.execution.findMany.mockResolvedValue([
+      {
+        id: "open-1",
+        accountId: "acct-1",
+        broker: "SCHWAB_THINKORSWIM",
+        symbol: "AAPL_011726C00200000",
+        tradeDate: new Date("2026-01-02T00:00:00.000Z"),
+        eventTimestamp: new Date("2026-01-02T15:30:00.000Z"),
+        eventType: "TRADE",
+        assetClass: "OPTION",
+        side: "BUY",
+        quantity: { toString: () => "1" },
+        price: { toString: () => "2.50" },
+        openingClosingEffect: "TO_OPEN",
+        instrumentKey: "acct-1::AAPL-200-C-2026-01-17",
+        underlyingSymbol: "AAPL",
+        optionType: "CALL",
+        strike: { toString: () => "200" },
+        expirationDate: new Date("2026-01-17T00:00:00.000Z"),
+        spreadGroupId: null,
+        importId: "import-1",
+      },
+      {
+        id: "open-2",
+        accountId: "acct-1",
+        broker: "SCHWAB_THINKORSWIM",
+        symbol: "AAPL_011726C00200000",
+        tradeDate: new Date("2026-01-03T00:00:00.000Z"),
+        eventTimestamp: new Date("2026-01-03T15:30:00.000Z"),
+        eventType: "TRADE",
+        assetClass: "OPTION",
+        side: "BUY",
+        quantity: { toString: () => "1" },
+        price: { toString: () => "2.75" },
+        openingClosingEffect: "TO_OPEN",
+        instrumentKey: "acct-1::AAPL-200-C-2026-01-17",
+        underlyingSymbol: "AAPL",
+        optionType: "CALL",
+        strike: { toString: () => "200" },
+        expirationDate: new Date("2026-01-17T00:00:00.000Z"),
+        spreadGroupId: null,
+        importId: "import-2",
+      },
+    ]);
+    getOptionQuoteMock.mockResolvedValue({
+      mark: 3.4,
+      bid: 3.3,
+      ask: 3.5,
+      delta: 0.5,
+      theta: -0.04,
+      iv: 0.22,
+      dte: 14,
+      inTheMoney: false,
+    });
+
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/overview/reconciliation"));
+    const payload = (await response.json()) as { data: { unrealizedPnl: string } };
+
+    expect(getOptionQuotesMock).toHaveBeenCalledTimes(1);
+    expect(getOptionQuotesMock).toHaveBeenCalledWith([
+      {
+        symbol: "AAPL",
+        strike: 200,
+        expDate: "2026-01-17",
+        contractType: "CALL",
+      },
+    ]);
+    expect(payload.data.unrealizedPnl).toBe("155.00");
+  });
+
+  it("returns cached reconciliation payloads for repeated requests", async () => {
+    const { GET } = await import("./route");
+
+    await GET(new Request("http://localhost/api/overview/reconciliation?accountIds=acct-1"));
+    reconciliationRouteMocks.execution.findMany.mockClear();
+    reconciliationRouteMocks.matchedLot.findMany.mockClear();
+
+    await GET(new Request("http://localhost/api/overview/reconciliation?accountIds=acct-1"));
+
+    expect(reconciliationRouteMocks.execution.findMany).not.toHaveBeenCalled();
+    expect(reconciliationRouteMocks.matchedLot.findMany).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyDataTableFilters,
   applyDataTableSort,
@@ -45,6 +45,7 @@ export function useDataTableState<Row>({
   const [filters, setFilters] = useState<DataTableFiltersState>({});
   const [sort, setSort] = useState<DataTableSortState>(initialSort);
   const [isHydrated, setIsHydrated] = useState(false);
+  const lastPersistedPayloadRef = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -67,12 +68,23 @@ export function useDataTableState<Row>({
       return;
     }
 
-    try {
-      const payload: DataTablePersistedState = { filters, sort };
-      window.sessionStorage.setItem(storageKey, JSON.stringify(payload));
-    } catch {
-      // Ignore sessionStorage errors.
+    const payload = JSON.stringify({ filters, sort } satisfies DataTablePersistedState);
+    if (payload === lastPersistedPayloadRef.current) {
+      return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(storageKey, payload);
+        lastPersistedPayloadRef.current = payload;
+      } catch {
+        // Ignore sessionStorage errors.
+      }
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [filters, isHydrated, sort, storageKey]);
 
   const filterOptions = useMemo(() => {

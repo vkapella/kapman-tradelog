@@ -11,6 +11,17 @@ interface ReconciliationPayload {
   data: ReconciliationResponse;
 }
 
+const RECONCILIATION_WIDGET_STALE_MS = 120_000;
+
+interface ReconciliationWidgetCacheEntry {
+  data: ReconciliationResponse | null;
+  error: string | null;
+  expiresAtMs: number;
+  promise?: Promise<ReconciliationResponse>;
+}
+
+const reconciliationWidgetCache = new Map<string, ReconciliationWidgetCacheEntry>();
+
 function signClass(value: number): string {
   if (value > 0) {
     return "text-accent-2";
@@ -19,6 +30,10 @@ function signClass(value: number): string {
     return "text-red-300";
   }
   return "text-muted";
+}
+
+function buildCacheKey(selectedAccounts: string[]): string {
+  return selectedAccounts.length > 0 ? [...selectedAccounts].sort((left, right) => left.localeCompare(right)).join(",") : "__all__";
 }
 
 export function ReconciliationWidget() {
@@ -31,25 +46,73 @@ export function ReconciliationWidget() {
     let cancelled = false;
 
     async function loadData() {
-      setLoading(true);
-      setError(null);
+      const cacheKey = buildCacheKey(selectedAccounts);
+      const now = Date.now();
+      const cached = reconciliationWidgetCache.get(cacheKey);
+
+      if (cached?.data) {
+        setData(cached.data);
+      }
+      if (cached?.error) {
+        setError(cached.error);
+      } else {
+        setError(null);
+      }
+
+      if (cached && cached.expiresAtMs > now) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(!cached?.data);
 
       try {
-        const query = new URLSearchParams();
-        applyAccountIdsToSearchParams(query, selectedAccounts);
-        const response = await fetch(`/api/overview/reconciliation?${query.toString()}`, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Unable to load reconciliation.");
+        let requestPromise = cached?.promise;
+
+        if (!requestPromise) {
+          const query = new URLSearchParams();
+          applyAccountIdsToSearchParams(query, selectedAccounts);
+          requestPromise = fetch(`/api/overview/reconciliation?${query.toString()}`, { cache: "no-store" }).then(async (response) => {
+            if (!response.ok) {
+              throw new Error("Unable to load reconciliation.");
+            }
+
+            const payload = (await response.json()) as ReconciliationPayload;
+            return payload.data;
+          });
+
+          reconciliationWidgetCache.set(cacheKey, {
+            data: cached?.data ?? null,
+            error: null,
+            expiresAtMs: 0,
+            promise: requestPromise,
+          });
         }
 
-        const payload = (await response.json()) as ReconciliationPayload;
+        const nextData = await requestPromise;
+        reconciliationWidgetCache.set(cacheKey, {
+          data: nextData,
+          error: null,
+          expiresAtMs: Date.now() + RECONCILIATION_WIDGET_STALE_MS,
+        });
+
         if (!cancelled) {
-          setData(payload.data);
+          setData(nextData);
+          setError(null);
         }
       } catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : "Unable to load reconciliation.";
+        reconciliationWidgetCache.set(cacheKey, {
+          data: cached?.data ?? null,
+          error: message,
+          expiresAtMs: Date.now() + RECONCILIATION_WIDGET_STALE_MS,
+        });
+
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load reconciliation.");
-          setData(null);
+          setError(message);
+          if (!cached?.data) {
+            setData(null);
+          }
         }
       } finally {
         if (!cancelled) {

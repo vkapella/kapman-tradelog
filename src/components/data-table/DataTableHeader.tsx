@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useRef } from "react";
 import { ColumnFilterPanel } from "@/components/data-table/ColumnFilterPanel";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
@@ -25,7 +26,7 @@ function alignmentClassName(align: DataTableColumnDefinition<unknown>["align"]):
   return "justify-between text-left";
 }
 
-export function DataTableHeader<Row>({
+function DataTableHeaderInner<Row>({
   column,
   currentSortDirection,
   currentValues,
@@ -34,6 +35,7 @@ export function DataTableHeader<Row>({
   onToggle,
   options,
 }: DataTableHeaderProps<Row>) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const isActive = currentValues.length > 0 || Boolean(currentSortDirection);
 
   return (
@@ -41,6 +43,7 @@ export function DataTableHeader<Row>({
       <div className={["flex items-center gap-2", alignmentClassName(column.align)].join(" ")}>
         <span className="font-medium">{column.label}</span>
         <button
+          ref={triggerRef}
           type="button"
           onClick={onToggle}
           className={isActive ? "rounded border border-blue-400/50 bg-blue-500/20 p-1 text-blue-100" : "rounded border border-transparent p-1 text-inherit hover:border-slate-600 hover:bg-slate-800/60"}
@@ -54,6 +57,7 @@ export function DataTableHeader<Row>({
       </div>
       {isOpen ? (
         <ColumnFilterPanel
+          anchorRef={triggerRef}
           column={column}
           currentSortDirection={currentSortDirection}
           currentValues={currentValues}
@@ -65,3 +69,5 @@ export function DataTableHeader<Row>({
     </th>
   );
 }
+
+export const DataTableHeader = memo(DataTableHeaderInner) as typeof DataTableHeaderInner;

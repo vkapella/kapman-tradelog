@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
@@ -19,6 +19,44 @@ import type { ApiDetailResponse, SetupDetailResponse, SetupSummaryRecord } from 
 interface SetupDetailPayload extends ApiDetailResponse<SetupDetailResponse> {}
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_setups_showAll";
+
+const SetupsTableBody = memo(function SetupsTableBody({
+  rows,
+  pathname,
+}: {
+  rows: SetupSummaryRecord[];
+  pathname: string;
+}) {
+  return (
+    <tbody>
+      {rows.map((row) => (
+        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+          <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
+          <td className="px-2 py-2">{row.underlyingSymbol}</td>
+          <td className="px-2 py-2">
+            <AccountLabel accountId={row.accountId} />
+          </td>
+          <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+            {formatCurrency(safeNumber(row.realizedPnl))}
+          </td>
+          <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
+          <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
+          <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
+          <td className="px-2 py-2">
+            <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
+              View detail
+            </Link>
+          </td>
+          <td className="px-2 py-2">
+            <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-blue-300 underline">
+              Case file
+            </Link>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+});
 
 export function SetupsAnalyticsPanel() {
   const pathname = usePathname();
@@ -50,58 +88,90 @@ export function SetupsAnalyticsPanel() {
   }, [searchParams]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSetups() {
-      setLoading(true);
-      setError(null);
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
 
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
         const payload = await fetchAllPages<SetupSummaryRecord>("/api/setups", query);
-        setRows(payload.data);
+        if (!cancelled) {
+          setRows(payload.data);
+        }
       } catch {
-        setRows([]);
-        setError("Unable to load setup groups right now.");
+        if (!cancelled) {
+          setRows([]);
+          setError("Unable to load setup groups right now.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     void loadSetups();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedAccounts]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSetupDetail() {
       if (!selectedSetupId) {
-        setDetail(null);
-        setDetailError(null);
+        if (!cancelled) {
+          setDetail(null);
+          setDetailError(null);
+        }
         return;
       }
 
-      setDetailLoading(true);
-      setDetailError(null);
+      if (!cancelled) {
+        setDetailLoading(true);
+        setDetailError(null);
+      }
 
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
         const response = await fetch(`/api/setups/${selectedSetupId}?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
-          setDetail(null);
-          setDetailError("Unable to load setup detail right now.");
+          if (!cancelled) {
+            setDetail(null);
+            setDetailError("Unable to load setup detail right now.");
+          }
           return;
         }
 
         const payload = (await response.json()) as SetupDetailPayload;
-        setDetail(payload.data);
+        if (!cancelled) {
+          setDetail(payload.data);
+        }
       } catch {
-        setDetail(null);
-        setDetailError("Unable to load setup detail right now.");
+        if (!cancelled) {
+          setDetail(null);
+          setDetailError("Unable to load setup detail right now.");
+        }
       } finally {
-        setDetailLoading(false);
+        if (!cancelled) {
+          setDetailLoading(false);
+        }
       }
     }
 
     void loadSetupDetail();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedAccounts, selectedSetupId]);
 
   const columns = useMemo<DataTableColumnDefinition<SetupSummaryRecord>[]>(() => [
@@ -248,7 +318,10 @@ export function SetupsAnalyticsPanel() {
   const totalRows = table.sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(page, totalPages);
-  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const pagedRows = useMemo(
+    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
+    [currentPage, showAll, table.sortedRows],
+  );
 
   function toggleShowAll() {
     const next = !showAll;
@@ -348,33 +421,7 @@ export function SetupsAnalyticsPanel() {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {pagedRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-800 text-slate-200">
-                    <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
-                    <td className="px-2 py-2">{row.underlyingSymbol}</td>
-                    <td className="px-2 py-2">
-                      <AccountLabel accountId={row.accountId} />
-                    </td>
-                    <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                      {formatCurrency(safeNumber(row.realizedPnl))}
-                    </td>
-                    <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
-                    <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
-                    <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
-                    <td className="px-2 py-2">
-                      <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
-                        View detail
-                      </Link>
-                    </td>
-                    <td className="px-2 py-2">
-                      <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-blue-300 underline">
-                        Case file
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <SetupsTableBody rows={pagedRows} pathname={pathname} />
             </table>
           </div>
 
