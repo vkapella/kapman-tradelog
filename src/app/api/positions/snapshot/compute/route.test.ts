@@ -5,6 +5,9 @@ const routeMocks = vi.hoisted(() => {
     account: {
       findMany: vi.fn(),
     },
+    import: {
+      findMany: vi.fn(),
+    },
     execution: {
       findMany: vi.fn(),
       groupBy: vi.fn(),
@@ -38,6 +41,7 @@ vi.mock("@/lib/db/prisma", () => {
   return {
     prisma: {
       account: routeMocks.account,
+      import: routeMocks.import,
       execution: routeMocks.execution,
       matchedLot: routeMocks.matchedLot,
       manualAdjustment: routeMocks.manualAdjustment,
@@ -73,6 +77,7 @@ describe("POST /api/positions/snapshot/compute", () => {
     vi.clearAllMocks();
 
     routeMocks.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "acct-external-1" }]);
+    routeMocks.import.findMany.mockResolvedValue([{ id: "import-1", accountId: "acct-internal-1" }]);
     routeMocks.positionSnapshot.create.mockResolvedValue({ id: "snapshot-1", status: "PENDING" });
     routeMocks.positionSnapshot.update.mockResolvedValue({ id: "snapshot-1" });
     routeMocks.execution.findMany.mockResolvedValue([]);
@@ -180,13 +185,15 @@ describe("POST /api/positions/snapshot/compute", () => {
         _max: { tradeDate: new Date("2026-04-10T00:00:00.000Z") },
       },
     ]);
-    routeMocks.cashEvent.groupBy.mockResolvedValue([
-      {
-        accountId: "acct-internal-1",
-        _sum: { amount: { toString: () => "750.00" } },
-        _max: { eventDate: new Date("2026-04-11T00:00:00.000Z") },
-      },
-    ]);
+    routeMocks.cashEvent.groupBy
+      .mockResolvedValueOnce([
+        {
+          accountId: "acct-internal-1",
+          _sum: { amount: { toString: () => "750.00" } },
+          _max: { eventDate: new Date("2026-04-11T00:00:00.000Z") },
+        },
+      ])
+      .mockResolvedValueOnce([]);
 
     const { POST } = await import("./route");
 

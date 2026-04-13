@@ -474,6 +474,8 @@ export function transformFidelityRows(rows: RawFidelityRow[], accountId: string 
     let effectiveClassification = classification;
 
     if (effectiveClassification.kind === "EXECUTION" && MONEY_MARKET_SYMBOLS.has(normalizedSymbol.toUpperCase())) {
+      // SPAXX/FSIXX are Fidelity core cash equivalents: keep them out of execution/open-position paths
+      // and surface their value through account cash balance derivation instead.
       effectiveClassification = { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET" };
     }
 
