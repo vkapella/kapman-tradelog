@@ -10,6 +10,13 @@ import type { DataTableColumnDefinition, SortDirection } from "@/components/data
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
+import {
+  buildMarkMapFromQuoteCache,
+  parsePositionsQuoteCache,
+  POSITIONS_QUOTE_CACHE_KEY,
+  type CachedQuoteEntry,
+  type PositionsQuoteCache,
+} from "@/lib/positions/quote-cache";
 import type { EquityQuoteRecord, OpenPosition, OptionQuoteResponse, QuotesResponse } from "@/types/api";
 
 const SHOW_ALL_KEY = "kapman_table_positions_showAll";
@@ -49,6 +56,17 @@ function isOptionQuoteUnavailable(payload: OptionQuoteResponse): payload is { er
   return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
 }
 
+function formatQuoteTimestamp(value: Date | null): string {
+  if (!value) {
+    return "—";
+  }
+
+  return value.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  });
+}
+
 async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -71,7 +89,6 @@ export default function Page() {
   const [lastQuoted, setLastQuoted] = useState<Date | null>(null);
   const [markMap, setMarkMap] = useState<Record<string, number | null>>({});
   const [quoteUnavailable, setQuoteUnavailable] = useState(false);
-  const [refreshCounter, setRefreshCounter] = useState(0);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,131 +105,32 @@ export default function Page() {
   }, [positions, selectedAccounts]);
 
   useEffect(() => {
-    let cancelled = false;
+    if (filteredPositions.length === 0) {
+      setMarkMap({});
+      setLastQuoted(null);
+      setQuoteUnavailable(false);
+      return;
+    }
 
-    async function fetchMarks() {
-      if (filteredPositions.length === 0) {
-        if (!cancelled) {
-          setMarkMap({});
-          setLastQuoted(null);
-          setQuoteUnavailable(false);
-        }
+    try {
+      const parsedCache = parsePositionsQuoteCache(window.localStorage.getItem(POSITIONS_QUOTE_CACHE_KEY));
+      if (!parsedCache) {
+        setMarkMap({});
+        setLastQuoted(null);
+        setQuoteUnavailable(false);
         return;
       }
 
-      setMarkLoading(true);
-
-      try {
-        const nextMap: Record<string, number | null> = {};
-        let unavailable = false;
-        const timeoutMs = 8_000;
-        const shouldForceRefresh = refreshCounter > 0;
-        const refreshNonce = String(refreshCounter);
-
-        const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
-        const optionPositions = filteredPositions.filter((position) => position.assetClass === "OPTION");
-
-        if (equityPositions.length > 0) {
-          const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-          const quoteParams = new URLSearchParams({ symbols });
-          if (shouldForceRefresh) {
-            quoteParams.set("refresh", "1");
-            quoteParams.set("nonce", refreshNonce);
-          }
-          const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(`/api/quotes?${quoteParams.toString()}`, timeoutMs);
-
-          if (isQuoteUnavailable(equityPayload)) {
-            unavailable = true;
-          } else {
-            const quoteMap = equityPayload as Record<string, EquityQuoteRecord>;
-            for (const position of equityPositions) {
-              const quote = quoteMap[position.symbol];
-              nextMap[positionKey(position)] = quote ? quote.mark : null;
-            }
-          }
-        }
-
-        if (optionPositions.length > 0) {
-          const optionResults = await Promise.all(
-            optionPositions.map(async (position) => {
-              const key = positionKey(position);
-              const expDate = position.expirationDate?.slice(0, 10);
-              if (!position.optionType || !position.strike || !expDate) {
-                return {
-                  key,
-                  mark: null,
-                  unavailable: true,
-                };
-              }
-
-              try {
-                const payload = await fetchJsonWithTimeout<OptionQuoteResponse>(
-                  `/api/option-quote?${new URLSearchParams({
-                    symbol: position.underlyingSymbol,
-                    strike: position.strike,
-                    expDate,
-                    contractType: position.optionType,
-                    ...(shouldForceRefresh ? { refresh: "1", nonce: refreshNonce } : {}),
-                  }).toString()}`,
-                  timeoutMs,
-                );
-
-                if (isOptionQuoteUnavailable(payload)) {
-                  return {
-                    key,
-                    mark: null,
-                    unavailable: true,
-                  };
-                }
-
-                return {
-                  key,
-                  mark: payload.mark,
-                  unavailable: false,
-                };
-              } catch {
-                return {
-                  key,
-                  mark: null,
-                  unavailable: true,
-                };
-              }
-            }),
-          );
-
-          for (const result of optionResults) {
-            nextMap[result.key] = result.mark;
-            if (result.unavailable) {
-              unavailable = true;
-            }
-          }
-        }
-
-        if (!cancelled) {
-          const hasAnyLiveMarks = Object.values(nextMap).some((mark) => mark !== null);
-          setMarkMap(nextMap);
-          setQuoteUnavailable(unavailable || !hasAnyLiveMarks);
-          setLastQuoted(hasAnyLiveMarks ? new Date() : null);
-        }
-      } catch {
-        if (!cancelled) {
-          setMarkMap({});
-          setQuoteUnavailable(true);
-          setLastQuoted(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setMarkLoading(false);
-        }
-      }
+      setMarkMap(buildMarkMapFromQuoteCache(filteredPositions, parsedCache.quotes));
+      const parsedTimestamp = new Date(parsedCache.timestamp);
+      setLastQuoted(Number.isNaN(parsedTimestamp.getTime()) ? null : parsedTimestamp);
+      setQuoteUnavailable(false);
+    } catch {
+      setMarkMap({});
+      setLastQuoted(null);
+      setQuoteUnavailable(false);
     }
-
-    void fetchMarks();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filteredPositions, refreshCounter]);
+  }, [filteredPositions]);
 
   const rows = useMemo(() => {
     return filteredPositions.map((position) => {
@@ -376,6 +294,130 @@ export default function Page() {
   const currentPage = Math.min(page, totalPages);
   const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
+  async function handleRefreshQuotes() {
+    if (filteredPositions.length === 0) {
+      return;
+    }
+
+    setMarkLoading(true);
+    setQuoteUnavailable(false);
+
+    try {
+      const timeoutMs = 8_000;
+      const timestamp = new Date();
+      const quotes: Record<string, CachedQuoteEntry> = {};
+      let unavailable = false;
+
+      const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
+      const optionPositions = filteredPositions.filter((position) => position.assetClass === "OPTION");
+
+      if (equityPositions.length > 0) {
+        const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
+        const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(
+          `/api/quotes?${new URLSearchParams({ symbols, refresh: "1", nonce: timestamp.toISOString() }).toString()}`,
+          timeoutMs,
+        );
+
+        if (isQuoteUnavailable(equityPayload)) {
+          unavailable = true;
+        } else {
+          const quoteMap = equityPayload as Record<string, EquityQuoteRecord>;
+          for (const position of equityPositions) {
+            const quote = quoteMap[position.symbol];
+            quotes[position.instrumentKey] = {
+              ask: quote?.ask ?? null,
+              bid: quote?.bid ?? null,
+              mark: quote?.mark ?? null,
+            };
+
+            if (!quote) {
+              unavailable = true;
+            }
+          }
+        }
+      }
+
+      if (optionPositions.length > 0) {
+        const optionResults = await Promise.all(
+          optionPositions.map(async (position) => {
+            const expDate = position.expirationDate?.slice(0, 10);
+            if (!position.optionType || !position.strike || !expDate) {
+              return {
+                instrumentKey: position.instrumentKey,
+                quote: { ask: null, bid: null, mark: null },
+                unavailable: true,
+              };
+            }
+
+            try {
+              const payload = await fetchJsonWithTimeout<OptionQuoteResponse>(
+                `/api/option-quote?${new URLSearchParams({
+                  symbol: position.underlyingSymbol,
+                  strike: position.strike,
+                  expDate,
+                  contractType: position.optionType,
+                  refresh: "1",
+                  nonce: timestamp.toISOString(),
+                }).toString()}`,
+                timeoutMs,
+              );
+
+              if (isOptionQuoteUnavailable(payload)) {
+                return {
+                  instrumentKey: position.instrumentKey,
+                  quote: { ask: null, bid: null, mark: null },
+                  unavailable: true,
+                };
+              }
+
+              return {
+                instrumentKey: position.instrumentKey,
+                quote: {
+                  ask: payload.ask,
+                  bid: payload.bid,
+                  mark: payload.mark,
+                },
+                unavailable: false,
+              };
+            } catch {
+              return {
+                instrumentKey: position.instrumentKey,
+                quote: { ask: null, bid: null, mark: null },
+                unavailable: true,
+              };
+            }
+          }),
+        );
+
+        for (const result of optionResults) {
+          quotes[result.instrumentKey] = result.quote;
+          if (result.unavailable) {
+            unavailable = true;
+          }
+        }
+      }
+
+      const nextCache: PositionsQuoteCache = {
+        timestamp: timestamp.toISOString(),
+        quotes,
+      };
+
+      try {
+        window.localStorage.setItem(POSITIONS_QUOTE_CACHE_KEY, JSON.stringify(nextCache));
+      } catch {
+        // Ignore localStorage errors.
+      }
+
+      setMarkMap(buildMarkMapFromQuoteCache(filteredPositions, nextCache.quotes));
+      setLastQuoted(timestamp);
+      setQuoteUnavailable(unavailable);
+    } catch {
+      setQuoteUnavailable(true);
+    } finally {
+      setMarkLoading(false);
+    }
+  }
+
   function toggleShowAll() {
     const next = !showAll;
     setShowAll(next);
@@ -403,7 +445,7 @@ export default function Page() {
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
           <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-muted">{totalRows} positions</span>
-          <span className="text-xs text-muted">Last quoted: {lastQuoted ? lastQuoted.toLocaleTimeString() : "—"}</span>
+          <span className="text-xs text-muted">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
         </div>
       </header>
 
@@ -448,7 +490,7 @@ export default function Page() {
           >
             <button
               type="button"
-              onClick={() => setRefreshCounter((current) => current + 1)}
+              onClick={() => void handleRefreshQuotes()}
               disabled={markLoading}
               className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text"
             >
