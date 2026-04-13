@@ -1,17 +1,5 @@
 import { NextResponse } from "next/server";
-import type { OptionQuoteRecord, QuoteUnavailableResponse } from "@/types/api";
-import { getOptionQuote } from "@/lib/mcp/market-data";
-
-interface OptionQuoteCacheEntry {
-  expiresAtMs: number;
-  value: OptionQuoteRecord;
-}
-
-const optionQuoteCache = new Map<string, OptionQuoteCacheEntry>();
-
-function unavailable(): QuoteUnavailableResponse {
-  return { error: "unavailable" };
-}
+import { getCachedOptionQuote, unavailableOptionQuote } from "@/lib/mcp/option-quote-cache";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -20,42 +8,20 @@ export async function GET(request: Request) {
   const expDate = (url.searchParams.get("expDate") ?? "").trim();
   const contractType = (url.searchParams.get("contractType") ?? "").trim().toUpperCase();
   const forceRefresh = url.searchParams.get("refresh") === "1";
-  const strike = Number(strikeRaw);
 
-  if (!symbol || !expDate || !Number.isFinite(strike) || (contractType !== "CALL" && contractType !== "PUT")) {
-    return NextResponse.json(unavailable());
+  if (!symbol || !expDate || (contractType !== "CALL" && contractType !== "PUT")) {
+    return NextResponse.json(unavailableOptionQuote());
   }
 
-  const now = Date.now();
-  const cacheKey = [symbol, String(strike), expDate, contractType].join("|");
-  const cached = optionQuoteCache.get(cacheKey);
-  if (!forceRefresh) {
-    if (cached && cached.expiresAtMs > now) {
-      return NextResponse.json(cached.value);
-    }
-  }
+  const responsePayload = await getCachedOptionQuote(
+    {
+      symbol,
+      strike: strikeRaw,
+      expDate,
+      contractType,
+    },
+    forceRefresh,
+  );
 
-  try {
-    const responsePayload = await getOptionQuote(symbol, strike, expDate, contractType);
-    if (responsePayload === null) {
-      if (cached) {
-        return NextResponse.json(cached.value);
-      }
-
-      return NextResponse.json(unavailable());
-    }
-
-    optionQuoteCache.set(cacheKey, {
-      value: responsePayload,
-      expiresAtMs: now + 30_000,
-    });
-
-    return NextResponse.json(responsePayload);
-  } catch {
-    if (cached) {
-      return NextResponse.json(cached.value);
-    }
-
-    return NextResponse.json(unavailable());
-  }
+  return NextResponse.json(responsePayload);
 }

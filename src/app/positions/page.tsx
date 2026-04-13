@@ -10,14 +10,8 @@ import type { DataTableColumnDefinition, SortDirection } from "@/components/data
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
-import {
-  buildMarkMapFromQuoteCache,
-  parsePositionsQuoteCache,
-  POSITIONS_QUOTE_CACHE_KEY,
-  type CachedQuoteEntry,
-  type PositionsQuoteCache,
-} from "@/lib/positions/quote-cache";
-import type { EquityQuoteRecord, OpenPosition, OptionQuoteResponse, QuotesResponse } from "@/types/api";
+import { openPositionsStore } from "@/store/openPositionsStore";
+import type { OpenPosition } from "@/types/api";
 
 const SHOW_ALL_KEY = "kapman_table_positions_showAll";
 
@@ -48,14 +42,6 @@ function getDte(expirationDate: string | null): number | null {
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
 }
 
-function isQuoteUnavailable(payload: QuotesResponse): payload is { error: "unavailable" } {
-  return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
-}
-
-function isOptionQuoteUnavailable(payload: OptionQuoteResponse): payload is { error: "unavailable" } {
-  return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
-}
-
 function formatQuoteTimestamp(value: Date | null): string {
   if (!value) {
     return "—";
@@ -67,28 +53,13 @@ function formatQuoteTimestamp(value: Date | null): string {
   });
 }
 
-async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<T> {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
-    return (await response.json()) as T;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
 export default function Page() {
   const { positions, loading, error } = useOpenPositions();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
+  const snapshot = openPositionsStore.getSnapshot(selectedAccounts);
 
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
-  const [markLoading, setMarkLoading] = useState(false);
-  const [lastQuoted, setLastQuoted] = useState<Date | null>(null);
-  const [markMap, setMarkMap] = useState<Record<string, number | null>>({});
-  const [quoteUnavailable, setQuoteUnavailable] = useState(false);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,39 +74,16 @@ export default function Page() {
   const filteredPositions = useMemo(() => {
     return positions.filter((position) => selectedAccounts.includes(position.accountId));
   }, [positions, selectedAccounts]);
-
-  useEffect(() => {
-    if (filteredPositions.length === 0) {
-      setMarkMap({});
-      setLastQuoted(null);
-      setQuoteUnavailable(false);
-      return;
-    }
-
-    try {
-      const parsedCache = parsePositionsQuoteCache(window.localStorage.getItem(POSITIONS_QUOTE_CACHE_KEY));
-      if (!parsedCache) {
-        setMarkMap({});
-        setLastQuoted(null);
-        setQuoteUnavailable(false);
-        return;
-      }
-
-      setMarkMap(buildMarkMapFromQuoteCache(filteredPositions, parsedCache.quotes));
-      const parsedTimestamp = new Date(parsedCache.timestamp);
-      setLastQuoted(Number.isNaN(parsedTimestamp.getTime()) ? null : parsedTimestamp);
-      setQuoteUnavailable(false);
-    } catch {
-      setMarkMap({});
-      setLastQuoted(null);
-      setQuoteUnavailable(false);
-    }
-  }, [filteredPositions]);
+  const lastQuoted = useMemo(
+    () => (snapshot.lastRefreshedAt === null ? null : new Date(snapshot.lastRefreshedAt)),
+    [snapshot.lastRefreshedAt],
+  );
+  const hasPersistedSnapshot = snapshot.lastRefreshedAt !== null;
 
   const rows = useMemo(() => {
     return filteredPositions.map((position) => {
       const key = positionKey(position);
-      const mark = markMap[key] ?? null;
+      const mark = snapshot.quotes[position.instrumentKey] ?? null;
       const multiplier = position.assetClass === "OPTION" ? 100 : 1;
       const marketValue = mark === null ? null : mark * position.netQty * multiplier;
       const unrealizedPnl = marketValue === null ? null : marketValue - position.costBasis;
@@ -151,7 +99,7 @@ export default function Page() {
         pnlPct,
       };
     });
-  }, [filteredPositions, markMap]);
+  }, [filteredPositions, snapshot.quotes]);
 
   const columns = useMemo<DataTableColumnDefinition<(typeof rows)[number]>[]>(() => [
     {
@@ -295,127 +243,7 @@ export default function Page() {
   const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   async function handleRefreshQuotes() {
-    if (filteredPositions.length === 0) {
-      return;
-    }
-
-    setMarkLoading(true);
-    setQuoteUnavailable(false);
-
-    try {
-      const timeoutMs = 8_000;
-      const timestamp = new Date();
-      const quotes: Record<string, CachedQuoteEntry> = {};
-      let unavailable = false;
-
-      const equityPositions = filteredPositions.filter((position) => position.assetClass === "EQUITY");
-      const optionPositions = filteredPositions.filter((position) => position.assetClass === "OPTION");
-
-      if (equityPositions.length > 0) {
-        const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-        const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(
-          `/api/quotes?${new URLSearchParams({ symbols, refresh: "1", nonce: timestamp.toISOString() }).toString()}`,
-          timeoutMs,
-        );
-
-        if (isQuoteUnavailable(equityPayload)) {
-          unavailable = true;
-        } else {
-          const quoteMap = equityPayload as Record<string, EquityQuoteRecord>;
-          for (const position of equityPositions) {
-            const quote = quoteMap[position.symbol];
-            quotes[position.instrumentKey] = {
-              ask: quote?.ask ?? null,
-              bid: quote?.bid ?? null,
-              mark: quote?.mark ?? null,
-            };
-
-            if (!quote) {
-              unavailable = true;
-            }
-          }
-        }
-      }
-
-      if (optionPositions.length > 0) {
-        const optionResults = await Promise.all(
-          optionPositions.map(async (position) => {
-            const expDate = position.expirationDate?.slice(0, 10);
-            if (!position.optionType || !position.strike || !expDate) {
-              return {
-                instrumentKey: position.instrumentKey,
-                quote: { ask: null, bid: null, mark: null },
-                unavailable: true,
-              };
-            }
-
-            try {
-              const payload = await fetchJsonWithTimeout<OptionQuoteResponse>(
-                `/api/option-quote?${new URLSearchParams({
-                  symbol: position.underlyingSymbol,
-                  strike: position.strike,
-                  expDate,
-                  contractType: position.optionType,
-                  refresh: "1",
-                  nonce: timestamp.toISOString(),
-                }).toString()}`,
-                timeoutMs,
-              );
-
-              if (isOptionQuoteUnavailable(payload)) {
-                return {
-                  instrumentKey: position.instrumentKey,
-                  quote: { ask: null, bid: null, mark: null },
-                  unavailable: true,
-                };
-              }
-
-              return {
-                instrumentKey: position.instrumentKey,
-                quote: {
-                  ask: payload.ask,
-                  bid: payload.bid,
-                  mark: payload.mark,
-                },
-                unavailable: false,
-              };
-            } catch {
-              return {
-                instrumentKey: position.instrumentKey,
-                quote: { ask: null, bid: null, mark: null },
-                unavailable: true,
-              };
-            }
-          }),
-        );
-
-        for (const result of optionResults) {
-          quotes[result.instrumentKey] = result.quote;
-          if (result.unavailable) {
-            unavailable = true;
-          }
-        }
-      }
-
-      const nextCache: PositionsQuoteCache = {
-        timestamp: timestamp.toISOString(),
-        quotes,
-      };
-
-      try {
-        window.localStorage.setItem(POSITIONS_QUOTE_CACHE_KEY, JSON.stringify(nextCache));
-      } catch {
-        // Ignore localStorage errors.
-      }
-
-      setMarkMap(buildMarkMapFromQuoteCache(filteredPositions, nextCache.quotes));
-      setLastQuoted(timestamp);
-      setQuoteUnavailable(unavailable);
-    } catch {
-      setQuoteUnavailable(true);
-    } finally {
-      setMarkLoading(false);
-    }
+    await openPositionsStore.refresh(selectedAccounts);
   }
 
   function toggleShowAll() {
@@ -447,12 +275,22 @@ export default function Page() {
           <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-muted">{totalRows} positions</span>
           <span className="text-xs text-muted">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleRefreshQuotes()}
+          disabled={snapshot.isLoading}
+          className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text disabled:opacity-50"
+        >
+          {snapshot.isLoading ? "Refreshing..." : "Refresh Quotes"}
+        </button>
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
       {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-lg border border-border bg-panel-2 p-4 text-sm text-muted">No open positions for the selected accounts.</div>
+        <div className="rounded-lg border border-border bg-panel-2 p-4 text-sm text-muted">
+          {hasPersistedSnapshot ? "No open positions for the selected accounts." : "No position data — click Refresh Quotes to load."}
+        </div>
       ) : null}
 
       {!loading && !error && totalRows > 0 ? (
@@ -467,7 +305,7 @@ export default function Page() {
               <p className="mt-1 text-sm font-semibold text-text">
                 {totals.totalMarketValue === null ? "—" : formatCurrency(totals.totalMarketValue)}
               </p>
-              {totals.hasMissingMarketValue ? <p className="text-[11px] text-muted">Waiting on live marks</p> : null}
+              {totals.hasMissingMarketValue ? <p className="text-[11px] text-muted">Waiting on cached marks</p> : null}
             </article>
             <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
               <p className="text-[11px] uppercase tracking-wide text-muted">Total Unrealized P&L</p>
@@ -476,7 +314,7 @@ export default function Page() {
               </p>
             </article>
           </div>
-          {quoteUnavailable ? <p className="text-xs text-amber-200">Live quotes unavailable. Showing cost basis only.</p> : null}
+          {totals.hasMissingMarketValue && hasPersistedSnapshot ? <p className="text-xs text-amber-200">Some marks are unavailable in the current snapshot.</p> : null}
 
           <DataTableToolbar
             activeFilterCount={table.activeFilterCount}
@@ -487,16 +325,7 @@ export default function Page() {
             onToggleShowAll={toggleShowAll}
             showAll={showAll}
             totalRows={totalRows}
-          >
-            <button
-              type="button"
-              onClick={() => void handleRefreshQuotes()}
-              disabled={markLoading}
-              className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text"
-            >
-              {markLoading ? "Refreshing..." : "Refresh Quotes"}
-            </button>
-          </DataTableToolbar>
+          />
 
           <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
             <table className="min-w-full text-xs">
@@ -540,7 +369,7 @@ export default function Page() {
                     <td className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</td>
                     <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</td>
                     <td className="px-2 py-2 text-right font-mono">
-                      {markLoading ? <span className="text-muted">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
+                      {snapshot.isLoading ? <span className="text-muted">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
                     </td>
                     <td className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</td>
                     <td className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>

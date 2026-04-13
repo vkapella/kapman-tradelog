@@ -1,18 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
-import { useOpenPositions } from "@/hooks/useOpenPositions";
-import type {
-  AccountStartingCapitalSummary,
-  NlvResult,
-  OptionQuoteRecord,
-  OptionQuoteResponse,
-  OverviewSummaryResponse,
-  QuoteUnavailableResponse,
-  QuotesResponse,
-} from "@/types/api";
+import { openPositionsStore } from "@/store/openPositionsStore";
+import type { AccountStartingCapitalSummary, NlvResult, OverviewSummaryResponse } from "@/types/api";
 
 interface OverviewPayload {
   data: OverviewSummaryResponse;
@@ -22,35 +14,50 @@ interface StartingCapitalPayload {
   data: AccountStartingCapitalSummary;
 }
 
-function isUnavailable(value: unknown): value is QuoteUnavailableResponse {
-  return typeof value === "object" && value !== null && "error" in value && (value as { error?: string }).error === "unavailable";
-}
-
 export function useNetLiquidationValue(accountId: string): NlvResult {
   const { toExternalAccountId } = useAccountFilterContext();
-  const { positions, loading: positionsLoading } = useOpenPositions();
+  const positionSnapshot = useSyncExternalStore(
+    openPositionsStore.subscribe,
+    () => openPositionsStore.getSnapshot([accountId]),
+    () => openPositionsStore.getSnapshot([accountId]),
+  );
 
-  const [nlv, setNlv] = useState<number | null>(null);
   const [cash, setCash] = useState(0);
   const [cashAsOf, setCashAsOf] = useState<Date | null>(null);
-  const [marksAsOf, setMarksAsOf] = useState<Date | null>(null);
   const [progressReference, setProgressReference] = useState<number | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryUnavailable, setSummaryUnavailable] = useState(false);
 
-  const accountPositions = useMemo(() => positions.filter((position) => position.accountId === accountId), [accountId, positions]);
+  const accountPositions = positionSnapshot.positions;
   const externalAccountId = useMemo(() => toExternalAccountId(accountId), [accountId, toExternalAccountId]);
+  const marksAsOf = useMemo(
+    () => (positionSnapshot.lastRefreshedAt === null ? null : new Date(positionSnapshot.lastRefreshedAt)),
+    [positionSnapshot.lastRefreshedAt],
+  );
+  const markedValue = useMemo(() => {
+    if (accountPositions.length === 0) {
+      return positionSnapshot.lastRefreshedAt === null ? null : 0;
+    }
+
+    let total = 0;
+    for (const position of accountPositions) {
+      const mark = positionSnapshot.quotes[position.instrumentKey];
+      if (typeof mark !== "number") {
+        return null;
+      }
+
+      total += mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1);
+    }
+
+    return total;
+  }, [accountPositions, positionSnapshot.lastRefreshedAt, positionSnapshot.quotes]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadNlv() {
-      if (positionsLoading) {
-        setLoading(true);
-        return;
-      }
-
-      setLoading(true);
+      setSummaryLoading(true);
+      setSummaryUnavailable(false);
 
       try {
         const summaryQuery = new URLSearchParams();
@@ -91,110 +98,20 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
             : Number.isFinite(baselineValue) && baselineValue > 0
               ? baselineValue
               : null;
+
         if (!cancelled) {
           setCash(latestCash);
           setCashAsOf(latestCashAsOfIso ? new Date(latestCashAsOfIso) : null);
           setProgressReference(baseline);
+          setSummaryLoading(false);
         }
-
-        const equityPositions = accountPositions.filter((position) => position.assetClass === "EQUITY");
-        const optionPositions = accountPositions.filter((position) => position.assetClass === "OPTION");
-
-        let quoteUnavailable = false;
-        let equityValue = 0;
-        let optionValue = 0;
-
-        if (equityPositions.length > 0) {
-          const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-          const quotesResponse = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
-          const quotesPayload = (await quotesResponse.json()) as QuotesResponse;
-
-          if (isUnavailable(quotesPayload)) {
-            quoteUnavailable = true;
-          } else {
-            for (const position of equityPositions) {
-              const quote = quotesPayload[position.symbol];
-              if (!quote) {
-                quoteUnavailable = true;
-                break;
-              }
-
-              equityValue += quote.mark * position.netQty;
-            }
-          }
-        }
-
-        if (!quoteUnavailable && optionPositions.length > 0) {
-          const optionQuotes = await Promise.all(
-            optionPositions.map(async (position) => {
-              const expDate = position.expirationDate?.slice(0, 10);
-              if (!position.optionType || !position.strike || !expDate) {
-                return null;
-              }
-
-              const response = await fetch(
-                `/api/option-quote?symbol=${encodeURIComponent(position.underlyingSymbol)}&strike=${encodeURIComponent(
-                  position.strike,
-                )}&expDate=${encodeURIComponent(expDate)}&contractType=${position.optionType}`,
-                { cache: "no-store" },
-              );
-
-              return {
-                key: position.instrumentKey,
-                payload: (await response.json()) as OptionQuoteResponse,
-              };
-            }),
-          );
-
-          const optionQuoteMap = new Map<string, OptionQuoteRecord>();
-          for (const quote of optionQuotes) {
-            if (!quote || isUnavailable(quote.payload)) {
-              quoteUnavailable = true;
-              break;
-            }
-
-            optionQuoteMap.set(quote.key, quote.payload);
-          }
-
-          if (!quoteUnavailable) {
-            for (const position of optionPositions) {
-              const quote = optionQuoteMap.get(position.instrumentKey);
-              if (!quote) {
-                quoteUnavailable = true;
-                break;
-              }
-
-              optionValue += quote.mark * 100 * position.netQty;
-            }
-          }
-        }
-
-        if (cancelled) {
-          return;
-        }
-
-        if (quoteUnavailable) {
-          setNlv(null);
-          setMarksAsOf(null);
-          setProgressReference(baseline);
-          setLastUpdated(null);
-          setLoading(false);
-          return;
-        }
-
-        const marksTimestamp = new Date();
-        setNlv(latestCash + equityValue + optionValue);
-        setMarksAsOf(marksTimestamp);
-        setLastUpdated(marksTimestamp);
-        setLoading(false);
       } catch {
         if (!cancelled) {
-          setNlv(null);
+          setCash(0);
           setCashAsOf(null);
-          setMarksAsOf(null);
           setProgressReference(null);
-          setLastUpdated(null);
-          setLoading(false);
+          setSummaryUnavailable(true);
+          setSummaryLoading(false);
         }
       }
     }
@@ -204,7 +121,11 @@ export function useNetLiquidationValue(accountId: string): NlvResult {
     return () => {
       cancelled = true;
     };
-  }, [accountId, accountPositions, externalAccountId, positionsLoading]);
+  }, [accountId, externalAccountId]);
+
+  const nlv = summaryUnavailable || markedValue === null ? null : cash + markedValue;
+  const lastUpdated = summaryUnavailable || markedValue === null ? null : marksAsOf;
+  const loading = summaryLoading || positionSnapshot.isLoading;
 
   return {
     nlv,
