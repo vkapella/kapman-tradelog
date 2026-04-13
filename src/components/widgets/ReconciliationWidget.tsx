@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { usePositionSnapshot } from "@/hooks/usePositionSnapshot";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
-import type { ReconciliationResponse } from "@/types/api";
-
-interface ReconciliationPayload {
-  data: ReconciliationResponse;
-}
 
 function signClass(value: number): string {
   if (value > 0) {
@@ -21,74 +15,69 @@ function signClass(value: number): string {
   return "text-muted";
 }
 
+function formatSnapshotTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export function ReconciliationWidget() {
   const { selectedAccounts } = useAccountFilterContext();
-  const [data, setData] = useState<ReconciliationResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { snapshot, loading, stale, computing, error, triggerCompute } = usePositionSnapshot(selectedAccounts);
 
-  useEffect(() => {
-    let cancelled = false;
+  const action = (
+    <button
+      type="button"
+      onClick={() => void triggerCompute()}
+      disabled={computing}
+      className="rounded border border-border bg-panel-2 px-2 py-0.5 text-[10px] text-muted disabled:opacity-50"
+    >
+      {computing ? "Computing..." : "Compute now"}
+    </button>
+  );
 
-    async function loadData() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const query = new URLSearchParams();
-        applyAccountIdsToSearchParams(query, selectedAccounts);
-        const response = await fetch(`/api/overview/reconciliation?${query.toString()}`, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Unable to load reconciliation.");
-        }
-
-        const payload = (await response.json()) as ReconciliationPayload;
-        if (!cancelled) {
-          setData(payload.data);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load reconciliation.");
-          setData(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedAccounts]);
-
-  const rows = useMemo(() => {
-    if (!data) {
-      return [];
-    }
-
-    return [
-      { label: "Starting Capital", value: safeNumber(data.startingCapital) },
-      { label: "Current NLV", value: safeNumber(data.currentNlv) },
-      { label: "Total Gain", value: safeNumber(data.totalGain) },
-      { label: "Unrealized P&L", value: safeNumber(data.unrealizedPnl) },
-      { label: "Cash Adjustments", value: safeNumber(data.cashAdjustments) },
-      { label: "Realized P&L", value: safeNumber(data.realizedPnl) },
-      { label: "Manual Adjustments", value: safeNumber(data.manualAdjustments) },
-      { label: "Unexplained Delta", value: safeNumber(data.unexplainedDelta), highlighted: true },
-    ];
-  }, [data]);
+  const rows = snapshot
+    ? [
+        { label: "Starting Capital", value: safeNumber(snapshot.startingCapital) },
+        { label: "Current NLV", value: safeNumber(snapshot.currentNlv) },
+        { label: "Total Gain", value: safeNumber(snapshot.totalGain) },
+        { label: "Unrealized P&L", value: safeNumber(snapshot.unrealizedPnl) },
+        { label: "Cash Adjustments", value: safeNumber(snapshot.cashAdjustments) },
+        { label: "Realized P&L", value: safeNumber(snapshot.realizedPnl) },
+        { label: "Manual Adjustments", value: safeNumber(snapshot.manualAdjustments) },
+        { label: "Unexplained Delta", value: safeNumber(snapshot.unexplainedDelta), highlighted: true },
+      ]
+    : [];
+  const startingCapitalConfigured = safeNumber(snapshot?.startingCapital) > 0;
 
   return (
-    <WidgetCard title="Portfolio Reconciliation">
-      {loading ? <p className="text-xs text-muted">Loading reconciliation…</p> : null}
+    <WidgetCard title="Portfolio Reconciliation" action={action}>
+      {snapshot ? (
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-muted">
+          <span>As of {formatSnapshotTime(snapshot.snapshotAt)}</span>
+          {stale ? <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300">Stale</span> : null}
+          {snapshot.status === "PENDING" ? <span>Refreshing…</span> : null}
+        </div>
+      ) : null}
+
+      {loading && !snapshot ? <p className="text-xs text-muted">Loading reconciliation snapshot…</p> : null}
       {!loading && error ? <p className="text-xs text-red-300">{error}</p> : null}
-      {!loading && !error && data ? (
+
+      {!loading && !error && !snapshot ? (
+        <div className="space-y-2 text-xs text-muted">
+          <p>No snapshot available for the selected accounts.</p>
+          <p>Compute a snapshot to load reconciliation totals.</p>
+        </div>
+      ) : null}
+
+      {!loading && !error && snapshot?.status === "FAILED" ? (
         <div className="space-y-2 text-xs">
-          {!data.startingCapitalConfigured ? (
+          <p className="text-red-300">{snapshot.errorMessage ?? "Snapshot computation failed."}</p>
+          <p className="text-muted">Recompute the snapshot to refresh reconciliation totals.</p>
+        </div>
+      ) : null}
+
+      {!loading && !error && snapshot && snapshot.status !== "FAILED" ? (
+        <div className="space-y-2 text-xs">
+          {!startingCapitalConfigured ? (
             <p className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-amber-300">
               Set starting capital on the <code>/accounts</code> page to reconcile against your initial portfolio value.
             </p>
