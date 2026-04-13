@@ -5,6 +5,7 @@ import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 import { KpiCard } from "@/components/KpiCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
 
@@ -29,6 +30,39 @@ interface MatchedLotsPayload {
 interface DiagnosticsPayload {
   data: DiagnosticsResponse;
 }
+
+const analyticsKpiHelpText: Record<string, InfoTooltipContent> = {
+  totalPnl: {
+    formula: "Sum of realized P&L across setup groups in scope.",
+    source: "/api/setups",
+    interpretation: "Shows aggregate realized performance for the current analytics scope.",
+  },
+  winRate: {
+    formula: "WIN count / (WIN + LOSS count), excluding FLAT lots.",
+    source: "/api/matched-lots",
+    interpretation: "Shows the share of closed lots that finished profitable.",
+  },
+  avgHold: {
+    formula: "Average holdingDays across matched lots in scope.",
+    source: "/api/matched-lots",
+    interpretation: "Shows the typical holding period of closed activity.",
+  },
+  pairAmbiguities: {
+    formula: "Count of ambiguous setup-pairing diagnostics.",
+    source: "/api/diagnostics",
+    interpretation: "Higher counts indicate more setup inference ambiguity that needs review.",
+  },
+  shortCallPaired: {
+    formula: "Count of short-call pairings detected by setup inference diagnostics.",
+    source: "/api/diagnostics",
+    interpretation: "Shows how often the inference engine paired short calls into covered-call style cases.",
+  },
+  synthExpires: {
+    formula: "Count of synthetic expiration closes surfaced in diagnostics.",
+    source: "/api/diagnostics",
+    interpretation: "Highlights how many closes were inferred rather than sourced directly from broker rows.",
+  },
+};
 
 export default function Page() {
   const { selectedAccounts } = useAccountFilterContext();
@@ -226,12 +260,12 @@ export default function Page() {
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total P&L" value={formatCurrency(kpis.totalPnl)} colorVariant={kpis.totalPnl >= 0 ? "pos" : "neg"} />
-        <KpiCard label="Win Rate (%)" value={formatNullablePercent(kpis.winRate, 1)} colorVariant="accent" />
-        <KpiCard label="Avg Hold" value={kpis.avgHold.toFixed(2) + "d"} colorVariant="accent" />
-        <KpiCard label="Pair Ambiguities" value={kpis.pairAmbiguities} colorVariant="neutral" />
-        <KpiCard label="Short Call Paired" value={kpis.shortCallPaired} colorVariant="neutral" />
-        <KpiCard label="Synth Expires" value={kpis.synthExpires} colorVariant="neutral" />
+        <KpiCard label="Total P&L" value={formatCurrency(kpis.totalPnl)} colorVariant={kpis.totalPnl >= 0 ? "pos" : "neg"} helpText={analyticsKpiHelpText.totalPnl} />
+        <KpiCard label="Win Rate (%)" value={formatNullablePercent(kpis.winRate, 1)} colorVariant="accent" helpText={analyticsKpiHelpText.winRate} />
+        <KpiCard label="Avg Hold" value={kpis.avgHold.toFixed(2) + "d"} colorVariant="accent" helpText={analyticsKpiHelpText.avgHold} />
+        <KpiCard label="Pair Ambiguities" value={kpis.pairAmbiguities} colorVariant="neutral" helpText={analyticsKpiHelpText.pairAmbiguities} />
+        <KpiCard label="Short Call Paired" value={kpis.shortCallPaired} colorVariant="neutral" helpText={analyticsKpiHelpText.shortCallPaired} />
+        <KpiCard label="Synth Expires" value={kpis.synthExpires} colorVariant="neutral" helpText={analyticsKpiHelpText.synthExpires} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

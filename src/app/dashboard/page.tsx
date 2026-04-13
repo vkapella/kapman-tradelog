@@ -379,6 +379,7 @@ export default function Page() {
                     label={definition.name}
                     value={definition.formatValue(summary)}
                     colorVariant={definition.getColorVariant(summary)}
+                    helpText={definition.helpText}
                   />
                 </DashboardTile>
               );

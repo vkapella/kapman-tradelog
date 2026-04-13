@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import type { OverviewSummaryResponse } from "@/types/api";
@@ -12,6 +13,34 @@ import type { OverviewSummaryResponse } from "@/types/api";
 interface OverviewPayload {
   data: OverviewSummaryResponse;
 }
+
+const overviewKpiHelpText: Record<string, InfoTooltipContent> = {
+  netPnl: {
+    formula: "Sum of matched lot realized P&L in scope.",
+    source: "/api/overview/summary",
+    interpretation: "Shows aggregate realized performance for the selected accounts.",
+  },
+  executions: {
+    formula: "Count of execution records after account scoping.",
+    source: "/api/overview/summary",
+    interpretation: "Shows raw trading activity volume.",
+  },
+  matchedLots: {
+    formula: "Count of matched lots after FIFO pairing.",
+    source: "/api/overview/summary",
+    interpretation: "Shows how many closed lots are available for analysis.",
+  },
+  setupGroups: {
+    formula: "Count of persisted setup groups in scope.",
+    source: "/api/overview/summary",
+    interpretation: "Shows how many grouped setups exist for review.",
+  },
+  averageHoldDays: {
+    formula: "Average holdingDays across matched lots.",
+    source: "/api/overview/summary",
+    interpretation: "Shows the typical duration of closed positions.",
+  },
+};
 
 export function OverviewDashboardPanel() {
   const { selectedAccounts } = useAccountFilterContext();
@@ -76,11 +105,11 @@ export function OverviewDashboardPanel() {
       {!loading && !error && data && hasData ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <KpiCard label="Net P&L" value={formatCurrency(Number(data.netPnl))} colorVariant={Number(data.netPnl) >= 0 ? "pos" : "neg"} />
-            <KpiCard label="Executions" value={formatInteger(data.executionCount)} colorVariant="accent" />
-            <KpiCard label="Matched Lots" value={formatInteger(data.matchedLotCount)} colorVariant="accent" />
-            <KpiCard label="Setup Groups" value={formatInteger(data.setupCount)} colorVariant="accent" />
-            <KpiCard label="Average Hold Days" value={formatDays(Number(data.averageHoldDays), 1)} colorVariant="neutral" />
+            <KpiCard label="Net P&L" value={formatCurrency(Number(data.netPnl))} colorVariant={Number(data.netPnl) >= 0 ? "pos" : "neg"} helpText={overviewKpiHelpText.netPnl} />
+            <KpiCard label="Executions" value={formatInteger(data.executionCount)} colorVariant="accent" helpText={overviewKpiHelpText.executions} />
+            <KpiCard label="Matched Lots" value={formatInteger(data.matchedLotCount)} colorVariant="accent" helpText={overviewKpiHelpText.matchedLots} />
+            <KpiCard label="Setup Groups" value={formatInteger(data.setupCount)} colorVariant="accent" helpText={overviewKpiHelpText.setupGroups} />
+            <KpiCard label="Average Hold Days" value={formatDays(Number(data.averageHoldDays), 1)} colorVariant="neutral" helpText={overviewKpiHelpText.averageHoldDays} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
