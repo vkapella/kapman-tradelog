@@ -1,11 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountIdWhere } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
+import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type {
   EquityQuoteRecord,
   ExecutionRecord,
@@ -182,17 +182,6 @@ function parseBody(value: unknown): SnapshotComputeRequestBody | null {
   return {
     accountIds: candidate.accountIds,
   };
-}
-
-async function resolveAccountIds(requestedAccountIds: string[]): Promise<string[]> {
-  const where = buildAccountIdWhere(requestedAccountIds) as Prisma.AccountWhereInput | undefined;
-  const rows = await prisma.account.findMany({
-    where,
-    select: { id: true },
-    orderBy: { id: "asc" },
-  });
-
-  return Array.from(new Set(rows.map((row) => row.id)));
 }
 
 async function computeSnapshot(snapshotId: string, accountIds: string[]): Promise<void> {
@@ -388,11 +377,9 @@ export async function POST(request: Request) {
     ]);
   }
 
-  const requestedAccountIds = Array.from(new Set((parsedBody.accountIds ?? []).map((value) => value.trim()).filter((value) => value.length > 0))).sort(
-    (left, right) => left.localeCompare(right),
-  );
-  const accountIds = await resolveAccountIds(requestedAccountIds);
-  const accountIdsJson = JSON.stringify(accountIds);
+  const requestedAccountIds = normalizePositionSnapshotAccountIds(parsedBody.accountIds ?? []);
+  const accountIds = await resolvePositionSnapshotAccountIds(requestedAccountIds);
+  const accountIdsJson = serializePositionSnapshotAccountIds(accountIds);
 
   const snapshot = await prisma.positionSnapshot.create({
     data: {
