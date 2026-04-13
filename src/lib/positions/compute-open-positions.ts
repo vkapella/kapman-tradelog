@@ -53,7 +53,13 @@ export function computeOpenPositionsWithDiagnostics(
   const grouped = new Map<string, OpenPosition>();
 
   for (const execution of executions) {
-    if (execution.openingClosingEffect !== "TO_OPEN") {
+    const isPlainEquityBuy =
+      execution.assetClass === "EQUITY" &&
+      execution.side === "BUY" &&
+      execution.openingClosingEffect === "UNKNOWN" &&
+      execution.spreadGroupId === null;
+
+    if (execution.openingClosingEffect !== "TO_OPEN" && !isPlainEquityBuy) {
       continue;
     }
 
