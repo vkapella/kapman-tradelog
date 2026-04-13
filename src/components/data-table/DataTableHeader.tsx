@@ -10,11 +10,12 @@ interface DataTableHeaderProps<Row> {
   currentValues: string[];
   isOpen: boolean;
   onApply: (values: string[], direction: SortDirection | null) => void;
+  onRequestClose: () => void;
   onToggle: () => void;
   options: DataTableFilterOption[];
 }
 
-function alignmentClassName(align: DataTableColumnDefinition<unknown>["align"]): string {
+function alignmentClassName<Row>(align: DataTableColumnDefinition<Row>["align"]): string {
   if (align === "right") {
     return "justify-end text-right";
   }
@@ -32,6 +33,7 @@ export function DataTableHeader<Row>({
   currentValues,
   isOpen,
   onApply,
+  onRequestClose,
   onToggle,
   options,
 }: DataTableHeaderProps<Row>) {
@@ -40,7 +42,7 @@ export function DataTableHeader<Row>({
 
   return (
     <th className="relative px-2 py-2" title={column.title}>
-      <div className={["flex items-center gap-2", alignmentClassName(column.align)].join(" ")}>
+      <div className={["flex items-center gap-2", alignmentClassName<Row>(column.align)].join(" ")}>
         <span className="font-medium">{column.label}</span>
         <button
           ref={filterButtonRef}
@@ -62,7 +64,7 @@ export function DataTableHeader<Row>({
           currentSortDirection={currentSortDirection}
           currentValues={currentValues}
           onApply={onApply}
-          onClose={onToggle}
+          onClose={onRequestClose}
           options={options}
         />
       ) : null}

@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { isWithinFilterPanelBoundary } from "@/components/data-table/filter-panel-interaction";
 import { resolvePanelPosition } from "@/components/data-table/panel-position";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
@@ -43,7 +44,7 @@ export function ColumnFilterPanel<Row>({
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
-      if (!panelRef.current || panelRef.current.contains(event.target as Node)) {
+      if (isWithinFilterPanelBoundary(event.target as Node | null, panelRef.current, anchorRef.current)) {
         return;
       }
 
@@ -64,7 +65,7 @@ export function ColumnFilterPanel<Row>({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [anchorRef, onClose]);
 
   const filteredOptions = useMemo(() => {
     if (!draftSearch.trim()) {
