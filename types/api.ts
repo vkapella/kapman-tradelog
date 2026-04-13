@@ -323,6 +323,16 @@ export interface TtsEvidenceResponse {
     bucket: string;
     count: number;
   }>;
+  monthlySeries: Array<{
+    month: string;
+    tradeCount: number;
+    tradesPerMonth: number;
+    activeDaysPerWeek: number;
+    averageHoldingPeriodDays: number | null;
+    medianHoldingPeriodDays: number | null;
+    annualizedTradeCount: number;
+    grossProceedsProxy: string;
+  }>;
 }
 
 export interface DiagnosticsResponse {
