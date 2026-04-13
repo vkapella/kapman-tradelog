@@ -1,119 +1,65 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
-import type { ExecutionRecord, MatchedLotRecord } from "@/types/api";
+import type { TtsEvidenceResponse } from "@/types/api";
 
-interface ExecutionsPayload {
-  data: ExecutionRecord[];
-}
-
-interface MatchedLotsPayload {
-  data: MatchedLotRecord[];
+interface TtsPayload {
+  data: TtsEvidenceResponse;
 }
 
 export function TtsReadinessWidget() {
   const { selectedAccounts } = useAccountFilterContext();
-  const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
-  const [lots, setLots] = useState<MatchedLotRecord[]>([]);
+  const [metrics, setMetrics] = useState<TtsEvidenceResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadInputs() {
-      const executionQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
-      const lotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
-      applyAccountIdsToSearchParams(executionQuery, selectedAccounts);
-      applyAccountIdsToSearchParams(lotsQuery, selectedAccounts);
+    async function loadMetrics() {
+      const query = new URLSearchParams();
+      applyAccountIdsToSearchParams(query, selectedAccounts);
 
-      const [executionResponse, lotsResponse] = await Promise.all([
-        fetch(`/api/executions?${executionQuery.toString()}`, { cache: "no-store" }),
-        fetch(`/api/matched-lots?${lotsQuery.toString()}`, { cache: "no-store" }),
-      ]);
-
-      if (!executionResponse.ok || !lotsResponse.ok) {
+      const response = await fetch(`/api/tts/evidence?${query.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
         return;
       }
 
-      const executionsPayload = (await executionResponse.json()) as ExecutionsPayload;
-      const lotsPayload = (await lotsResponse.json()) as MatchedLotsPayload;
+      const payload = (await response.json()) as TtsPayload;
 
       if (!cancelled) {
-        setExecutions(executionsPayload.data);
-        setLots(lotsPayload.data);
+        setMetrics(payload.data);
       }
     }
 
-    void loadInputs();
+    void loadMetrics();
 
     return () => {
       cancelled = true;
     };
   }, [selectedAccounts]);
 
-  const metrics = useMemo(() => {
-    const filteredExecutions = executions.filter((row) => selectedAccounts.includes(row.accountId));
-    const filteredLots = lots.filter((row) => selectedAccounts.includes(row.accountId));
-
-    const totalTrades = filteredExecutions.length;
-    const activeDays = new Set(filteredExecutions.map((row) => row.tradeDate.slice(0, 10))).size;
-    const grossProceeds = filteredExecutions.reduce((sum, row) => {
-      const qty = Math.abs(safeNumber(row.quantity));
-      const price = safeNumber(row.price);
-      return sum + qty * price;
-    }, 0);
-
-    const sortedExecutionDates = filteredExecutions
-      .map((row) => new Date(row.tradeDate).getTime())
-      .sort((left, right) => left - right);
-
-    let monthCount = 1;
-    let weekCount = 1;
-    if (sortedExecutionDates.length > 1) {
-      const firstDate = new Date(sortedExecutionDates[0]);
-      const lastDate = new Date(sortedExecutionDates[sortedExecutionDates.length - 1]);
-      const yearDiff = lastDate.getUTCFullYear() - firstDate.getUTCFullYear();
-      const monthDiff = lastDate.getUTCMonth() - firstDate.getUTCMonth();
-      monthCount = Math.max(1, yearDiff * 12 + monthDiff + 1);
-
-      const dayDiff = Math.max(1, Math.floor((lastDate.getTime() - firstDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
-      weekCount = Math.max(1, dayDiff / 7);
-    }
-
-    const holdingDays = filteredLots.map((row) => row.holdingDays).sort((left, right) => left - right);
-    const averageHold = holdingDays.length === 0 ? 0 : holdingDays.reduce((sum, value) => sum + value, 0) / holdingDays.length;
-    const middle = Math.floor(holdingDays.length / 2);
-    const medianHold =
-      holdingDays.length === 0
-        ? 0
-        : holdingDays.length % 2 === 0
-          ? (holdingDays[middle - 1] + holdingDays[middle]) / 2
-          : holdingDays[middle];
-
-    const tradesPerMonth = totalTrades / monthCount;
-
-    return {
-      tradesPerMonth: tradesPerMonth,
-      activeDaysPerWeek: activeDays / weekCount,
-      annualizedTradeCount: tradesPerMonth * 12,
-      averageHoldingPeriodDays: averageHold,
-      medianHoldingPeriodDays: medianHold,
-      grossProceedsProxy: grossProceeds,
-    };
-  }, [executions, lots, selectedAccounts]);
+  const values = metrics ?? {
+    tradesPerMonth: 0,
+    activeDaysPerWeek: 0,
+    annualizedTradeCount: 0,
+    averageHoldingPeriodDays: 0,
+    medianHoldingPeriodDays: 0,
+    grossProceedsProxy: "0",
+    holdingPeriodDistribution: [],
+  };
 
   return (
     <WidgetCard title="TTS Readiness">
       <div className="grid grid-cols-2 gap-2 text-xs text-muted">
-        <p>Trades/mo: {metrics.tradesPerMonth.toFixed(2)}</p>
-        <p>Active days/wk: {metrics.activeDaysPerWeek.toFixed(2)}</p>
-        <p>Annualized count: {metrics.annualizedTradeCount.toFixed(0)}</p>
-        <p>Avg hold: {metrics.averageHoldingPeriodDays.toFixed(2)}d</p>
-        <p>Median hold: {metrics.medianHoldingPeriodDays.toFixed(2)}d</p>
-        <p>Gross proceeds: {formatCompactCurrency(metrics.grossProceedsProxy)}</p>
+        <p>Trades/mo: {values.tradesPerMonth.toFixed(2)}</p>
+        <p>Active days/wk: {values.activeDaysPerWeek.toFixed(2)}</p>
+        <p>Annualized count: {values.annualizedTradeCount.toFixed(0)}</p>
+        <p>Avg hold: {values.averageHoldingPeriodDays.toFixed(2)}d</p>
+        <p>Median hold: {values.medianHoldingPeriodDays.toFixed(2)}d</p>
+        <p>Gross proceeds: {formatCompactCurrency(safeNumber(values.grossProceedsProxy))}</p>
       </div>
       <p className="mt-2 text-[10px] text-muted">evidence/readiness signals — not legal determinations</p>
     </WidgetCard>

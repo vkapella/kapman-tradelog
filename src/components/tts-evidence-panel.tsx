@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
+import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { TtsEvidenceResponse } from "@/types/api";
 
 interface TtsPayload {
@@ -11,6 +13,7 @@ interface TtsPayload {
 }
 
 export function TtsEvidencePanel() {
+  const { selectedAccounts } = useAccountFilterContext();
   const [data, setData] = useState<TtsEvidenceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +23,10 @@ export function TtsEvidencePanel() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/tts/evidence", { cache: "no-store" });
+      const query = new URLSearchParams();
+      applyAccountIdsToSearchParams(query, selectedAccounts);
+
+      const response = await fetch(`/api/tts/evidence?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         setError("Unable to load evidence metrics.");
         setLoading(false);
@@ -33,7 +39,7 @@ export function TtsEvidencePanel() {
     }
 
     void loadEvidence();
-  }, []);
+  }, [selectedAccounts]);
 
   const hasData = Boolean(data && data.annualizedTradeCount > 0);
   const distributionMax = data ? Math.max(1, ...data.holdingPeriodDistribution.map((bucket) => bucket.count)) : 1;
