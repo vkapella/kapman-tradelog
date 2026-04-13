@@ -489,6 +489,30 @@ export interface PositionSnapshotComputeResponse {
   status: PositionSnapshotStatus;
 }
 
+export interface PositionSnapshotResponseData {
+  id: string;
+  snapshotAt: string;
+  status: PositionSnapshotStatus;
+  errorMessage?: string;
+  positions: PositionSnapshotOpenPosition[];
+  unrealizedPnl: string;
+  realizedPnl: string;
+  cashAdjustments: string;
+  manualAdjustments: string;
+  currentNlv: string;
+  startingCapital: string;
+  totalGain: string;
+  unexplainedDelta: string;
+}
+
+export interface PositionSnapshotResponse {
+  data: PositionSnapshotResponseData | null;
+  meta: {
+    snapshotExists: boolean;
+    snapshotAge?: number;
+  };
+}
+
 export interface NlvResult {
   nlv: number | null;
   cash: number;
@@ -641,3 +665,4 @@ export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjust
 export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;
 export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
 export type PositionSnapshotComputeApiResponse = ApiDetailResponse<PositionSnapshotComputeResponse> | ApiErrorResponse;
+export type PositionSnapshotApiResponse = PositionSnapshotResponse | ApiErrorResponse;
