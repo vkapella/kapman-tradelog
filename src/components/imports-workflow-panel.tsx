@@ -3,20 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
+import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { useDataTableState } from "@/components/data-table/useDataTableState";
+import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import type { CommitImportResponse, ImportRecord, UploadImportResponse } from "@/types/api";
-
-interface ImportsListPayload {
-  data: ImportRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
 
 interface CommitPayload {
   data: CommitImportResponse;
@@ -34,9 +30,10 @@ const SHOW_ALL_STORAGE_KEY = "kapman_table_imports_showAll";
 
 export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps) {
   const searchParams = useSearchParams();
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const showUpload = mode !== "history";
   const showHistory = mode !== "upload";
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -44,39 +41,34 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [commitResult, setCommitResult] = useState<CommitImportResponse | null>(null);
   const [committing, setCommitting] = useState(false);
   const [history, setHistory] = useState<ImportRecord[]>([]);
-  const [historyMeta, setHistoryMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [historyPage, setHistoryPage] = useState(1);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingImportId, setDeletingImportId] = useState<string | null>(null);
   const [deleteConfirmationImport, setDeleteConfirmationImport] = useState<ImportRecord | null>(null);
-  const [accountFilter, setAccountFilter] = useState("");
-  const [importFilter, setImportFilter] = useState("");
+  const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   const canCommit = Boolean(uploadResult && !uploading && !committing && !commitResult);
 
-  const loadHistory = useCallback(async (accountId = accountFilter, importId = importFilter, page = historyPage) => {
+  const loadHistory = useCallback(async () => {
+    if (!showHistory) {
+      return;
+    }
+
     setHistoryLoading(true);
-
-    const searchParams = new URLSearchParams();
-    if (accountId.trim()) {
-      searchParams.set("account", accountId.trim());
+    try {
+      const params = new URLSearchParams();
+      applyAccountIdsToSearchParams(params, selectedAccounts);
+      const payload = await fetchAllPages<ImportRecord>("/api/imports", params);
+      setHistory(payload.data);
+    } catch {
+      setHistory([]);
+      setError("Unable to load import history right now.");
+    } finally {
+      setHistoryLoading(false);
     }
-    if (importId.trim()) {
-      searchParams.set("import", importId.trim());
-    }
-    applyAccountIdsToSearchParams(searchParams, selectedAccounts);
-    searchParams.set("page", String(showAllHistory ? 1 : page));
-    searchParams.set("pageSize", String(showAllHistory ? 1000 : 25));
-
-    const query = searchParams.toString();
-    const response = await fetch(`/api/imports${query ? `?${query}` : ""}`, { cache: "no-store" });
-    const payload = (await response.json()) as ImportsListPayload;
-    setHistory(payload.data);
-    setHistoryMeta(payload.meta);
-    setHistoryLoading(false);
-  }, [accountFilter, historyPage, importFilter, selectedAccounts, showAllHistory]);
+  }, [selectedAccounts, showHistory]);
 
   useEffect(() => {
     try {
@@ -87,21 +79,8 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   }, []);
 
   useEffect(() => {
-    if (!showHistory) {
-      return;
-    }
-
-    const accountFromQuery = searchParams.get("account") ?? "";
-    const importFromQuery = searchParams.get("import") ?? "";
-
-    setAccountFilter((current) => (current === accountFromQuery ? current : accountFromQuery));
-    setImportFilter((current) => (current === importFromQuery ? current : importFromQuery));
-    setHistoryPage(1);
-  }, [searchParams, showHistory]);
-
-  useEffect(() => {
-    void loadHistory(accountFilter, importFilter, historyPage);
-  }, [accountFilter, historyPage, importFilter, loadHistory, selectedAccounts]);
+    void loadHistory();
+  }, [loadHistory]);
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -140,7 +119,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
           setError("Upload failed due to an invalid server response.");
         } finally {
           setUploading(false);
-          void loadHistory(accountFilter, importFilter);
+          void loadHistory();
           resolve();
         }
       };
@@ -175,7 +154,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
       const payload = (await response.json()) as CommitPayload;
       setCommitResult(payload.data);
-      await loadHistory(accountFilter, importFilter);
+      await loadHistory();
     } finally {
       setCommitting(false);
     }
@@ -196,25 +175,6 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     ].join(" · ");
   }, [commitResult]);
 
-  const canGoBack = historyMeta.page > 1;
-  const canGoForward = historyMeta.page * historyMeta.pageSize < historyMeta.total;
-
-  function applyHistoryFilter() {
-    setHistoryPage(1);
-    void loadHistory(accountFilter, importFilter, 1);
-  }
-
-  function toggleShowAllHistory() {
-    const next = !showAllHistory;
-    setShowAllHistory(next);
-    setHistoryPage(1);
-    try {
-      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }
-
   async function executeDeleteImport(row: ImportRecord) {
     setDeletingImportId(row.id);
     setError(null);
@@ -232,7 +192,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
       await response.json();
       setDeleteConfirmationImport(null);
-      await loadHistory(accountFilter, importFilter, historyPage);
+      await loadHistory();
     } finally {
       setDeletingImportId(null);
     }
@@ -250,6 +210,173 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
     await executeDeleteImport(row);
   }
+
+  const columns = useMemo<DataTableColumnDefinition<ImportRecord>[]>(() => [
+    {
+      id: "createdAt",
+      label: "Imported At",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.createdAt,
+      getFilterOptionLabel: (value) => new Date(value).toLocaleString(),
+      sortMode: "date",
+      getSortValue: (row) => row.createdAt,
+      defaultSortDirection: "desc",
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "filename",
+      label: "Filename",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.filename,
+      sortMode: "string",
+      getSortValue: (row) => row.filename,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "broker",
+      label: "Broker",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.broker,
+      sortMode: "string",
+      getSortValue: (row) => row.broker,
+    },
+    {
+      id: "accountId",
+      label: "Account",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.accountId,
+      getFilterOptionLabel: (value) => getAccountDisplayText(value),
+      sortMode: "string",
+      getSortValue: (row) => getAccountDisplayText(row.accountId),
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "status",
+      label: "Status",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.status,
+      sortMode: "string",
+      getSortValue: (row) => row.status,
+    },
+    {
+      id: "parsedRows",
+      label: "Parsed",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.parsedRows),
+      sortMode: "number",
+      getSortValue: (row) => row.parsedRows,
+    },
+    {
+      id: "insertedExecutions",
+      label: "Inserted",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.insertedExecutions),
+      sortMode: "number",
+      getSortValue: (row) => row.insertedExecutions,
+    },
+    {
+      id: "skipped_duplicate",
+      label: "Skipped Duplicate",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.skipped_duplicate),
+      sortMode: "number",
+      getSortValue: (row) => row.skipped_duplicate,
+    },
+    {
+      id: "failed",
+      label: "Failed",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.failed),
+      sortMode: "number",
+      getSortValue: (row) => row.failed,
+    },
+    {
+      id: "importId",
+      label: "Import ID",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.id,
+      getFilterOptionLabel: (value) => `${value.slice(0, 8)}...`,
+      sortMode: "string",
+      getSortValue: (row) => row.id,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "link",
+      label: "Link",
+      filterMode: "discrete",
+      getFilterValues: () => "View executions",
+      sortMode: "string",
+      getSortValue: () => "View executions",
+    },
+    {
+      id: "delete",
+      label: "Delete",
+      filterMode: "discrete",
+      getFilterValues: () => "Delete",
+      sortMode: "string",
+      getSortValue: () => "Delete",
+    },
+  ], [getAccountDisplayText]);
+
+  const table = useDataTableState({
+    tableName: "imports",
+    rows: history,
+    columns,
+    initialSort: { columnId: "createdAt", direction: "desc" },
+  });
+
+  const isTableHydrated = table.isHydrated;
+  const setTableColumnFilter = table.setColumnFilter;
+
+  useEffect(() => {
+    if (!isTableHydrated) {
+      return;
+    }
+
+    const accountParam = searchParams.get("account");
+    const importParam = searchParams.get("import");
+
+    if (accountParam) {
+      setTableColumnFilter("accountId", [accountParam]);
+    }
+    if (importParam) {
+      setTableColumnFilter("importId", [importParam]);
+    }
+  }, [searchParams, isTableHydrated, setTableColumnFilter]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [selectedAccounts, table.filters, table.sort]);
+
+  function toggleShowAllHistory() {
+    const next = !showAllHistory;
+    setShowAllHistory(next);
+    setHistoryPage(1);
+    try {
+      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // Ignore localStorage errors.
+    }
+  }
+
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+    setTableColumnFilter(columnId, values);
+    if (direction) {
+      table.setSort({ columnId, direction });
+    } else if (table.sort.columnId === columnId) {
+      table.setSort({ columnId: null, direction: null });
+    }
+    setHistoryPage(1);
+  }
+
+  const totalRows = table.sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
+  const currentPage = Math.min(historyPage, totalPages);
+  const pagedRows = showAllHistory ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
@@ -291,7 +418,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               <div>
                 <p className="text-sm font-medium text-slate-100">Detection Result</p>
                 <p className="mt-1 text-xs text-slate-300">
-                  Adapter: {uploadResult.detection.adapterId} · Confidence: {uploadResult.detection.confidence} · Format:{" "}
+                  Adapter: {uploadResult.detection.adapterId} · Confidence: {uploadResult.detection.confidence} · Format: {" "}
                   {uploadResult.detection.formatVersion}
                 </p>
               </div>
@@ -333,125 +460,114 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-lg font-semibold text-slate-100">Import History</h3>
-            <input
-              type="text"
-              value={accountFilter}
-              onChange={(event) => setAccountFilter(event.target.value)}
-              placeholder="Filter by account id"
-              className="w-56 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100"
-            />
-            <input
-              type="text"
-              value={importFilter}
-              onChange={(event) => setImportFilter(event.target.value)}
-              placeholder="Filter by import id"
-              className="w-56 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100"
-            />
-            <button
-              type="button"
-              onClick={applyHistoryFilter}
-              className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-200"
-            >
-              Apply
-            </button>
-            <button type="button" onClick={toggleShowAllHistory} className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-200">
-              {showAllHistory ? "Show pages" : `Show all ${historyMeta.total}`}
-            </button>
           </div>
 
-        {historyLoading ? (
-          <LoadingSkeleton lines={4} />
-        ) : (
-          <div className="space-y-2">
-            <div
-              className={showAllHistory ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
-              style={showAllHistory ? { maxHeight: "calc(100vh - 280px)" } : undefined}
-            >
-              <table className="min-w-full text-xs">
-                <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
-                  <tr>
-                    <th className="px-2 py-2 text-left">Imported At</th>
-                    <th className="px-2 py-2 text-left">Filename</th>
-                    <th className="px-2 py-2 text-left">Broker</th>
-                    <th className="px-2 py-2 text-left">Account</th>
-                    <th className="px-2 py-2 text-left">Status</th>
-                    <th className="px-2 py-2 text-right">Parsed</th>
-                    <th className="px-2 py-2 text-right">Inserted</th>
-                    <th className="px-2 py-2 text-right">Skipped Duplicate</th>
-                    <th className="px-2 py-2 text-right">Failed</th>
-                    <th className="px-2 py-2 text-left">Link</th>
-                    <th className="px-2 py-2 text-center">Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((row) => (
-                    <tr key={row.id} className="border-t border-slate-800 text-slate-200">
-                      <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
-                      <td className="px-2 py-2">{row.filename}</td>
-                      <td className="px-2 py-2">{row.broker}</td>
-                      <td className="px-2 py-2">
-                        <AccountLabel accountId={row.accountId} />
-                      </td>
-                      <td className="px-2 py-2">{row.status}</td>
-                      <td className="px-2 py-2 text-right">{row.parsedRows}</td>
-                      <td className="px-2 py-2 text-right">{row.inserted}</td>
-                      <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
-                      <td className="px-2 py-2 text-right">{row.failed}</td>
-                      <td className="px-2 py-2">
-                        <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
-                          View executions
-                        </a>
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => void requestDeleteImport(row)}
-                          disabled={deletingImportId === row.id}
-                          className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label={`Delete import ${row.filename}`}
-                          title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
-                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
-                          </svg>
-                        </button>
-                      </td>
+          <DataTableToolbar
+            activeFilterCount={table.activeFilterCount}
+            onClearAllFilters={() => {
+              table.clearAllFilters();
+              setHistoryPage(1);
+            }}
+            onToggleShowAll={toggleShowAllHistory}
+            showAll={showAllHistory}
+            totalRows={totalRows}
+          />
+
+          {historyLoading ? (
+            <LoadingSkeleton lines={4} />
+          ) : (
+            <div className="space-y-2">
+              <div
+                className={showAllHistory ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+                style={showAllHistory ? { maxHeight: "calc(100vh - 280px)" } : undefined}
+              >
+                <table className="min-w-full text-xs">
+                  <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+                    <tr>
+                      {columns.map((column) => (
+                        <DataTableHeader
+                          key={column.id}
+                          column={column}
+                          currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                          currentValues={table.filters[column.id] ?? []}
+                          isOpen={openColumnId === column.id}
+                          onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                          onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                          options={table.filterOptions[column.id] ?? []}
+                        />
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {showAllHistory ? (
-              <p className="text-xs text-slate-300">Showing all {historyMeta.total} records</p>
-            ) : (
-              <div className="flex items-center justify-between text-xs text-slate-300">
-                <p>
-                  Showing page {historyMeta.page} of {Math.max(1, Math.ceil(historyMeta.total / historyMeta.pageSize))} ({historyMeta.total} rows)
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={!canGoBack}
-                    onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                    className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canGoForward}
-                    onClick={() => setHistoryPage((current) => current + 1)}
-                    className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
+                  </thead>
+                  <tbody>
+                    {pagedRows.map((row) => (
+                      <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+                        <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
+                        <td className="px-2 py-2">{row.filename}</td>
+                        <td className="px-2 py-2">{row.broker}</td>
+                        <td className="px-2 py-2">
+                          <AccountLabel accountId={row.accountId} />
+                        </td>
+                        <td className="px-2 py-2">{row.status}</td>
+                        <td className="px-2 py-2 text-right">{row.parsedRows}</td>
+                        <td className="px-2 py-2 text-right">{row.insertedExecutions}</td>
+                        <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
+                        <td className="px-2 py-2 text-right">{row.failed}</td>
+                        <td className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</td>
+                        <td className="px-2 py-2">
+                          <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
+                            View executions
+                          </a>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => void requestDeleteImport(row)}
+                            disabled={deletingImportId === row.id}
+                            className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label={`Delete import ${row.filename}`}
+                            title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+                              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+
+              {showAllHistory ? (
+                <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-slate-300">
+                  <p>
+                    Showing page {currentPage} of {totalPages} ({totalRows} rows)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={currentPage <= 1}
+                      onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
+                      className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setHistoryPage((current) => Math.min(totalPages, current + 1))}
+                      className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       ) : null}
 
       {deleteConfirmationImport ? (
@@ -465,8 +581,8 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               <dd>{deleteConfirmationImport.insertedExecutions}</dd>
             </dl>
             <p className="mt-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-              This will remove {deleteConfirmationImport.insertedExecutions} executions and all matched lots derived from them. Manual
-              adjustments will be preserved and re-applied on next import.
+              This will remove {deleteConfirmationImport.insertedExecutions} executions and all matched lots derived from them. Manual adjustments
+              will be preserved and re-applied on next import.
             </p>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button

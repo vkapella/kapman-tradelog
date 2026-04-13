@@ -2,50 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
+import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { useDataTableState } from "@/components/data-table/useDataTableState";
+import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
-import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
-
-interface MatchedLotsPayload {
-  data: MatchedLotRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface ImportsPayload {
-  data: ImportRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-type SortColumn = "closeTradeDate" | "symbol" | "realizedPnl" | "holdingDays";
-type SortDirection = "asc" | "desc";
-
-interface MatchedLotFilters {
-  symbol: string;
-  importId: string;
-  outcome: string;
-  dateFrom: string;
-  dateTo: string;
-}
-
-const defaultFilters: MatchedLotFilters = {
-  symbol: "",
-  importId: "",
-  outcome: "",
-  dateFrom: "",
-  dateTo: "",
-};
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_matched-lots_showAll";
 
@@ -53,43 +23,21 @@ function displayMatchedLotSymbol(row: Pick<MatchedLotRecord, "symbol" | "underly
   return row.underlyingSymbol ?? row.symbol;
 }
 
-function sortMatchedLots(rows: MatchedLotRecord[], column: SortColumn, direction: SortDirection): MatchedLotRecord[] {
-  const sorted = [...rows].sort((left, right) => {
-    if (column === "closeTradeDate") {
-      return new Date(left.closeTradeDate ?? left.openTradeDate).getTime() - new Date(right.closeTradeDate ?? right.openTradeDate).getTime();
-    }
-
-    if (column === "symbol") {
-      return displayMatchedLotSymbol(left).localeCompare(displayMatchedLotSymbol(right));
-    }
-
-    if (column === "realizedPnl") {
-      return Number(left.realizedPnl) - Number(right.realizedPnl);
-    }
-
-    return left.holdingDays - right.holdingDays;
-  });
-
-  if (direction === "desc") {
-    sorted.reverse();
-  }
-
-  return sorted;
+function shortId(value: string): string {
+  return `${value.slice(0, 8)}...`;
 }
 
 export function MatchedLotsTablePanel() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const searchParams = useSearchParams();
+  const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
+
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<MatchedLotRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [showAll, setShowAll] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<MatchedLotFilters>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] = useState<MatchedLotFilters>(defaultFilters);
-  const [sortColumn, setSortColumn] = useState<SortColumn>("closeTradeDate");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -101,15 +49,14 @@ export function MatchedLotsTablePanel() {
 
   useEffect(() => {
     async function loadImports() {
-      const query = new URLSearchParams({ page: "1", pageSize: "200" });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
+      try {
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const payload = await fetchAllPages<ImportRecord>("/api/imports", query);
+        setImports(payload.data);
+      } catch {
+        setImports([]);
       }
-
-      const payload = (await response.json()) as ImportsPayload;
-      setImports(payload.data);
     }
 
     void loadImports();
@@ -120,77 +67,168 @@ export function MatchedLotsTablePanel() {
       setLoading(true);
       setError(null);
 
-      const query = new URLSearchParams({
-        page: String(showAll ? 1 : page),
-        pageSize: String(showAll ? 1000 : 25),
-      });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-
-      if (appliedFilters.symbol.trim()) {
-        query.set("symbol", appliedFilters.symbol.trim());
-      }
-      if (appliedFilters.importId.trim()) {
-        query.set("import", appliedFilters.importId.trim());
-      }
-      if (appliedFilters.outcome.trim()) {
-        query.set("outcome", appliedFilters.outcome.trim());
-      }
-      if (appliedFilters.dateFrom) {
-        query.set("date_from", appliedFilters.dateFrom);
-      }
-      if (appliedFilters.dateTo) {
-        query.set("date_to", appliedFilters.dateTo);
-      }
-
-      const response = await fetch(`/api/matched-lots?${query.toString()}`, { cache: "no-store" });
-
-      if (!response.ok) {
+      try {
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const payload = await fetchAllPages<MatchedLotRecord>("/api/matched-lots", query);
+        setRows(payload.data);
+      } catch {
+        setRows([]);
         setError("Unable to load matched lots right now.");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const payload = (await response.json()) as MatchedLotsPayload;
-      setRows(payload.data);
-      setMeta(payload.meta);
-      setLoading(false);
     }
 
     void loadMatchedLots();
-  }, [appliedFilters, page, selectedAccounts, showAll]);
+  }, [selectedAccounts]);
 
-  const importOptions = useMemo(() => {
-    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${entry.accountId})` }));
-  }, [imports]);
+  const importLabelById = useMemo(() => {
+    return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));
+  }, [getAccountDisplayText, imports]);
 
-  const sortedRows = useMemo(() => {
-    return sortMatchedLots(rows, sortColumn, sortDirection);
-  }, [rows, sortColumn, sortDirection]);
+  const columns = useMemo<DataTableColumnDefinition<MatchedLotRecord>[]>(() => [
+    {
+      id: "closeTradeDate",
+      label: "Close Date",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.closeTradeDate ?? row.openTradeDate,
+      getFilterOptionLabel: (value) => value.slice(0, 10),
+      sortMode: "date",
+      getSortValue: (row) => row.closeTradeDate ?? row.openTradeDate,
+      defaultSortDirection: "desc",
+    },
+    {
+      id: "symbol",
+      label: "Symbol",
+      filterMode: "discrete",
+      getFilterValues: (row) => displayMatchedLotSymbol(row),
+      sortMode: "string",
+      getSortValue: (row) => displayMatchedLotSymbol(row),
+    },
+    {
+      id: "accountId",
+      label: "Account",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.accountId,
+      getFilterOptionLabel: (value) => getAccountDisplayText(value),
+      sortMode: "string",
+      getSortValue: (row) => getAccountDisplayText(row.accountId),
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "importIds",
+      label: "Import",
+      filterMode: "discrete",
+      getFilterValues: (row) => [row.openImportId, row.closeImportId].filter((value): value is string => Boolean(value)),
+      getFilterOptionLabel: (value) => importLabelById.get(value) ?? value,
+      sortMode: "string",
+      getSortValue: (row) => importLabelById.get(row.closeImportId ?? row.openImportId) ?? row.closeImportId ?? row.openImportId,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "quantity",
+      label: "Qty",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.quantity,
+      sortMode: "number",
+      getSortValue: (row) => Number(row.quantity),
+    },
+    {
+      id: "realizedPnl",
+      label: "Realized P&L ($)",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.realizedPnl,
+      sortMode: "number",
+      getSortValue: (row) => Number(row.realizedPnl),
+    },
+    {
+      id: "holdingDays",
+      label: "Hold Days",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.holdingDays),
+      sortMode: "number",
+      getSortValue: (row) => row.holdingDays,
+    },
+    {
+      id: "outcome",
+      label: "Outcome",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.outcome,
+      sortMode: "string",
+      getSortValue: (row) => row.outcome,
+    },
+    {
+      id: "openExecutionId",
+      label: "Open Execution",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.openExecutionId,
+      getFilterOptionLabel: (value) => shortId(value),
+      sortMode: "string",
+      getSortValue: (row) => row.openExecutionId,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "closeExecutionId",
+      label: "Close Execution",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.closeExecutionId ?? "-",
+      getFilterOptionLabel: (value) => (value === "-" ? value : shortId(value)),
+      sortMode: "string",
+      getSortValue: (row) => row.closeExecutionId ?? "-",
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "investigate",
+      label: "Investigate",
+      filterMode: "discrete",
+      getFilterValues: () => "Case file",
+      sortMode: "string",
+      getSortValue: () => "Case file",
+    },
+  ], [getAccountDisplayText, importLabelById]);
 
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    setPage(1);
-  }
+  const table = useDataTableState({
+    tableName: "matched-lots",
+    rows,
+    columns,
+    initialSort: { columnId: "closeTradeDate", direction: "desc" },
+  });
 
-  function resetFilters() {
-    setDraftFilters(defaultFilters);
-    setAppliedFilters(defaultFilters);
-    setPage(1);
-  }
+  const isTableHydrated = table.isHydrated;
+  const setTableColumnFilter = table.setColumnFilter;
 
-  function toggleSort(column: SortColumn) {
-    if (column === sortColumn) {
-      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+  useEffect(() => {
+    if (!isTableHydrated) {
       return;
     }
 
-    setSortColumn(column);
-    setSortDirection(column === "closeTradeDate" ? "desc" : "asc");
-  }
+    const symbolParam = searchParams.get("symbol");
+    const importParam = searchParams.get("import");
+    const outcomeParam = searchParams.get("outcome");
 
-  const hasRows = sortedRows.length > 0;
-  const canGoBack = meta.page > 1;
-  const canGoForward = meta.page * meta.pageSize < meta.total;
+    if (symbolParam) {
+      setTableColumnFilter("symbol", [symbolParam]);
+    }
+    if (importParam) {
+      setTableColumnFilter("importIds", [importParam]);
+    }
+    if (outcomeParam) {
+      setTableColumnFilter("outcome", [outcomeParam]);
+    }
+  }, [searchParams, isTableHydrated, setTableColumnFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedAccounts, table.filters, table.sort]);
+
+  const totalRows = table.sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   function toggleShowAll() {
     const next = !showAll;
@@ -203,6 +241,16 @@ export function MatchedLotsTablePanel() {
     }
   }
 
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+    setTableColumnFilter(columnId, values);
+    if (direction) {
+      table.setSort({ columnId, direction });
+    } else if (table.sort.columnId === columnId) {
+      table.setSort({ columnId: null, direction: null });
+    }
+    setPage(1);
+  }
+
   return (
     <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
       <header className="space-y-1">
@@ -210,74 +258,21 @@ export function MatchedLotsTablePanel() {
         <p className="text-sm text-slate-300">Review FIFO close-to-open linkage, realized P&L, and holding period by lot.</p>
       </header>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <input
-          type="text"
-          value={draftFilters.symbol}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, symbol: event.target.value }))}
-          placeholder="Symbol (e.g. NVDA)"
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-        <select
-          value={draftFilters.importId}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, importId: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All imports</option>
-          {importOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={draftFilters.outcome}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, outcome: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All outcomes</option>
-          <option value="WIN">WIN</option>
-          <option value="LOSS">LOSS</option>
-          <option value="FLAT">FLAT</option>
-        </select>
-        <input
-          type="date"
-          value={draftFilters.dateFrom}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, dateFrom: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-        <input
-          type="date"
-          value={draftFilters.dateTo}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, dateTo: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={applyFilters}
-          className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm text-blue-100"
-        >
-          Apply Filters
-        </button>
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200"
-        >
-          Reset
-        </button>
-        <button type="button" onClick={toggleShowAll} className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200">
-          {showAll ? "Show pages" : `Show all ${meta.total}`}
-        </button>
-      </div>
+      <DataTableToolbar
+        activeFilterCount={table.activeFilterCount}
+        onClearAllFilters={() => {
+          table.clearAllFilters();
+          setPage(1);
+        }}
+        onToggleShowAll={toggleShowAll}
+        showAll={showAll}
+        totalRows={totalRows}
+      />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-red-200">{error}</p> : null}
 
-      {!loading && !error && !hasRows ? (
+      {!loading && !error && totalRows === 0 ? (
         <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
           <h3 className="text-lg font-medium text-slate-100">No matched lots found</h3>
           <p className="mt-2 text-sm text-slate-300">Commit an import and run matching to populate FIFO lot records.</p>
@@ -287,7 +282,7 @@ export function MatchedLotsTablePanel() {
         </div>
       ) : null}
 
-      {!loading && !error && hasRows ? (
+      {!loading && !error && totalRows > 0 ? (
         <div className="space-y-3">
           <div
             className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
@@ -296,38 +291,34 @@ export function MatchedLotsTablePanel() {
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
                 <tr>
-                  <th className="px-2 py-2 text-left">
-                    <button type="button" onClick={() => toggleSort("closeTradeDate")} className="font-medium">
-                      Close Date
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-left">
-                    <button type="button" onClick={() => toggleSort("symbol")} className="font-medium">
-                      Symbol
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-right">Qty</th>
-                  <th className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => toggleSort("realizedPnl")} className="font-medium">
-                      Realized P&L ($)
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => toggleSort("holdingDays")} className="font-medium">
-                      Hold Days
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-left">Outcome</th>
-                  <th className="px-2 py-2 text-left">Open Execution</th>
-                  <th className="px-2 py-2 text-left">Close Execution</th>
-                  <th className="px-2 py-2 text-left">Investigate</th>
+                  {columns.map((column) => (
+                    <DataTableHeader
+                      key={column.id}
+                      column={column}
+                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                      currentValues={table.filters[column.id] ?? []}
+                      isOpen={openColumnId === column.id}
+                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                      onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                      options={table.filterOptions[column.id] ?? []}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map((row) => (
+                {pagedRows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
                     <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
+                    <td className="px-2 py-2">
+                      <AccountLabel accountId={row.accountId} />
+                    </td>
+                    <td className="px-2 py-2">
+                      {[row.openImportId, row.closeImportId]
+                        .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+                        .map((value) => importLabelById.get(value) ?? shortId(value))
+                        .join(" / ")}
+                    </td>
                     <td className="px-2 py-2 text-right">{row.quantity}</td>
                     <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                       {formatCurrency(safeNumber(row.realizedPnl))}
@@ -342,15 +333,15 @@ export function MatchedLotsTablePanel() {
                         <Badge variant="flat">FLAT</Badge>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2 font-mono">
                       <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
-                        {row.openExecutionId.slice(0, 8)}...
+                        {shortId(row.openExecutionId)}
                       </Link>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2 font-mono">
                       {row.closeExecutionId ? (
                         <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
-                          {row.closeExecutionId.slice(0, 8)}...
+                          {shortId(row.closeExecutionId)}
                         </Link>
                       ) : (
                         "-"
@@ -368,16 +359,16 @@ export function MatchedLotsTablePanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {meta.total} records</p>
+            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
           ) : (
             <div className="flex items-center justify-between text-xs text-slate-300">
               <p>
-                Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
+                Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={!canGoBack}
+                  disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
@@ -385,8 +376,8 @@ export function MatchedLotsTablePanel() {
                 </button>
                 <button
                   type="button"
-                  disabled={!canGoForward}
-                  onClick={() => setPage((current) => current + 1)}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
                   Next

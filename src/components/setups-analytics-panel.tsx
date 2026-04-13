@@ -4,59 +4,19 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
+import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { useDataTableState } from "@/components/data-table/useDataTableState";
+import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
-import type { ImportRecord, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
+import type { ApiDetailResponse, SetupDetailResponse, SetupSummaryRecord } from "@/types/api";
 
-interface SetupsPayload {
-  data: SetupSummaryRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface SetupDetailPayload {
-  data: SetupDetailResponse;
-}
-
-interface ImportsPayload {
-  data: ImportRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface SetupFilters {
-  account: string;
-  tag: string;
-}
-
-const defaultFilters: SetupFilters = {
-  account: "",
-  tag: "",
-};
-
-const tagOptions = [
-  "stock",
-  "long_call",
-  "long_put",
-  "covered_call",
-  "cash_secured_put",
-  "bull_vertical",
-  "bear_vertical",
-  "diagonal",
-  "calendar",
-  "roll",
-  "short_call",
-  "uncategorized",
-];
+interface SetupDetailPayload extends ApiDetailResponse<SetupDetailResponse> {}
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_setups_showAll";
 
@@ -65,21 +25,17 @@ export function SetupsAnalyticsPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
-  const [imports, setImports] = useState<ImportRecord[]>([]);
+
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
-  const [summaryRows, setSummaryRows] = useState<SetupSummaryRecord[]>([]);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [page, setPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draftFilters, setDraftFilters] = useState<SetupFilters>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] = useState<SetupFilters>(defaultFilters);
-
   const [selectedSetupId, setSelectedSetupId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SetupDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -90,87 +46,29 @@ export function SetupsAnalyticsPanel() {
   }, []);
 
   useEffect(() => {
-    const setupFromQuery = searchParams.get("setup");
-    setSelectedSetupId((current) => (current === setupFromQuery ? current : setupFromQuery));
+    setSelectedSetupId(searchParams.get("setup"));
   }, [searchParams]);
-
-  useEffect(() => {
-    async function loadImports() {
-      const query = new URLSearchParams({ page: "1", pageSize: "200" });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as ImportsPayload;
-      setImports(payload.data);
-    }
-
-    void loadImports();
-  }, [selectedAccounts]);
 
   useEffect(() => {
     async function loadSetups() {
       setLoading(true);
       setError(null);
 
-      const query = new URLSearchParams({
-        page: String(showAll ? 1 : page),
-        pageSize: String(showAll ? 1000 : 25),
-      });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-
-      if (appliedFilters.account.trim()) {
-        query.set("account", appliedFilters.account.trim());
-      }
-      if (appliedFilters.tag.trim()) {
-        query.set("tag", appliedFilters.tag.trim());
-      }
-
-      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
-
-      if (!response.ok) {
+      try {
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const payload = await fetchAllPages<SetupSummaryRecord>("/api/setups", query);
+        setRows(payload.data);
+      } catch {
+        setRows([]);
         setError("Unable to load setup groups right now.");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const payload = (await response.json()) as SetupsPayload;
-      setRows(payload.data);
-      setMeta(payload.meta);
-      setLoading(false);
     }
 
     void loadSetups();
-  }, [appliedFilters, page, selectedAccounts, showAll]);
-
-  useEffect(() => {
-    async function loadSummaryRows() {
-      const query = new URLSearchParams({
-        page: "1",
-        pageSize: "1000",
-      });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-
-      if (appliedFilters.account.trim()) {
-        query.set("account", appliedFilters.account.trim());
-      }
-      if (appliedFilters.tag.trim()) {
-        query.set("tag", appliedFilters.tag.trim());
-      }
-
-      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as SetupsPayload;
-      setSummaryRows(payload.data);
-    }
-
-    void loadSummaryRows();
-  }, [appliedFilters, selectedAccounts]);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     async function loadSetupDetail() {
@@ -190,29 +88,137 @@ export function SetupsAnalyticsPanel() {
         if (!response.ok) {
           setDetail(null);
           setDetailError("Unable to load setup detail right now.");
-          setDetailLoading(false);
           return;
         }
 
         const payload = (await response.json()) as SetupDetailPayload;
         setDetail(payload.data);
-        setDetailLoading(false);
       } catch {
         setDetail(null);
         setDetailError("Unable to load setup detail right now.");
+      } finally {
         setDetailLoading(false);
       }
     }
 
     void loadSetupDetail();
-  }, [selectedSetupId, selectedAccounts]);
+  }, [selectedAccounts, selectedSetupId]);
 
-  const accountOptions = useMemo(() => {
-    return Array.from(new Set(imports.map((entry) => entry.accountId))).sort();
-  }, [imports]);
+  const columns = useMemo<DataTableColumnDefinition<SetupSummaryRecord>[]>(() => [
+    {
+      id: "tag",
+      label: "Tag",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.overrideTag ?? row.tag,
+      sortMode: "string",
+      getSortValue: (row) => row.overrideTag ?? row.tag,
+    },
+    {
+      id: "underlyingSymbol",
+      label: "Underlying",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.underlyingSymbol,
+      sortMode: "string",
+      getSortValue: (row) => row.underlyingSymbol,
+    },
+    {
+      id: "accountId",
+      label: "Account",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.accountId,
+      getFilterOptionLabel: (value) => getAccountDisplayText(value),
+      sortMode: "string",
+      getSortValue: (row) => getAccountDisplayText(row.accountId),
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "realizedPnl",
+      label: "Realized P&L ($)",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.realizedPnl ?? "0",
+      sortMode: "number",
+      getSortValue: (row) => safeNumber(row.realizedPnl),
+    },
+    {
+      id: "winRate",
+      label: "Win Rate (%)",
+      align: "right",
+      title: "Percent of closed lots with positive outcome. Flat lots excluded.",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.winRate === null ? "-" : String(Math.round(safeNumber(row.winRate) * 1000) / 10)),
+      sortMode: "number",
+      getSortValue: (row) => (row.winRate === null ? null : safeNumber(row.winRate)),
+    },
+    {
+      id: "expectancy",
+      label: "Expectancy ($ / lot)",
+      align: "right",
+      title: "Average realized P&L per matched lot in this setup.",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.expectancy ?? "0",
+      sortMode: "number",
+      getSortValue: (row) => safeNumber(row.expectancy),
+    },
+    {
+      id: "averageHoldDays",
+      label: "Avg Hold",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.averageHoldDays ?? "0",
+      sortMode: "number",
+      getSortValue: (row) => safeNumber(row.averageHoldDays),
+    },
+    {
+      id: "detail",
+      label: "Detail",
+      filterMode: "discrete",
+      getFilterValues: () => "View detail",
+      sortMode: "string",
+      getSortValue: () => "View detail",
+    },
+    {
+      id: "investigate",
+      label: "Investigate",
+      filterMode: "discrete",
+      getFilterValues: () => "Case file",
+      sortMode: "string",
+      getSortValue: () => "Case file",
+    },
+  ], [getAccountDisplayText]);
+
+  const table = useDataTableState({
+    tableName: "setups",
+    rows,
+    columns,
+    initialSort: { columnId: "realizedPnl", direction: "desc" },
+  });
+
+  const isTableHydrated = table.isHydrated;
+  const setTableColumnFilter = table.setColumnFilter;
+
+  useEffect(() => {
+    if (!isTableHydrated) {
+      return;
+    }
+
+    const accountParam = searchParams.get("account");
+    const tagParam = searchParams.get("tag");
+
+    if (accountParam) {
+      setTableColumnFilter("accountId", [accountParam]);
+    }
+    if (tagParam) {
+      setTableColumnFilter("tag", [tagParam]);
+    }
+  }, [searchParams, isTableHydrated, setTableColumnFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedAccounts, table.filters, table.sort]);
 
   const summary = useMemo(() => {
-    if (summaryRows.length === 0) {
+    if (table.sortedRows.length === 0) {
       return {
         totalPnl: 0,
         averageWinRate: null as number | null,
@@ -221,17 +227,14 @@ export function SetupsAnalyticsPanel() {
       };
     }
 
-    const totalPnl = summaryRows.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);
-
-    const winRates = summaryRows
+    const totalPnl = table.sortedRows.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);
+    const winRates = table.sortedRows
       .map((row) => (row.winRate === null ? null : safeNumber(row.winRate)))
       .filter((value): value is number => value !== null);
     const averageWinRateRatio = winRates.length > 0 ? winRates.reduce((sum, value) => sum + value, 0) / winRates.length : null;
-
-    const expectancies = summaryRows.map((row) => safeNumber(row.expectancy));
+    const expectancies = table.sortedRows.map((row) => safeNumber(row.expectancy));
     const averageExpectancy = expectancies.length > 0 ? expectancies.reduce((sum, value) => sum + value, 0) / expectancies.length : 0;
-
-    const holdDays = summaryRows.map((row) => safeNumber(row.averageHoldDays));
+    const holdDays = table.sortedRows.map((row) => safeNumber(row.averageHoldDays));
     const averageHoldDays = holdDays.length > 0 ? holdDays.reduce((sum, value) => sum + value, 0) / holdDays.length : 0;
 
     return {
@@ -240,11 +243,12 @@ export function SetupsAnalyticsPanel() {
       averageExpectancy,
       averageHoldDays,
     };
-  }, [summaryRows]);
+  }, [table.sortedRows]);
 
-  const hasRows = rows.length > 0;
-  const canGoBack = meta.page > 1;
-  const canGoForward = meta.page * meta.pageSize < meta.total;
+  const totalRows = table.sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   function toggleShowAll() {
     const next = !showAll;
@@ -257,14 +261,13 @@ export function SetupsAnalyticsPanel() {
     }
   }
 
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    setPage(1);
-  }
-
-  function resetFilters() {
-    setDraftFilters(defaultFilters);
-    setAppliedFilters(defaultFilters);
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+    setTableColumnFilter(columnId, values);
+    if (direction) {
+      table.setSort({ columnId, direction });
+    } else if (table.sort.columnId === columnId) {
+      table.setSort({ columnId: null, direction: null });
+    }
     setPage(1);
   }
 
@@ -298,58 +301,21 @@ export function SetupsAnalyticsPanel() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <select
-          value={draftFilters.account}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, account: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All accounts</option>
-          {accountOptions.map((accountId) => (
-            <option key={accountId} value={accountId}>
-              {getAccountDisplayText(accountId)}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={draftFilters.tag}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, tag: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All tags</option>
-          {tagOptions.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={applyFilters}
-          className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm text-blue-100"
-        >
-          Apply Filters
-        </button>
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200"
-        >
-          Reset
-        </button>
-        <button type="button" onClick={toggleShowAll} className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200">
-          {showAll ? "Show pages" : `Show all ${meta.total}`}
-        </button>
-      </div>
+      <DataTableToolbar
+        activeFilterCount={table.activeFilterCount}
+        onClearAllFilters={() => {
+          table.clearAllFilters();
+          setPage(1);
+        }}
+        onToggleShowAll={toggleShowAll}
+        showAll={showAll}
+        totalRows={totalRows}
+      />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-red-200">{error}</p> : null}
 
-      {!loading && !error && !hasRows ? (
+      {!loading && !error && totalRows === 0 ? (
         <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
           <h3 className="text-lg font-medium text-slate-100">No setup groups found</h3>
           <p className="mt-2 text-sm text-slate-300">Commit an import so setup inference can generate T3 groups from matched lots.</p>
@@ -359,7 +325,7 @@ export function SetupsAnalyticsPanel() {
         </div>
       ) : null}
 
-      {!loading && !error && hasRows ? (
+      {!loading && !error && totalRows > 0 ? (
         <div className="space-y-3">
           <div
             className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
@@ -368,26 +334,22 @@ export function SetupsAnalyticsPanel() {
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
                 <tr>
-                  <th className="px-2 py-2 text-left">Tag</th>
-                  <th className="px-2 py-2 text-left">Underlying</th>
-                  <th className="px-2 py-2 text-left">Account</th>
-                  <th className="px-2 py-2 text-right">Realized P&L ($)</th>
-                  <th
-                    className="px-2 py-2 text-right"
-                    title="Percent of closed lots with positive outcome. Flat lots excluded."
-                  >
-                    Win Rate (%)
-                  </th>
-                  <th className="px-2 py-2 text-right" title="Average realized P&L per matched lot in this setup.">
-                    Expectancy ($ / lot)
-                  </th>
-                  <th className="px-2 py-2 text-right">Avg Hold</th>
-                  <th className="px-2 py-2 text-left">Detail</th>
-                  <th className="px-2 py-2 text-left">Investigate</th>
+                  {columns.map((column) => (
+                    <DataTableHeader
+                      key={column.id}
+                      column={column}
+                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                      currentValues={table.filters[column.id] ?? []}
+                      isOpen={openColumnId === column.id}
+                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                      onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                      options={table.filterOptions[column.id] ?? []}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {pagedRows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
                     <td className="px-2 py-2">{row.underlyingSymbol}</td>
@@ -417,16 +379,16 @@ export function SetupsAnalyticsPanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {meta.total} records</p>
+            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
           ) : (
             <div className="flex items-center justify-between text-xs text-slate-300">
               <p>
-                Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
+                Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={!canGoBack}
+                  disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
@@ -434,8 +396,8 @@ export function SetupsAnalyticsPanel() {
                 </button>
                 <button
                   type="button"
-                  disabled={!canGoForward}
-                  onClick={() => setPage((current) => current + 1)}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
                   Next

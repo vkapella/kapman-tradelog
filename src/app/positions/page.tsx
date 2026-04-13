@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
+import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { useDataTableState } from "@/components/data-table/useDataTableState";
+import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
@@ -59,7 +63,7 @@ async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<
 
 export default function Page() {
   const { positions, loading, error } = useOpenPositions();
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
 
   const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
@@ -68,6 +72,7 @@ export default function Page() {
   const [markMap, setMarkMap] = useState<Record<string, number | null>>({});
   const [quoteUnavailable, setQuoteUnavailable] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [openColumnId, setOpenColumnId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -114,10 +119,7 @@ export default function Page() {
             quoteParams.set("refresh", "1");
             quoteParams.set("nonce", refreshNonce);
           }
-          const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(
-            `/api/quotes?${quoteParams.toString()}`,
-            timeoutMs,
-          );
+          const equityPayload = await fetchJsonWithTimeout<QuotesResponse>(`/api/quotes?${quoteParams.toString()}`, timeoutMs);
 
           if (isQuoteUnavailable(equityPayload)) {
             unavailable = true;
@@ -233,10 +235,132 @@ export default function Page() {
     });
   }, [filteredPositions, markMap]);
 
+  const columns = useMemo<DataTableColumnDefinition<(typeof rows)[number]>[]>(() => [
+    {
+      id: "symbol",
+      label: "Symbol",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.underlyingSymbol,
+      sortMode: "string",
+      getSortValue: (row) => row.underlyingSymbol,
+    },
+    {
+      id: "assetClass",
+      label: "Type",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"),
+      sortMode: "string",
+      getSortValue: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"),
+    },
+    {
+      id: "strike",
+      label: "Strike",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.strike ?? "—",
+      sortMode: "number",
+      getSortValue: (row) => (row.strike === null ? null : Number(row.strike)),
+    },
+    {
+      id: "expirationDate",
+      label: "Expiry",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.expirationDate ?? "—",
+      getFilterOptionLabel: (value) => (value === "—" ? value : new Date(value).toLocaleDateString()),
+      sortMode: "date",
+      getSortValue: (row) => row.expirationDate,
+      defaultSortDirection: "asc",
+    },
+    {
+      id: "dte",
+      label: "DTE",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.dte === null ? "—" : String(row.dte)),
+      sortMode: "number",
+      getSortValue: (row) => row.dte,
+    },
+    {
+      id: "netQty",
+      label: "Qty",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.netQty),
+      sortMode: "number",
+      getSortValue: (row) => row.netQty,
+    },
+    {
+      id: "costBasis",
+      label: "Cost Basis",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => String(row.costBasis),
+      sortMode: "number",
+      getSortValue: (row) => row.costBasis,
+    },
+    {
+      id: "mark",
+      label: "Mark",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.mark === null ? "—" : String(row.mark)),
+      sortMode: "number",
+      getSortValue: (row) => row.mark,
+    },
+    {
+      id: "marketValue",
+      label: "Mkt Value",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.marketValue === null ? "—" : String(row.marketValue)),
+      sortMode: "number",
+      getSortValue: (row) => row.marketValue,
+    },
+    {
+      id: "unrealizedPnl",
+      label: "Unrealized P&L",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.unrealizedPnl === null ? "—" : String(row.unrealizedPnl)),
+      sortMode: "number",
+      getSortValue: (row) => row.unrealizedPnl,
+    },
+    {
+      id: "pnlPct",
+      label: "P&L %",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => (row.pnlPct === null ? "—" : String(row.pnlPct)),
+      sortMode: "number",
+      getSortValue: (row) => row.pnlPct,
+    },
+    {
+      id: "accountId",
+      label: "Account",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.accountId,
+      getFilterOptionLabel: (value) => getAccountDisplayText(value),
+      sortMode: "string",
+      getSortValue: (row) => getAccountDisplayText(row.accountId),
+      panelWidthClassName: "w-80",
+    },
+  ], [getAccountDisplayText]);
+
+  const table = useDataTableState({
+    tableName: "positions",
+    rows,
+    columns,
+    initialSort: { columnId: "unrealizedPnl", direction: "desc" },
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedAccounts, table.filters, table.sort]);
+
   const totals = useMemo(() => {
-    const totalCostBasis = rows.reduce((sum, row) => sum + row.costBasis, 0);
-    const hasMissingMarketValue = rows.some((row) => row.marketValue === null);
-    const totalMarketValue = hasMissingMarketValue ? null : rows.reduce((sum, row) => sum + (row.marketValue ?? 0), 0);
+    const totalCostBasis = table.sortedRows.reduce((sum, row) => sum + row.costBasis, 0);
+    const hasMissingMarketValue = table.sortedRows.some((row) => row.marketValue === null);
+    const totalMarketValue = hasMissingMarketValue ? null : table.sortedRows.reduce((sum, row) => sum + (row.marketValue ?? 0), 0);
     const totalUnrealized = totalMarketValue === null ? null : totalMarketValue - totalCostBasis;
 
     return {
@@ -245,13 +369,12 @@ export default function Page() {
       totalUnrealized,
       hasMissingMarketValue,
     };
-  }, [rows]);
+  }, [table.sortedRows]);
 
-  const pageSize = 25;
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalRows = table.sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(page, totalPages);
-  const pagedRows = showAll ? rows : rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
 
   function toggleShowAll() {
     const next = !showAll;
@@ -264,36 +387,33 @@ export default function Page() {
     }
   }
 
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+    table.setColumnFilter(columnId, values);
+    if (direction) {
+      table.setSort({ columnId, direction });
+    } else if (table.sort.columnId === columnId) {
+      table.setSort({ columnId: null, direction: null });
+    }
+    setPage(1);
+  }
+
   return (
     <section className="space-y-4 rounded-xl border border-border bg-panel p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
-          <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-muted">{total} positions</span>
+          <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-muted">{totalRows} positions</span>
           <span className="text-xs text-muted">Last quoted: {lastQuoted ? lastQuoted.toLocaleTimeString() : "—"}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setRefreshCounter((current) => current + 1)}
-            disabled={markLoading}
-            className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text"
-          >
-            {markLoading ? "Refreshing..." : "Refresh Quotes"}
-          </button>
-          <button type="button" onClick={toggleShowAll} className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text">
-            {showAll ? "Show pages" : `Show all ${total}`}
-          </button>
         </div>
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
-      {!loading && !error && total === 0 ? (
+      {!loading && !error && totalRows === 0 ? (
         <div className="rounded-lg border border-border bg-panel-2 p-4 text-sm text-muted">No open positions for the selected accounts.</div>
       ) : null}
 
-      {!loading && !error && total > 0 ? (
+      {!loading && !error && totalRows > 0 ? (
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-3">
             <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
@@ -315,22 +435,43 @@ export default function Page() {
             </article>
           </div>
           {quoteUnavailable ? <p className="text-xs text-amber-200">Live quotes unavailable. Showing cost basis only.</p> : null}
+
+          <DataTableToolbar
+            activeFilterCount={table.activeFilterCount}
+            onClearAllFilters={() => {
+              table.clearAllFilters();
+              setPage(1);
+            }}
+            onToggleShowAll={toggleShowAll}
+            showAll={showAll}
+            totalRows={totalRows}
+          >
+            <button
+              type="button"
+              onClick={() => setRefreshCounter((current) => current + 1)}
+              disabled={markLoading}
+              className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text"
+            >
+              {markLoading ? "Refreshing..." : "Refresh Quotes"}
+            </button>
+          </DataTableToolbar>
+
           <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 z-10 bg-panel-2 text-muted">
                 <tr>
-                  <th className="px-2 py-2 text-left">Symbol</th>
-                  <th className="px-2 py-2 text-left">Type</th>
-                  <th className="px-2 py-2 text-right">Strike</th>
-                  <th className="px-2 py-2 text-left">Expiry</th>
-                  <th className="px-2 py-2 text-right">DTE</th>
-                  <th className="px-2 py-2 text-right">Qty</th>
-                  <th className="px-2 py-2 text-right">Cost Basis</th>
-                  <th className="px-2 py-2 text-right">Mark</th>
-                  <th className="px-2 py-2 text-right">Mkt Value</th>
-                  <th className="px-2 py-2 text-right">Unrealized P&L</th>
-                  <th className="px-2 py-2 text-right">P&L %</th>
-                  <th className="px-2 py-2 text-left">Account</th>
+                  {columns.map((column) => (
+                    <DataTableHeader
+                      key={column.id}
+                      column={column}
+                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                      currentValues={table.filters[column.id] ?? []}
+                      isOpen={openColumnId === column.id}
+                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                      onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                      options={table.filterOptions[column.id] ?? []}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -375,7 +516,9 @@ export default function Page() {
             </table>
           </div>
 
-          {!showAll ? (
+          {showAll ? (
+            <p className="text-xs text-muted">Showing all {totalRows} records</p>
+          ) : (
             <div className="flex items-center justify-between text-xs text-muted">
               <p>
                 Page {currentPage} of {totalPages}
@@ -399,8 +542,6 @@ export default function Page() {
                 </button>
               </div>
             </div>
-          ) : (
-            <p className="text-xs text-muted">Showing all {total} records</p>
           )}
         </div>
       ) : null}
