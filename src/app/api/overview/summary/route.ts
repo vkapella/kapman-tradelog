@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
+import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { prisma } from "@/lib/db/prisma";
 import type { OverviewSummaryResponse } from "@/types/api";
 
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const whereAccount = buildAccountScopeWhere(accountIds);
 
-  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots] = await Promise.all([
+  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots, accountBalances] = await Promise.all([
     prisma.execution.count({ where: whereAccount as Prisma.ExecutionWhereInput | undefined }),
     prisma.matchedLot.findMany({
       where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
       },
       orderBy: [{ snapshotDate: "asc" }, { id: "asc" }],
     }),
+    loadAccountBalanceContext(accountIds),
   ]);
 
   const totalPnl = matchedLots.reduce((sum, lot) => sum + Number(lot.realizedPnl), 0);
@@ -63,6 +65,13 @@ export async function GET(request: Request) {
       totalCash: snapshot.totalCash != null ? snapshot.totalCash.toString() : null,
       brokerNetLiquidationValue:
         snapshot.brokerNetLiquidationValue != null ? snapshot.brokerNetLiquidationValue.toString() : null,
+    })),
+    accountBalances: accountBalances.map((accountBalance) => ({
+      accountId: accountBalance.accountExternalId,
+      cash: accountBalance.cash.toFixed(2),
+      cashAsOf: accountBalance.cashAsOf,
+      brokerNetLiquidationValue:
+        accountBalance.brokerNetLiquidationValue === null ? null : accountBalance.brokerNetLiquidationValue.toFixed(2),
     })),
   };
 

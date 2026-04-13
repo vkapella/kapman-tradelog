@@ -10,11 +10,12 @@ interface DataTableHeaderProps<Row> {
   currentValues: string[];
   isOpen: boolean;
   onApply: (values: string[], direction: SortDirection | null) => void;
+  onRequestClose: () => void;
   onToggle: () => void;
   options: DataTableFilterOption[];
 }
 
-function alignmentClassName(align: DataTableColumnDefinition<unknown>["align"]): string {
+function alignmentClassName<Row>(align: DataTableColumnDefinition<Row>["align"]): string {
   if (align === "right") {
     return "justify-end text-right";
   }
@@ -32,18 +33,19 @@ function DataTableHeaderInner<Row>({
   currentValues,
   isOpen,
   onApply,
+  onRequestClose,
   onToggle,
   options,
 }: DataTableHeaderProps<Row>) {
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const isActive = currentValues.length > 0 || Boolean(currentSortDirection);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
 
   return (
     <th className="relative px-2 py-2" title={column.title}>
-      <div className={["flex items-center gap-2", alignmentClassName(column.align)].join(" ")}>
+      <div className={["flex items-center gap-2", alignmentClassName<Row>(column.align)].join(" ")}>
         <span className="font-medium">{column.label}</span>
         <button
-          ref={triggerRef}
+          ref={filterButtonRef}
           type="button"
           onClick={onToggle}
           className={isActive ? "rounded border border-blue-400/50 bg-blue-500/20 p-1 text-blue-100" : "rounded border border-transparent p-1 text-inherit hover:border-slate-600 hover:bg-slate-800/60"}
@@ -57,12 +59,12 @@ function DataTableHeaderInner<Row>({
       </div>
       {isOpen ? (
         <ColumnFilterPanel
-          anchorRef={triggerRef}
+          anchorRef={filterButtonRef}
           column={column}
           currentSortDirection={currentSortDirection}
           currentValues={currentValues}
           onApply={onApply}
-          onClose={onToggle}
+          onClose={onRequestClose}
           options={options}
         />
       ) : null}

@@ -1,3 +1,4 @@
+import type { NormalizedDailyAccountSnapshot } from "../types";
 import type { RawFidelityRow } from "./types";
 
 const HEADER_ROW_INDEX = 2;
@@ -138,4 +139,25 @@ export function parseFidelityCsv(buffer: Buffer, _filename: string): RawFidelity
   }
 
   return rows;
+}
+
+export function buildFidelityImportSnapshot(
+  rows: RawFidelityRow[],
+  moneyMarketHolding: number,
+): NormalizedDailyAccountSnapshot[] {
+  const latestRow = rows.find((row) => row.runDate && row.cashBalance !== null);
+  if (!latestRow?.runDate || latestRow.cashBalance === null) {
+    return [];
+  }
+
+  const snapshotDate = new Date(latestRow.runDate.getTime());
+  const balance = latestRow.cashBalance;
+
+  return [
+    {
+      snapshotDate,
+      balance,
+      totalCash: balance + moneyMarketHolding,
+    },
+  ];
 }

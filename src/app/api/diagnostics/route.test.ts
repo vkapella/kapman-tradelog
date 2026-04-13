@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const diagnosticsRouteMocks = vi.hoisted(() => {
   return {
+    loadAccountBalanceContext: vi.fn(),
     import: {
       findMany: vi.fn(),
     },
@@ -16,6 +17,10 @@ const diagnosticsRouteMocks = vi.hoisted(() => {
     },
   };
 });
+
+vi.mock("@/lib/accounts/account-balance-context", () => ({
+  loadAccountBalanceContext: diagnosticsRouteMocks.loadAccountBalanceContext,
+}));
 
 vi.mock("@/lib/db/prisma", () => {
   return {
@@ -32,6 +37,7 @@ describe("GET /api/diagnostics", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    diagnosticsRouteMocks.loadAccountBalanceContext.mockResolvedValue([]);
   });
 
   it("keeps same-instrument warnings scoped by account when building case refs", async () => {
@@ -141,5 +147,49 @@ describe("GET /api/diagnostics", () => {
         }),
       ]),
     );
+  });
+
+  it("includes per-account cash source diagnostics", async () => {
+    diagnosticsRouteMocks.import.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.execution.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.loadAccountBalanceContext.mockResolvedValueOnce([
+      {
+        accountExternalId: "D-68011053",
+        brokerNetLiquidationValue: 179381.15,
+        cash: 88556.6,
+        cashAsOf: "2026-04-10T00:00:00.000Z",
+        cashSource: "snapshot",
+      },
+      {
+        accountExternalId: "X19467537",
+        brokerNetLiquidationValue: null,
+        cash: 53125.91,
+        cashAsOf: "2026-04-10T00:00:00.000Z",
+        cashSource: "heuristic_fallback",
+      },
+    ]);
+
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/diagnostics"));
+    const payload = (await response.json()) as {
+      data: {
+        accountCash: Array<{ accountId: string; cashSource: string; cashAsOf: string | null }>;
+      };
+    };
+
+    expect(payload.data.accountCash).toEqual([
+      {
+        accountId: "D-68011053",
+        cashSource: "snapshot",
+        cashAsOf: "2026-04-10T00:00:00.000Z",
+      },
+      {
+        accountId: "X19467537",
+        cashSource: "heuristic_fallback",
+        cashAsOf: "2026-04-10T00:00:00.000Z",
+      },
+    ]);
   });
 });

@@ -91,6 +91,51 @@ describe("computeOpenPositions", () => {
     expect(result[0]?.costBasis).toBeCloseTo(-198, 6);
   });
 
+  it("treats UNKNOWN Fidelity equity buys as opening positions", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "fidelity-equity-buy",
+        accountId: "account-1",
+        broker: "FIDELITY",
+        symbol: "SPHQ",
+        quantity: "200",
+        price: "76.13",
+        openingClosingEffect: "UNKNOWN",
+        assetClass: "EQUITY",
+        side: "BUY",
+        spreadGroupId: null,
+      }),
+    ];
+
+    const result = computeOpenPositions(executions, []);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.symbol).toBe("SPHQ");
+    expect(result[0]?.netQty).toBe(200);
+    expect(result[0]?.costBasis).toBeCloseTo(15226, 6);
+  });
+
+  it("ignores assignment-linked UNKNOWN equity buys", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "assigned-equity-buy",
+        accountId: "account-1",
+        broker: "FIDELITY",
+        symbol: "DAL",
+        quantity: "100",
+        price: "65",
+        openingClosingEffect: "UNKNOWN",
+        assetClass: "EQUITY",
+        side: "BUY",
+        spreadGroupId: "assignment-link-1",
+      }),
+    ];
+
+    const result = computeOpenPositions(executions, []);
+
+    expect(result).toHaveLength(0);
+  });
+
   it("applies split adjustments to quantity and price while preserving gross basis", () => {
     const executions: ExecutionRecord[] = [
       execution({

@@ -1,7 +1,8 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { isWithinFilterPanelBoundary } from "@/components/data-table/filter-panel-interaction";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
 const PANEL_GAP_PX = 8;
@@ -62,8 +63,7 @@ export function ColumnFilterPanel<Row>({
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
-      const target = event.target as Node;
-      if (!panelRef.current || panelRef.current.contains(target) || anchorRef.current?.contains(target)) {
+      if (isWithinFilterPanelBoundary(event.target as Node | null, panelRef.current, anchorRef.current)) {
         return;
       }
 
@@ -87,7 +87,7 @@ export function ColumnFilterPanel<Row>({
   }, [anchorRef, onClose]);
 
   useLayoutEffect(() => {
-    if (!isMounted || !panelRef.current || !anchorRef.current) {
+    if (!anchorRef.current || !panelRef.current) {
       return;
     }
 
@@ -132,14 +132,21 @@ export function ColumnFilterPanel<Row>({
     }
 
     updatePanelPosition();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updatePanelPosition();
+    });
+    resizeObserver.observe(panelRef.current);
+    resizeObserver.observe(anchorRef.current);
     window.addEventListener("resize", updatePanelPosition);
-    document.addEventListener("scroll", updatePanelPosition, true);
+    window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener("resize", updatePanelPosition);
-      document.removeEventListener("scroll", updatePanelPosition, true);
+      window.removeEventListener("scroll", updatePanelPosition, true);
     };
-  }, [anchorRef, column.filterMode, column.sortMode, filteredOptions.length, isMounted]);
+  }, [anchorRef, column.filterMode, column.sortMode, draftSearch, filteredOptions.length, isMounted]);
 
   function toggleValue(value: string) {
     setDraftValues((current) => (current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]));
@@ -162,6 +169,7 @@ export function ColumnFilterPanel<Row>({
         left: panelPosition.left,
         maxHeight: panelPosition.maxHeight,
         visibility: panelPosition.ready ? "visible" : "hidden",
+        maxWidth: "calc(100vw - 24px)",
       }}
       className={[
         "fixed z-50 min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",

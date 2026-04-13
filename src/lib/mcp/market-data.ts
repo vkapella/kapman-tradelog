@@ -2,6 +2,22 @@ import type { EquityQuoteRecord, OptionQuoteRecord } from "@/types/api";
 import { callMcpTool, McpUnavailableError } from "@/lib/mcp/client";
 
 type OptionContractMap = Record<string, Record<string, Array<Record<string, unknown>>>>;
+type OptionContractType = "CALL" | "PUT";
+
+interface OptionQuoteBatchLeg {
+  underlyingSymbol: string;
+  strike: number;
+  expirationDate: string;
+  optionType: string;
+}
+
+interface NormalizedOptionQuoteBatchLeg {
+  underlyingSymbol: string;
+  strike: number;
+  expirationDate: string;
+  optionType: OptionContractType;
+  instrumentKey: string;
+}
 
 export interface OptionQuoteRequest {
   symbol: string;
@@ -65,6 +81,33 @@ function getOptionContract(map: OptionContractMap, expDate: string, strike: numb
   return null;
 }
 
+function buildOptionInstrumentKey(underlyingSymbol: string, optionType: OptionContractType, strike: number, expirationDate: string): string {
+  return `${underlyingSymbol}|${optionType}|${strike}|${expirationDate}`;
+}
+
+function normalizeOptionBatchLeg(leg: OptionQuoteBatchLeg): NormalizedOptionQuoteBatchLeg | null {
+  const underlyingSymbol = leg.underlyingSymbol.trim().toUpperCase();
+  const expirationDate = leg.expirationDate.trim().slice(0, 10);
+  const optionType = leg.optionType.trim().toUpperCase();
+  const strike = Number(leg.strike);
+
+  if (!underlyingSymbol || !expirationDate || !Number.isFinite(strike) || (optionType !== "CALL" && optionType !== "PUT")) {
+    return null;
+  }
+
+  return {
+    underlyingSymbol,
+    strike,
+    expirationDate,
+    optionType,
+    instrumentKey: buildOptionInstrumentKey(underlyingSymbol, optionType, strike, expirationDate),
+  };
+}
+
+function getSymbolCandidates(symbol: string): string[] {
+  return symbol === "VIX" ? ["VIX", "$VIX"] : [symbol];
+}
+
 function pickOptionExpMap(payload: unknown, contractType: "CALL" | "PUT"): OptionContractMap | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -115,6 +158,51 @@ function mapGroupedOptionQuotes(expMap: OptionContractMap, requests: OptionQuote
   });
 
   return entries.some(([, quote]) => quote !== null) ? Object.fromEntries(entries) : null;
+}
+
+async function getOptionContractsForSymbol(
+  symbol: string,
+  contractType: OptionContractType,
+  contracts: Array<Pick<NormalizedOptionQuoteBatchLeg, "expirationDate" | "strike">>,
+): Promise<OptionContractMap | null> {
+  const sortedDates = Array.from(new Set(contracts.map((contract) => contract.expirationDate))).sort((left, right) => left.localeCompare(right));
+  const fromDate = sortedDates[0];
+  const toDate = sortedDates[sortedDates.length - 1];
+  const symbolCandidates = getSymbolCandidates(symbol);
+
+  for (let index = 0; index < symbolCandidates.length; index += 1) {
+    const symbolCandidate = symbolCandidates[index];
+    const hasMoreCandidates = index < symbolCandidates.length - 1;
+
+    let chainResult: unknown;
+    try {
+      chainResult = await callMcpTool<unknown>("get_option_chain", {
+        symbol: symbolCandidate,
+        contract_type: contractType,
+        strike_count: 50,
+        include_quotes: true,
+        from_date: fromDate,
+        to_date: toDate,
+      });
+    } catch (error) {
+      if (error instanceof McpUnavailableError && hasMoreCandidates) {
+        continue;
+      }
+
+      if (error instanceof McpUnavailableError) {
+        return null;
+      }
+
+      throw error;
+    }
+
+    const expMap = pickOptionExpMap(chainResult, contractType);
+    if (expMap && contracts.some((contract) => getOptionContract(expMap, contract.expirationDate, contract.strike))) {
+      return expMap;
+    }
+  }
+
+  return null;
 }
 
 export async function getEquityQuotes(symbols: string[]): Promise<Record<string, EquityQuoteRecord> | null> {
@@ -186,38 +274,16 @@ export async function getOptionQuotes(requests: OptionQuoteRequest[]): Promise<R
     const quoteEntries = await Promise.all(
       Array.from(groupedRequests.values()).map(async (group) => {
         const [firstRequest] = group;
-        const symbolCandidates = firstRequest.symbol === "VIX" ? ["VIX", "$VIX"] : [firstRequest.symbol];
-        const sortedExpDates = group.map((request) => request.expDate).sort((left, right) => left.localeCompare(right));
-        const fromDate = sortedExpDates[0];
-        const toDate = sortedExpDates[sortedExpDates.length - 1];
+        const expMap = await getOptionContractsForSymbol(
+          firstRequest.symbol,
+          firstRequest.contractType,
+          group.map((request) => ({
+            expirationDate: request.expDate,
+            strike: request.strike,
+          })),
+        );
 
-        for (let index = 0; index < symbolCandidates.length; index += 1) {
-          const symbolCandidate = symbolCandidates[index];
-          const hasMoreCandidates = index < symbolCandidates.length - 1;
-
-          let chainResult: unknown;
-          try {
-            chainResult = await callMcpTool<unknown>("get_option_chain", {
-              symbol: symbolCandidate,
-              contract_type: firstRequest.contractType,
-              strike_count: 200,
-              include_quotes: true,
-              from_date: fromDate,
-              to_date: toDate,
-            });
-          } catch (error) {
-            if (error instanceof McpUnavailableError && hasMoreCandidates) {
-              continue;
-            }
-
-            throw error;
-          }
-
-          const expMap = pickOptionExpMap(chainResult, firstRequest.contractType);
-          if (!expMap) {
-            continue;
-          }
-
+        if (expMap) {
           const mappedQuotes = mapGroupedOptionQuotes(expMap, group);
           if (mappedQuotes) {
             return Object.entries(mappedQuotes).map(([cacheKey, quote]) => [cacheKey, quote] as const);
@@ -236,4 +302,45 @@ export async function getOptionQuotes(requests: OptionQuoteRequest[]): Promise<R
 
     throw error;
   }
+}
+
+export async function getOptionQuotesBatch(legs: OptionQuoteBatchLeg[]): Promise<Map<string, number | null>> {
+  const quotes = new Map<string, number | null>();
+  const groupedLegs = new Map<string, NormalizedOptionQuoteBatchLeg[]>();
+
+  for (const leg of legs) {
+    const normalized = normalizeOptionBatchLeg(leg);
+    if (!normalized) {
+      continue;
+    }
+
+    quotes.set(normalized.instrumentKey, null);
+    const groupKey = `${normalized.underlyingSymbol}|${normalized.optionType}`;
+    const group = groupedLegs.get(groupKey) ?? [];
+    group.push(normalized);
+    groupedLegs.set(groupKey, group);
+  }
+
+  await Promise.all(
+    Array.from(groupedLegs.values()).map(async (group) => {
+      const [firstLeg] = group;
+      const expMap = await getOptionContractsForSymbol(
+        firstLeg.underlyingSymbol,
+        firstLeg.optionType,
+        group,
+      );
+
+      if (!expMap) {
+        return;
+      }
+
+      for (const leg of group) {
+        const contract = getOptionContract(expMap, leg.expirationDate, leg.strike);
+        const quote = contract ? mapOptionContract(contract) : null;
+        quotes.set(leg.instrumentKey, quote?.mark ?? null);
+      }
+    }),
+  );
+
+  return quotes;
 }

@@ -5,6 +5,7 @@ import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
 import { prisma } from "@/lib/db/prisma";
 import { replaceImportCashEvents } from "@/lib/imports/replace-import-cash-events";
 import { replaceImportExecutions } from "@/lib/imports/replace-import-executions";
+import { hydrateFidelityCashSnapshots } from "@/lib/imports/hydrate-fidelity-cash-snapshots";
 import { replaceImportSnapshots } from "@/lib/imports/replace-import-snapshots";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
@@ -100,7 +101,7 @@ function buildCashEventDedupKey(input: {
   ].join("|");
 }
 
-export async function POST(_request: Request, context: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: { id: string } }) {
   const importId = context.params.id;
 
   const existingImport = await prisma.import.findUnique({ where: { id: importId } });
@@ -351,6 +352,9 @@ export async function POST(_request: Request, context: { params: { id: string } 
       const ingestResult = await replaceImportExecutions(tx, importId, filteredExecutionData);
       const snapshotResult = await replaceImportSnapshots(tx, importId, existingImport.accountId, parsed.snapshots);
       const cashEventResult = await replaceImportCashEvents(tx, importId, existingImport.accountId, filteredCashEvents);
+      if (matched.adapter.id === "fidelity") {
+        await hydrateFidelityCashSnapshots(tx, existingImport.accountId);
+      }
 
       const rebuildResult = await rebuildAccountLedger(tx, existingImport.accountId, new Date());
       const setupResult = await rebuildAccountSetups(tx, existingImport.accountId);
@@ -439,6 +443,14 @@ export async function POST(_request: Request, context: { params: { id: string } 
     failed: transactionResult.updatedImport.failedRows,
     warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
+
+  void fetch(new URL("/api/positions/snapshot/compute", request.url), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ accountIds: [existingImport.accountId] }),
+  }).catch(() => {});
 
   return detailResponse(payload);
 }

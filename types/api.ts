@@ -285,6 +285,12 @@ export interface OverviewSummaryResponse {
     totalCash: string | null;
     brokerNetLiquidationValue: string | null;
   }>;
+  accountBalances: Array<{
+    accountId: string;
+    cash: string;
+    cashAsOf: string | null;
+    brokerNetLiquidationValue: string | null;
+  }>;
 }
 
 export interface ReconciliationResponse {
@@ -328,6 +334,17 @@ export interface DiagnosticsResponse {
   uncategorizedCount: number;
   warningsCount: number;
   syntheticExpirationCount: number;
+  accountCash: Array<{
+    accountId: string;
+    cashSource: "snapshot" | "heuristic_fallback";
+    cashAsOf: string | null;
+  }>;
+  duplicateSnapshotDateCount: number;
+  skippedNonCashSections: {
+    forex: number;
+    futures: number;
+    crypto: number;
+  };
   warningSamples: string[];
   warningGroups: DiagnosticGroupRecord[];
   setupInferenceGroups: DiagnosticGroupRecord[];
@@ -451,6 +468,20 @@ export interface OptionQuoteRecord {
 
 export type OptionQuoteResponse = OptionQuoteRecord | QuoteUnavailableResponse;
 
+export interface OptionQuoteContractRequest {
+  instrumentKey: string;
+  symbol: string;
+  strike: string;
+  expDate: string;
+  contractType: "CALL" | "PUT";
+}
+
+export interface OptionQuotesRequest {
+  contracts: OptionQuoteContractRequest[];
+}
+
+export type OptionQuotesMap = Record<string, OptionQuoteResponse>;
+
 export interface OpenPosition {
   symbol: string;
   underlyingSymbol: string;
@@ -462,6 +493,41 @@ export interface OpenPosition {
   netQty: number;
   costBasis: number;
   accountId: string;
+}
+
+export type PositionSnapshotStatus = "PENDING" | "COMPLETE" | "FAILED";
+
+export interface PositionSnapshotOpenPosition extends OpenPosition {
+  mark: number | null;
+}
+
+export interface PositionSnapshotComputeResponse {
+  snapshotId: string;
+  status: PositionSnapshotStatus;
+}
+
+export interface PositionSnapshotResponseData {
+  id: string;
+  snapshotAt: string;
+  status: PositionSnapshotStatus;
+  errorMessage?: string;
+  positions: PositionSnapshotOpenPosition[];
+  unrealizedPnl: string;
+  realizedPnl: string;
+  cashAdjustments: string;
+  manualAdjustments: string;
+  currentNlv: string;
+  startingCapital: string;
+  totalGain: string;
+  unexplainedDelta: string;
+}
+
+export interface PositionSnapshotResponse {
+  data: PositionSnapshotResponseData | null;
+  meta: {
+    snapshotExists: boolean;
+    snapshotAge?: number;
+  };
 }
 
 export interface NlvResult {
@@ -614,3 +680,6 @@ export type AdjustmentsListApiResponse = ApiListResponse<ManualAdjustmentRecord>
 export type AdjustmentCreateApiResponse = ApiDetailResponse<ManualAdjustmentRecord> | ApiErrorResponse;
 export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjustmentResponse> | ApiErrorResponse;
 export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;
+export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
+export type PositionSnapshotComputeApiResponse = ApiDetailResponse<PositionSnapshotComputeResponse> | ApiErrorResponse;
+export type PositionSnapshotApiResponse = PositionSnapshotResponse | ApiErrorResponse;

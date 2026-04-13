@@ -26,6 +26,10 @@ export type CashEventType =
   | "REINVESTMENT"
   | "REDEMPTION"
   | "MONEY_MARKET_BUY"
+  | "MONEY_MARKET_REDEEM"
+  | "MONEY_MARKET_DIVIDEND"
+  | "MONEY_MARKET_EXCHANGE_OUT"
+  | "MONEY_MARKET_EXCHANGE_IN"
   | "MONEY_MARKET"
   | "TRANSFER_IN"
   | "ACAT_RECEIVE"
@@ -116,6 +120,7 @@ export interface TransformResult {
   previewRows: FidelityPreviewRow[];
   warnings: ImportWarning[];
   cancelRebookInfos: CancelRebookInfo[];
+  moneyMarketHolding: number;
   cancelledCount: number;
   cancelRebookOriginalDropCount: number;
   skippedBlankCount: number;
