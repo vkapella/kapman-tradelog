@@ -1,20 +1,11 @@
 "use client";
 
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
-import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import type {
-  AdjustmentsListApiResponse,
-  ApiListResponse,
-  ExecutionRecord,
-  ManualAdjustmentRecord,
-  MatchedLotRecord,
   OpenPosition,
-  OptionQuoteContractRequest,
-  OptionQuoteResponse,
-  OptionQuotesApiResponse,
-  OptionQuotesMap,
-  OptionQuotesRequest,
-  QuotesResponse,
+  PositionSnapshotApiResponse,
+  PositionSnapshotComputeApiResponse,
+  PositionSnapshotOpenPosition,
 } from "@/types/api";
 
 export interface AccountSnapshot {
@@ -48,7 +39,7 @@ const EMPTY_ACCOUNT_SNAPSHOT: AccountSnapshot = {
 
 function normalizeAccountIds(accountIds: string | string[]): string[] {
   const values = Array.isArray(accountIds) ? accountIds : [accountIds];
-  return Array.from(new Set(values.filter((value) => value.trim().length > 0))).sort((left, right) => left.localeCompare(right));
+  return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))).sort((left, right) => left.localeCompare(right));
 }
 
 function buildStorageKey(accountId: string): string {
@@ -77,14 +68,6 @@ function sortOpenPositions(left: OpenPosition, right: OpenPosition): number {
   }
 
   return left.accountId.localeCompare(right.accountId);
-}
-
-function isQuotesUnavailable(payload: QuotesResponse): payload is { error: "unavailable" } {
-  return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
-}
-
-function isOptionQuoteUnavailable(payload: OptionQuoteResponse): payload is { error: "unavailable" } {
-  return typeof payload === "object" && payload !== null && "error" in payload && payload.error === "unavailable";
 }
 
 function parsePersistedAccountSnapshot(raw: string | null): PersistedAccountSnapshot | null {
@@ -122,151 +105,63 @@ function toPersistedSnapshot(snapshot: AccountSnapshot): PersistedAccountSnapsho
   };
 }
 
-function groupPositionsByAccount(positions: OpenPosition[], accountIds: string[]): Map<string, OpenPosition[]> {
-  const grouped = new Map<string, OpenPosition[]>();
+function splitSnapshotByAccount(positions: PositionSnapshotOpenPosition[], accountIds: string[], snapshotAt: string): Map<string, AccountSnapshot> {
+  const grouped = new Map<string, AccountSnapshot>();
+
   for (const accountId of accountIds) {
-    grouped.set(accountId, []);
+    grouped.set(accountId, {
+      positions: [],
+      quotes: {},
+      lastRefreshedAt: Date.parse(snapshotAt),
+      isLoading: false,
+      error: null,
+    });
   }
 
   for (const position of positions) {
-    const existing = grouped.get(position.accountId) ?? [];
-    existing.push(position);
-    grouped.set(position.accountId, existing);
+    const current = grouped.get(position.accountId) ?? cloneEmptySnapshot();
+    current.positions.push({
+      symbol: position.symbol,
+      underlyingSymbol: position.underlyingSymbol,
+      assetClass: position.assetClass,
+      optionType: position.optionType,
+      strike: position.strike,
+      expirationDate: position.expirationDate,
+      instrumentKey: position.instrumentKey,
+      netQty: position.netQty,
+      costBasis: position.costBasis,
+      accountId: position.accountId,
+    });
+    if (typeof position.mark === "number") {
+      current.quotes[position.instrumentKey] = position.mark;
+    }
+    grouped.set(position.accountId, current);
   }
 
-  for (const [accountId, accountPositions] of Array.from(grouped.entries())) {
-    grouped.set(accountId, [...accountPositions].sort(sortOpenPositions));
+  for (const [accountId, snapshot] of Array.from(grouped.entries())) {
+    grouped.set(accountId, {
+      ...snapshot,
+      positions: [...snapshot.positions].sort(sortOpenPositions),
+    });
   }
 
   return grouped;
 }
 
-async function fetchOpenPositionInputs(accountIds: string[]): Promise<{
-  executions: ExecutionRecord[];
-  matchedLots: MatchedLotRecord[];
-  adjustments: ManualAdjustmentRecord[];
-}> {
-  const executionQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
-  const matchedLotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
-  const adjustmentsQuery = new URLSearchParams({ page: "1", pageSize: "1000", status: "ACTIVE" });
-  applyAccountIdsToSearchParams(executionQuery, accountIds);
-  applyAccountIdsToSearchParams(matchedLotsQuery, accountIds);
-  applyAccountIdsToSearchParams(adjustmentsQuery, accountIds);
-
-  const [executionResponse, matchedLotsResponse, adjustmentsResponse] = await Promise.all([
-    fetch(`/api/executions?${executionQuery.toString()}`, { cache: "no-store" }),
-    fetch(`/api/matched-lots?${matchedLotsQuery.toString()}`, { cache: "no-store" }),
-    fetch(`/api/adjustments?${adjustmentsQuery.toString()}`, { cache: "no-store" }).catch(() => null),
-  ]);
-
-  if (!executionResponse.ok || !matchedLotsResponse.ok) {
-    throw new Error("Unable to load open position inputs.");
+async function fetchSnapshot(accountIds: string[], snapshotId?: string): Promise<PositionSnapshotApiResponse> {
+  const query = new URLSearchParams();
+  if (snapshotId) {
+    query.set("snapshotId", snapshotId);
+  } else {
+    applyAccountIdsToSearchParams(query, accountIds);
   }
 
-  const [executionsPayload, matchedLotsPayload] = (await Promise.all([
-    executionResponse.json(),
-    matchedLotsResponse.json(),
-  ])) as [ApiListResponse<ExecutionRecord>, ApiListResponse<MatchedLotRecord>];
-
-  let adjustments: ManualAdjustmentRecord[] = [];
-  if (adjustmentsResponse?.ok) {
-    const adjustmentsPayload = (await adjustmentsResponse.json()) as AdjustmentsListApiResponse;
-    if ("data" in adjustmentsPayload && Array.isArray(adjustmentsPayload.data)) {
-      adjustments = adjustmentsPayload.data;
-    }
+  const response = await fetch(`/api/positions/snapshot?${query.toString()}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Unable to load position snapshot.");
   }
 
-  return {
-    executions: executionsPayload.data,
-    matchedLots: matchedLotsPayload.data,
-    adjustments,
-  };
-}
-
-async function fetchQuoteMarks(positions: OpenPosition[]): Promise<Record<string, number>> {
-  const marks: Record<string, number> = {};
-  const equityPositions = positions.filter((position) => position.assetClass === "EQUITY");
-  const optionContracts: OptionQuoteContractRequest[] = [];
-  const seenOptionKeys = new Set<string>();
-
-  for (const position of positions) {
-    if (position.assetClass !== "OPTION") {
-      continue;
-    }
-
-    const expDate = position.expirationDate?.slice(0, 10);
-    if (!position.optionType || !position.strike || !expDate || seenOptionKeys.has(position.instrumentKey)) {
-      continue;
-    }
-
-    seenOptionKeys.add(position.instrumentKey);
-    optionContracts.push({
-      instrumentKey: position.instrumentKey,
-      symbol: position.underlyingSymbol,
-      strike: position.strike,
-      expDate,
-      contractType: position.optionType,
-    });
-  }
-
-  const equityPromise = async () => {
-    if (equityPositions.length === 0) {
-      return;
-    }
-
-    const symbols = Array.from(new Set(equityPositions.map((position) => position.symbol))).join(",");
-    const response = await fetch(`/api/quotes?${new URLSearchParams({ symbols, refresh: "1" }).toString()}`, { cache: "no-store" });
-    if (!response.ok) {
-      return;
-    }
-
-    const payload = (await response.json()) as QuotesResponse;
-    if (isQuotesUnavailable(payload)) {
-      return;
-    }
-
-    for (const position of equityPositions) {
-      const quote = payload[position.symbol];
-      if (quote) {
-        marks[position.instrumentKey] = quote.mark;
-      }
-    }
-  };
-
-  const optionPromise = async () => {
-    if (optionContracts.length === 0) {
-      return;
-    }
-
-    const requestBody: OptionQuotesRequest = { contracts: optionContracts };
-    const response = await fetch("/api/option-quotes?refresh=1", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return;
-    }
-
-    const payload = (await response.json()) as OptionQuotesApiResponse;
-    if (!("data" in payload)) {
-      return;
-    }
-
-    const optionQuotes = payload.data as OptionQuotesMap;
-    for (const contract of optionContracts) {
-      const quote = optionQuotes[contract.instrumentKey];
-      if (quote && !isOptionQuoteUnavailable(quote)) {
-        marks[contract.instrumentKey] = quote.mark;
-      }
-    }
-  };
-
-  await Promise.all([equityPromise(), optionPromise()]);
-  return marks;
+  return (await response.json()) as PositionSnapshotApiResponse;
 }
 
 function createOpenPositionsStore(): OpenPositionsStore {
@@ -303,6 +198,44 @@ function createOpenPositionsStore(): OpenPositionsStore {
     }
   }
 
+  function applySnapshot(accountIds: string[], positions: PositionSnapshotOpenPosition[], snapshotAt: string) {
+    const grouped = splitSnapshotByAccount(positions, accountIds, snapshotAt);
+
+    for (const accountId of accountIds) {
+      const nextSnapshot = grouped.get(accountId) ?? {
+        positions: [],
+        quotes: {},
+        lastRefreshedAt: Date.parse(snapshotAt),
+        isLoading: false,
+        error: null,
+      };
+
+      writeAccountSnapshot(accountId, nextSnapshot);
+      persistAccountSnapshot(accountId, nextSnapshot);
+    }
+
+    emitChange();
+  }
+
+  async function syncFromApi(accountIds: string[]): Promise<void> {
+    const payload = await fetchSnapshot(accountIds);
+    if ("error" in payload) {
+      throw new Error(payload.error.message);
+    }
+
+    if (!payload.data) {
+      return;
+    }
+
+    if (payload.data.status === "FAILED") {
+      throw new Error(payload.data.errorMessage ?? "Position snapshot failed.");
+    }
+
+    if (payload.data.status === "COMPLETE") {
+      applySnapshot(accountIds, payload.data.positions, payload.data.snapshotAt);
+    }
+  }
+
   return {
     hydrate(accountIds) {
       if (typeof window === "undefined") {
@@ -336,6 +269,10 @@ function createOpenPositionsStore(): OpenPositionsStore {
       if (changed) {
         emitChange();
       }
+
+      if (scopedAccountIds.length > 0) {
+        void syncFromApi(scopedAccountIds).catch(() => {});
+      }
     },
 
     async refresh(accountIds) {
@@ -357,36 +294,50 @@ function createOpenPositionsStore(): OpenPositionsStore {
       emitChange();
 
       try {
-        const inputs = await fetchOpenPositionInputs(scopedAccountIds);
-        const positions = computeOpenPositions(inputs.executions, inputs.matchedLots, inputs.adjustments);
-        const groupedPositions = groupPositionsByAccount(positions, scopedAccountIds);
-        const quoteMarks = await fetchQuoteMarks(positions);
-        const refreshedAt = Date.now();
+        const computeResponse = await fetch("/api/positions/snapshot/compute", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ accountIds: scopedAccountIds }),
+        });
 
-        for (const accountId of scopedAccountIds) {
-          const accountPositions = groupedPositions.get(accountId) ?? [];
-          const accountQuotes = Object.fromEntries(
-            accountPositions.flatMap((position) => {
-              const mark = quoteMarks[position.instrumentKey];
-              return typeof mark === "number" && Number.isFinite(mark) ? [[position.instrumentKey, mark] as const] : [];
-            }),
-          );
-
-          const nextSnapshot: AccountSnapshot = {
-            positions: accountPositions,
-            quotes: accountQuotes,
-            lastRefreshedAt: refreshedAt,
-            isLoading: false,
-            error: null,
-          };
-
-          writeAccountSnapshot(accountId, nextSnapshot);
-          persistAccountSnapshot(accountId, nextSnapshot);
+        if (!computeResponse.ok) {
+          throw new Error("Unable to start position snapshot compute.");
         }
 
-        emitChange();
+        const computePayload = (await computeResponse.json()) as PositionSnapshotComputeApiResponse;
+        if ("error" in computePayload) {
+          throw new Error(computePayload.error.message);
+        }
+
+        let attemptsRemaining = 60;
+        while (attemptsRemaining > 0) {
+          const payload = await fetchSnapshot(scopedAccountIds, computePayload.data.snapshotId);
+          if ("error" in payload) {
+            throw new Error(payload.error.message);
+          }
+
+          if (!payload.data) {
+            throw new Error("Position snapshot was not found.");
+          }
+
+          if (payload.data.status === "FAILED") {
+            throw new Error(payload.data.errorMessage ?? "Position snapshot failed.");
+          }
+
+          if (payload.data.status === "COMPLETE") {
+            applySnapshot(scopedAccountIds, payload.data.positions, payload.data.snapshotAt);
+            return;
+          }
+
+          attemptsRemaining -= 1;
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        }
+
+        throw new Error("Position snapshot did not complete in time.");
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to compute open positions.";
+        const message = error instanceof Error ? error.message : "Unable to refresh open positions.";
         for (const accountId of scopedAccountIds) {
           const current = readAccountSnapshot(accountId);
           writeAccountSnapshot(accountId, {
@@ -398,7 +349,20 @@ function createOpenPositionsStore(): OpenPositionsStore {
           });
         }
         emitChange();
+        return;
       }
+
+      for (const accountId of scopedAccountIds) {
+        const current = readAccountSnapshot(accountId);
+        writeAccountSnapshot(accountId, {
+          positions: current.positions,
+          quotes: current.quotes,
+          lastRefreshedAt: current.lastRefreshedAt,
+          isLoading: false,
+          error: null,
+        });
+      }
+      emitChange();
     },
 
     getSnapshot(accountIds) {
