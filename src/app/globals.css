@@ -15,6 +15,9 @@
   --danger: #fca5a5;
   --warning: #fbbf24;
   --violet: #a78bfa;
+  --color-text-success: var(--accent-2);
+  --color-text-warning: var(--warning);
+  --color-text-danger: var(--danger);
 }
 
 * {
