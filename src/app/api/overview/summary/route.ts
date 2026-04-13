@@ -2,19 +2,59 @@ import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
+import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import type { OverviewSummaryResponse } from "@/types/api";
+
+function formatNullableMetric(value: number | null): string | null {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return value.toFixed(2);
+}
+
+function computeMaxDrawdown(
+  snapshots: Array<{
+    snapshotDate: Date;
+    balance: Prisma.Decimal;
+    totalCash: Prisma.Decimal | null;
+    brokerNetLiquidationValue: Prisma.Decimal | null;
+  }>,
+): number | null {
+  if (snapshots.length === 0) {
+    return null;
+  }
+
+  const totalsByDate = new Map<string, number>();
+
+  for (const snapshot of snapshots) {
+    const dateKey = snapshot.snapshotDate.toISOString().slice(0, 10);
+    const snapshotValue = Number(snapshot.brokerNetLiquidationValue ?? snapshot.totalCash ?? snapshot.balance);
+    totalsByDate.set(dateKey, (totalsByDate.get(dateKey) ?? 0) + snapshotValue);
+  }
+
+  let peak = Number.NEGATIVE_INFINITY;
+  let maxDrawdown = 0;
+
+  for (const total of Array.from(totalsByDate.values())) {
+    peak = Math.max(peak, total);
+    maxDrawdown = Math.max(maxDrawdown, peak - total);
+  }
+
+  return maxDrawdown;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const whereAccount = buildAccountScopeWhere(accountIds);
 
-  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots, accountBalances] = await Promise.all([
+  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots, accountBalances, startingCapitalSummary] = await Promise.all([
     prisma.execution.count({ where: whereAccount as Prisma.ExecutionWhereInput | undefined }),
     prisma.matchedLot.findMany({
       where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
-      select: { realizedPnl: true, holdingDays: true },
+      select: { realizedPnl: true, holdingDays: true, outcome: true },
     }),
     prisma.setupGroup.count({ where: whereAccount as Prisma.SetupGroupWhereInput | undefined }),
     prisma.import.findMany({
@@ -32,6 +72,7 @@ export async function GET(request: Request) {
       orderBy: [{ snapshotDate: "asc" }, { id: "asc" }],
     }),
     loadAccountBalanceContext(accountIds),
+    getStartingCapitalSummary(accountIds),
   ]);
 
   const totalPnl = matchedLots.reduce((sum, lot) => sum + Number(lot.realizedPnl), 0);
@@ -39,10 +80,23 @@ export async function GET(request: Request) {
     matchedLots.length > 0
       ? matchedLots.reduce((sum, lot) => sum + lot.holdingDays, 0) / matchedLots.length
       : 0;
+  const winningLots = matchedLots.filter((lot) => lot.outcome === "WIN");
+  const losingLots = matchedLots.filter((lot) => lot.outcome === "LOSS");
+  const grossWins = winningLots.reduce((sum, lot) => sum + Math.max(0, Number(lot.realizedPnl)), 0);
+  const grossLosses = losingLots.reduce((sum, lot) => sum + Math.abs(Math.min(0, Number(lot.realizedPnl))), 0);
+  const expectancy = matchedLots.length > 0 ? totalPnl / matchedLots.length : null;
+  const winRate = winningLots.length + losingLots.length > 0 ? (winningLots.length / (winningLots.length + losingLots.length)) * 100 : null;
+  const profitFactor = grossLosses > 0 ? grossWins / grossLosses : null;
   const parsedRows = imports.reduce((sum, row) => sum + row.parsedRows, 0);
   const skippedRows = imports.reduce((sum, row) => sum + row.skippedRows, 0);
   const committedImports = imports.filter((row) => row.status === "COMMITTED").length;
   const failedImports = imports.filter((row) => row.status === "FAILED").length;
+  const startingCapital = startingCapitalSummary.total;
+  const currentNlv = accountBalances.reduce((sum, accountBalance) => {
+    return sum + (accountBalance.brokerNetLiquidationValue ?? accountBalance.cash);
+  }, 0);
+  const totalReturnPct = startingCapital > 0 ? ((currentNlv - startingCapital) / startingCapital) * 100 : null;
+  const maxDrawdown = computeMaxDrawdown(snapshots);
 
   const payload: OverviewSummaryResponse = {
     netPnl: totalPnl.toFixed(2),
@@ -50,6 +104,13 @@ export async function GET(request: Request) {
     matchedLotCount: matchedLots.length,
     setupCount,
     averageHoldDays: avgHold.toFixed(2),
+    winRate: formatNullableMetric(winRate),
+    totalReturnPct: formatNullableMetric(totalReturnPct),
+    profitFactor: formatNullableMetric(profitFactor),
+    expectancy: formatNullableMetric(expectancy),
+    maxDrawdown: formatNullableMetric(maxDrawdown),
+    startingCapital: startingCapital.toFixed(2),
+    currentNlv: currentNlv.toFixed(2),
     snapshotCount,
     importQuality: {
       totalImports: imports.length,
