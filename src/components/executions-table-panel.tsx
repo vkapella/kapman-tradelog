@@ -1,85 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
+import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { useDataTableState } from "@/components/data-table/useDataTableState";
+import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
-import type { ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
+import type { ApiDetailResponse, ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
-interface ExecutionsPayload {
-  data: ExecutionRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface ImportsPayload {
-  data: ImportRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface ExecutionDetailPayload {
-  data: ExecutionDetailRecord;
-}
-
-type SortColumn = "eventTimestamp" | "symbol" | "quantity" | "price";
-type SortDirection = "asc" | "desc";
-
-interface ExecutionFilters {
-  symbol: string;
-  importId: string;
-  executionId: string;
-  dateFrom: string;
-  dateTo: string;
-}
-
-const defaultFilters: ExecutionFilters = {
-  symbol: "",
-  importId: "",
-  executionId: "",
-  dateFrom: "",
-  dateTo: "",
-};
+interface ExecutionDetailPayload extends ApiDetailResponse<ExecutionDetailRecord> {}
 
 const SHOW_ALL_STORAGE_KEY = "kapman_table_executions_showAll";
 
 function displayExecutionSymbol(row: Pick<ExecutionRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
-}
-
-function sortExecutionRows(rows: ExecutionRecord[], column: SortColumn, direction: SortDirection): ExecutionRecord[] {
-  const sorted = [...rows].sort((left, right) => {
-    if (column === "eventTimestamp") {
-      return new Date(left.eventTimestamp).getTime() - new Date(right.eventTimestamp).getTime();
-    }
-
-    if (column === "quantity") {
-      return Number(left.quantity) - Number(right.quantity);
-    }
-
-    if (column === "price") {
-      return Number(left.price ?? "-Infinity") - Number(right.price ?? "-Infinity");
-    }
-
-    return displayExecutionSymbol(left).localeCompare(displayExecutionSymbol(right));
-  });
-
-  if (direction === "desc") {
-    sorted.reverse();
-  }
-
-  return sorted;
 }
 
 function renderOptionValue(row: Pick<ExecutionRecord, "optionType" | "strike" | "expirationDate">): string {
@@ -94,22 +36,21 @@ function canInvestigateExecution(row: Pick<ExecutionRecord, "eventType" | "openi
   return row.eventType === "EXPIRATION_INFERRED" || row.openingClosingEffect === null || row.openingClosingEffect === "UNKNOWN";
 }
 
+function shortId(value: string): string {
+  return `${value.slice(0, 8)}...`;
+}
+
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
-  const initializedFromSearch = useRef(false);
 
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<ExecutionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 25 });
   const [showAll, setShowAll] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<ExecutionFilters>(defaultFilters);
-  const [appliedFilters, setAppliedFilters] = useState<ExecutionFilters>(defaultFilters);
-  const [sortColumn, setSortColumn] = useState<SortColumn>("eventTimestamp");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [openColumnId, setOpenColumnId] = useState<string | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ExecutionDetailRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -125,34 +66,20 @@ export function ExecutionsTablePanel() {
   }, []);
 
   useEffect(() => {
-    if (initializedFromSearch.current) {
-      return;
-    }
-
-    const initial = {
-      symbol: searchParams.get("symbol") ?? "",
-      importId: searchParams.get("import") ?? "",
-      executionId: searchParams.get("execution") ?? "",
-      dateFrom: searchParams.get("date_from") ?? "",
-      dateTo: searchParams.get("date_to") ?? "",
-    };
-
-    setDraftFilters(initial);
-    setAppliedFilters(initial);
-    initializedFromSearch.current = true;
+    const executionParam = searchParams.get("execution");
+    setSelectedExecutionId(executionParam || null);
   }, [searchParams]);
 
   useEffect(() => {
     async function loadImports() {
-      const query = new URLSearchParams({ page: "1", pageSize: "200" });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-      const response = await fetch(`/api/imports?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
+      try {
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const payload = await fetchAllPages<ImportRecord>("/api/imports", query);
+        setImports(payload.data);
+      } catch {
+        setImports([]);
       }
-
-      const payload = (await response.json()) as ImportsPayload;
-      setImports(payload.data);
     }
 
     void loadImports();
@@ -163,44 +90,21 @@ export function ExecutionsTablePanel() {
       setLoading(true);
       setError(null);
 
-      const query = new URLSearchParams({
-        page: String(showAll ? 1 : page),
-        pageSize: String(showAll ? 1000 : 25),
-      });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-
-      if (appliedFilters.symbol.trim()) {
-        query.set("symbol", appliedFilters.symbol.trim());
-      }
-      if (appliedFilters.importId.trim()) {
-        query.set("import", appliedFilters.importId.trim());
-      }
-      if (appliedFilters.executionId.trim()) {
-        query.set("execution", appliedFilters.executionId.trim());
-      }
-      if (appliedFilters.dateFrom) {
-        query.set("date_from", appliedFilters.dateFrom);
-      }
-      if (appliedFilters.dateTo) {
-        query.set("date_to", appliedFilters.dateTo);
-      }
-
-      const response = await fetch(`/api/executions?${query.toString()}`, { cache: "no-store" });
-
-      if (!response.ok) {
+      try {
+        const query = new URLSearchParams();
+        applyAccountIdsToSearchParams(query, selectedAccounts);
+        const payload = await fetchAllPages<ExecutionRecord>("/api/executions", query);
+        setRows(payload.data);
+      } catch {
         setError("Unable to load executions right now.");
+        setRows([]);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const payload = (await response.json()) as ExecutionsPayload;
-      setRows(payload.data);
-      setMeta(payload.meta);
-      setLoading(false);
     }
 
     void loadExecutions();
-  }, [appliedFilters, page, selectedAccounts, showAll]);
+  }, [selectedAccounts]);
 
   useEffect(() => {
     let canceled = false;
@@ -251,38 +155,171 @@ export function ExecutionsTablePanel() {
     };
   }, [selectedExecutionId, selectedAccounts]);
 
-  const importOptions = useMemo(() => {
-    return imports.map((entry) => ({ id: entry.id, label: `${entry.filename} (${getAccountDisplayText(entry.accountId)})` }));
+  const importLabelById = useMemo(() => {
+    return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));
   }, [getAccountDisplayText, imports]);
 
-  const sortedRows = useMemo(() => {
-    return sortExecutionRows(rows, sortColumn, sortDirection);
-  }, [rows, sortColumn, sortDirection]);
+  const columns = useMemo<DataTableColumnDefinition<ExecutionRecord>[]>(() => [
+    {
+      id: "eventTimestamp",
+      label: "Event Time",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.eventTimestamp,
+      getFilterOptionLabel: (value) => new Date(value).toLocaleString(),
+      sortMode: "date",
+      getSortValue: (row) => row.eventTimestamp,
+      defaultSortDirection: "desc",
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "tradeDate",
+      label: "Trade Date",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.tradeDate,
+      getFilterOptionLabel: (value) => value.slice(0, 10),
+      sortMode: "date",
+      getSortValue: (row) => row.tradeDate,
+      defaultSortDirection: "desc",
+    },
+    {
+      id: "symbol",
+      label: "Symbol",
+      filterMode: "discrete",
+      getFilterValues: (row) => displayExecutionSymbol(row),
+      sortMode: "string",
+      getSortValue: (row) => displayExecutionSymbol(row),
+    },
+    {
+      id: "side",
+      label: "Side",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.side ?? "-",
+      sortMode: "string",
+      getSortValue: (row) => row.side ?? "-",
+    },
+    {
+      id: "quantity",
+      label: "Qty",
+      align: "right",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.quantity,
+      sortMode: "number",
+      getSortValue: (row) => Number(row.quantity),
+    },
+    {
+      id: "price",
+      label: "Unit Price",
+      align: "right",
+      title: "Execution price per share (equity) or per contract share (option). Multiply options by 100 for dollar value.",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.price ?? "~",
+      sortMode: "number",
+      getSortValue: (row) => (row.price === null ? null : Number(row.price)),
+    },
+    {
+      id: "eventType",
+      label: "Event",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.eventType,
+      sortMode: "string",
+      getSortValue: (row) => row.eventType,
+    },
+    {
+      id: "effect",
+      label: "Effect",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.openingClosingEffect ?? "UNKNOWN",
+      sortMode: "string",
+      getSortValue: (row) => row.openingClosingEffect ?? "UNKNOWN",
+    },
+    {
+      id: "option",
+      label: "Option",
+      filterMode: "discrete",
+      getFilterValues: (row) => renderOptionValue(row),
+      sortMode: "string",
+      getSortValue: (row) => renderOptionValue(row),
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "accountId",
+      label: "Account",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.accountId,
+      getFilterOptionLabel: (value) => getAccountDisplayText(value),
+      sortMode: "string",
+      getSortValue: (row) => getAccountDisplayText(row.accountId),
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "importId",
+      label: "Import",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.importId,
+      getFilterOptionLabel: (value) => importLabelById.get(value) ?? value,
+      sortMode: "string",
+      getSortValue: (row) => importLabelById.get(row.importId) ?? row.importId,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "executionId",
+      label: "Execution ID",
+      filterMode: "discrete",
+      getFilterValues: (row) => row.id,
+      getFilterOptionLabel: (value) => shortId(value),
+      sortMode: "string",
+      getSortValue: (row) => row.id,
+      panelWidthClassName: "w-80",
+    },
+    {
+      id: "investigate",
+      label: "Investigate",
+      filterMode: "discrete",
+      getFilterValues: (row) => (canInvestigateExecution(row) ? "Case file" : "-"),
+      sortMode: "string",
+      getSortValue: (row) => (canInvestigateExecution(row) ? "Case file" : "-"),
+    },
+  ], [getAccountDisplayText, importLabelById]);
 
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    setPage(1);
-  }
+  const table = useDataTableState({
+    tableName: "executions",
+    rows,
+    columns,
+    initialSort: { columnId: "eventTimestamp", direction: "desc" },
+  });
 
-  function resetFilters() {
-    setDraftFilters(defaultFilters);
-    setAppliedFilters(defaultFilters);
-    setPage(1);
-  }
+  const isTableHydrated = table.isHydrated;
+  const setTableColumnFilter = table.setColumnFilter;
 
-  function toggleSort(column: SortColumn) {
-    if (column === sortColumn) {
-      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+  useEffect(() => {
+    if (!isTableHydrated) {
       return;
     }
 
-    setSortColumn(column);
-    setSortDirection(column === "eventTimestamp" ? "desc" : "asc");
-  }
+    const symbolParam = searchParams.get("symbol");
+    const importParam = searchParams.get("import");
+    const executionParam = searchParams.get("execution");
 
-  const hasRows = sortedRows.length > 0;
-  const canGoBack = meta.page > 1;
-  const canGoForward = meta.page * meta.pageSize < meta.total;
+    if (symbolParam) {
+      setTableColumnFilter("symbol", [symbolParam]);
+    }
+    if (importParam) {
+      setTableColumnFilter("importId", [importParam]);
+    }
+    if (executionParam) {
+      setTableColumnFilter("executionId", [executionParam]);
+    }
+  }, [searchParams, isTableHydrated, setTableColumnFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedAccounts, table.filters, table.sort]);
+
+  const totalRows = table.sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const hasRows = pagedRows.length > 0;
 
   function toggleShowAll() {
     const next = !showAll;
@@ -293,6 +330,16 @@ export function ExecutionsTablePanel() {
     } catch {
       // Ignore localStorage errors.
     }
+  }
+
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+    setTableColumnFilter(columnId, values);
+    if (direction) {
+      table.setSort({ columnId, direction });
+    } else if (table.sort.columnId === columnId) {
+      table.setSort({ columnId: null, direction: null });
+    }
+    setPage(1);
   }
 
   async function copyInstrumentKey() {
@@ -315,71 +362,21 @@ export function ExecutionsTablePanel() {
         <p className="text-sm text-slate-300">Filter and inspect normalized execution events with import/account context for auditability.</p>
       </header>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <input
-          type="text"
-          value={draftFilters.symbol}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, symbol: event.target.value }))}
-          placeholder="Symbol (e.g. SPY)"
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-        <select
-          value={draftFilters.importId}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, importId: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="">All imports</option>
-          {importOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <input
-          type="date"
-          value={draftFilters.dateFrom}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, dateFrom: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-        <input
-          type="date"
-          value={draftFilters.dateTo}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, dateTo: event.target.value }))}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-        <input
-          type="text"
-          value={draftFilters.executionId}
-          onChange={(event) => setDraftFilters((current) => ({ ...current, executionId: event.target.value }))}
-          placeholder="Execution ID"
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-        />
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={applyFilters}
-          className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm text-blue-100"
-        >
-          Apply Filters
-        </button>
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200"
-        >
-          Reset
-        </button>
-        <button type="button" onClick={toggleShowAll} className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-200">
-          {showAll ? "Show pages" : `Show all ${meta.total}`}
-        </button>
-      </div>
+      <DataTableToolbar
+        activeFilterCount={table.activeFilterCount}
+        onClearAllFilters={() => {
+          table.clearAllFilters();
+          setPage(1);
+        }}
+        onToggleShowAll={toggleShowAll}
+        showAll={showAll}
+        totalRows={totalRows}
+      />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-red-200">{error}</p> : null}
 
-      {!loading && !error && !hasRows ? (
+      {!loading && !error && totalRows === 0 ? (
         <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
           <h3 className="text-lg font-medium text-slate-100">No executions found</h3>
           <p className="mt-2 text-sm text-slate-300">Adjust filters or commit an import to generate canonical execution rows.</p>
@@ -398,43 +395,22 @@ export function ExecutionsTablePanel() {
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
                 <tr>
-                  <th className="px-2 py-2 text-left">
-                    <button type="button" onClick={() => toggleSort("eventTimestamp")} className="font-medium">
-                      Event Time
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-left">Trade Date</th>
-                  <th className="px-2 py-2 text-left">
-                    <button type="button" onClick={() => toggleSort("symbol")} className="font-medium">
-                      Symbol
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-left">Side</th>
-                  <th className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => toggleSort("quantity")} className="font-medium">
-                      Qty
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("price")}
-                      className="font-medium"
-                      title="Execution price per share (equity) or per contract share (option). Multiply options by 100 for dollar value."
-                    >
-                      Unit Price
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 text-left">Event</th>
-                  <th className="px-2 py-2 text-left">Effect</th>
-                  <th className="px-2 py-2 text-left">Option</th>
-                  <th className="px-2 py-2 text-left">Account</th>
-                  <th className="px-2 py-2 text-left">Import</th>
-                  <th className="px-2 py-2 text-left">Investigate</th>
+                  {columns.map((column) => (
+                    <DataTableHeader
+                      key={column.id}
+                      column={column}
+                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                      currentValues={table.filters[column.id] ?? []}
+                      isOpen={openColumnId === column.id}
+                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                      onToggle={() => setOpenColumnId((current) => (current === column.id ? null : column.id))}
+                      options={table.filterOptions[column.id] ?? []}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map((row) => (
+                {pagedRows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-800 text-slate-200">
                     <td className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</td>
                     <td className="px-2 py-2">{row.tradeDate.slice(0, 10)}</td>
@@ -469,9 +445,10 @@ export function ExecutionsTablePanel() {
                     <td className="px-2 py-2">
                       <AccountLabel accountId={row.accountId} />
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</td>
+                    <td className="px-2 py-2 font-mono">
                       <button type="button" onClick={() => setSelectedExecutionId(row.id)} className="text-blue-300 underline">
-                        {row.importId.slice(0, 8)}...
+                        {shortId(row.id)}
                       </button>
                     </td>
                     <td className="px-2 py-2">
@@ -490,16 +467,16 @@ export function ExecutionsTablePanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {meta.total} records</p>
+            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
           ) : (
             <div className="flex items-center justify-between text-xs text-slate-300">
               <p>
-                Showing page {meta.page} of {Math.max(1, Math.ceil(meta.total / meta.pageSize))} ({meta.total} rows)
+                Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={!canGoBack}
+                  disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
@@ -507,8 +484,8 @@ export function ExecutionsTablePanel() {
                 </button>
                 <button
                   type="button"
-                  disabled={!canGoForward}
-                  onClick={() => setPage((current) => current + 1)}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
                 >
                   Next
