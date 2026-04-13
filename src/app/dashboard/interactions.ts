@@ -13,7 +13,7 @@ export function stopDashboardControlPropagation(event: InteractionEvent): void {
   event.stopPropagation();
 }
 
-export function resolveWidgetColSpan(startSpan: DashboardWidgetColSpan, deltaX: number, stepWidth = 180): DashboardWidgetColSpan {
+export function resolveWidgetColSpan(startSpan: DashboardWidgetColSpan, deltaX: number, stepWidth = 120): DashboardWidgetColSpan {
   const nextSpan = startSpan + Math.round(deltaX / stepWidth);
 
   if (nextSpan <= 1) {

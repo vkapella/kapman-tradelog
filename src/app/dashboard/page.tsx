@@ -139,22 +139,36 @@ function DashboardTile({
     }
 
     stopDashboardControlPropagation(event);
+    event.preventDefault();
 
     const startX = event.clientX;
     const startSpan = colSpan;
     const resize = onResize;
+    const handle = event.currentTarget;
+    const pointerId = event.pointerId;
+
+    handle.setPointerCapture(pointerId);
+    document.body.style.userSelect = "none";
 
     function handlePointerMove(moveEvent: PointerEvent) {
+      moveEvent.preventDefault();
       resize(resolveWidgetColSpan(startSpan, moveEvent.clientX - startX));
     }
 
     function handlePointerUp() {
+      if (handle.hasPointerCapture(pointerId)) {
+        handle.releasePointerCapture(pointerId);
+      }
+
+      document.body.style.userSelect = "";
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
     }
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
   }
 
   return (
@@ -191,7 +205,7 @@ function DashboardTile({
               type="button"
               aria-label="Resize widget"
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 cursor-ew-resize items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text"
+              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text"
             >
               <>
                 <span className="sr-only">Resize</span>

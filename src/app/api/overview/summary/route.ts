@@ -4,6 +4,7 @@ import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
+import { computeMaxDrawdown } from "@/lib/overview/max-drawdown";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 function formatNullableMetric(value: number | null): string | null {
@@ -12,37 +13,6 @@ function formatNullableMetric(value: number | null): string | null {
   }
 
   return value.toFixed(2);
-}
-
-function computeMaxDrawdown(
-  snapshots: Array<{
-    snapshotDate: Date;
-    balance: Prisma.Decimal;
-    totalCash: Prisma.Decimal | null;
-    brokerNetLiquidationValue: Prisma.Decimal | null;
-  }>,
-): number | null {
-  if (snapshots.length === 0) {
-    return null;
-  }
-
-  const totalsByDate = new Map<string, number>();
-
-  for (const snapshot of snapshots) {
-    const dateKey = snapshot.snapshotDate.toISOString().slice(0, 10);
-    const snapshotValue = Number(snapshot.brokerNetLiquidationValue ?? snapshot.totalCash ?? snapshot.balance);
-    totalsByDate.set(dateKey, (totalsByDate.get(dateKey) ?? 0) + snapshotValue);
-  }
-
-  let peak = Number.NEGATIVE_INFINITY;
-  let maxDrawdown = 0;
-
-  for (const total of Array.from(totalsByDate.values())) {
-    peak = Math.max(peak, total);
-    maxDrawdown = Math.max(maxDrawdown, peak - total);
-  }
-
-  return maxDrawdown;
 }
 
 export async function GET(request: Request) {
@@ -96,7 +66,16 @@ export async function GET(request: Request) {
     return sum + (accountBalance.brokerNetLiquidationValue ?? accountBalance.cash);
   }, 0);
   const totalReturnPct = startingCapital > 0 ? ((currentNlv - startingCapital) / startingCapital) * 100 : null;
-  const maxDrawdown = computeMaxDrawdown(snapshots);
+  const maxDrawdown = computeMaxDrawdown(
+    snapshots.map((snapshot) => ({
+      accountId: snapshot.account.accountId,
+      snapshotDate: snapshot.snapshotDate,
+      balance: Number(snapshot.balance),
+      totalCash: snapshot.totalCash === null ? null : Number(snapshot.totalCash),
+      brokerNetLiquidationValue:
+        snapshot.brokerNetLiquidationValue === null ? null : Number(snapshot.brokerNetLiquidationValue),
+    })),
+  );
 
   const payload: OverviewSummaryResponse = {
     netPnl: totalPnl.toFixed(2),

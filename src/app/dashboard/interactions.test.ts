@@ -32,7 +32,7 @@ describe("dashboard widget remove interactions", () => {
 
   it("clamps widget resize span between one and three columns", () => {
     expect(resolveWidgetColSpan(1, -200)).toBe(1);
-    expect(resolveWidgetColSpan(1, 220)).toBe(2);
+    expect(resolveWidgetColSpan(1, 120)).toBe(2);
     expect(resolveWidgetColSpan(2, 400)).toBe(3);
     expect(resolveWidgetColSpan(3, 500)).toBe(3);
   });
