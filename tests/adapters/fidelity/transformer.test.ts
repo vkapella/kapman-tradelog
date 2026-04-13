@@ -83,7 +83,7 @@ describe("transformFidelityRows", () => {
     expect(transformed.records).toHaveLength(1);
     expect(transformed.records[0]?.kind).toBe("CASH_EVENT");
     if (transformed.records[0]?.kind === "CASH_EVENT") {
-      expect(transformed.records[0].cashEventType).toBe("MONEY_MARKET");
+      expect(transformed.records[0].cashEventType).toBe("MONEY_MARKET_BUY");
     }
   });
 

@@ -71,7 +71,10 @@ describe("classifyAction", () => {
     });
     expect(classifyAction(pickAction(actions, "DIVIDEND RECEIVED"))).toEqual({ kind: "CASH_EVENT", cashEventType: "DIVIDEND" });
     expect(classifyAction(pickAction(actions, "REINVESTMENT"))).toEqual({ kind: "CASH_EVENT", cashEventType: "REINVESTMENT" });
-    expect(classifyAction(pickAction(actions, "REDEMPTION FROM CORE ACCOUNT"))).toEqual({ kind: "CASH_EVENT", cashEventType: "REDEMPTION" });
+    expect(classifyAction(pickAction(actions, "REDEMPTION FROM CORE ACCOUNT"))).toEqual({
+      kind: "CASH_EVENT",
+      cashEventType: "MONEY_MARKET_REDEEM",
+    });
     expect(classifyAction(pickAction(actions, "TRANSFERRED FROM"))).toEqual({ kind: "CASH_EVENT", cashEventType: "TRANSFER_IN" });
     expect(classifyAction(pickAction(actions, "TRANSFER OF ASSETS ACAT RECEIVE"))).toEqual({ kind: "CASH_EVENT", cashEventType: "ACAT_RECEIVE" });
     expect(classifyAction(pickAction(actions, "TRANSFER OF ASSETS ACAT RES.CREDIT"))).toEqual({ kind: "CASH_EVENT", cashEventType: "ACAT_CREDIT" });
@@ -105,5 +108,12 @@ describe("classifyAction", () => {
 
   it("classifies SELL CANCEL rows as cancelled actions", () => {
     expect(classifyAction("SELL CANCEL CLOSING TRANSACTION")).toEqual({ kind: "CANCELLED" });
+  });
+
+  it("classifies FISXX exchange-out rows as money-market exchange outs", () => {
+    expect(classifyAction("YOU SOLD EXCHANGE FIMM TREASURY PORTFOLIO: CL I (FISXX) (Cash)")).toEqual({
+      kind: "CASH_EVENT",
+      cashEventType: "MONEY_MARKET_EXCHANGE_OUT",
+    });
   });
 });
