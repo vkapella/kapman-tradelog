@@ -483,6 +483,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
   }
 
   const cashBalanceRows = parseCashBalanceRows(csvText);
+  warnings.push(...cashBalanceRows.warnings);
   assignBrokerReferenceNumbers(executions, cashBalanceRows.tradeReferences);
   const snapshots = applyAccountSummaryToSnapshots(cashBalanceRows.snapshots, csvText);
   const cashEvents: NormalizedCashEvent[] = cashBalanceRows.cashEvents;

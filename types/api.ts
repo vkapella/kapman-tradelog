@@ -334,6 +334,17 @@ export interface DiagnosticsResponse {
   uncategorizedCount: number;
   warningsCount: number;
   syntheticExpirationCount: number;
+  accountCash: Array<{
+    accountId: string;
+    cashSource: "snapshot" | "heuristic_fallback";
+    cashAsOf: string | null;
+  }>;
+  duplicateSnapshotDateCount: number;
+  skippedNonCashSections: {
+    forex: number;
+    futures: number;
+    crypto: number;
+  };
   warningSamples: string[];
   warningGroups: DiagnosticGroupRecord[];
   setupInferenceGroups: DiagnosticGroupRecord[];

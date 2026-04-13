@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
+import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { inferSetupGroups, type SetupInferenceLot } from "@/lib/analytics/setup-inference";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -105,7 +106,8 @@ export async function GET(request: Request) {
     ],
   };
 
-  const [imports, syntheticExecutions, matchedLots, closeCandidates, executionRows, adjustmentRows] = await Promise.all([
+  const [imports, syntheticExecutions, matchedLots, closeCandidates, executionRows, adjustmentRows, accountCash] =
+    await Promise.all([
     prisma.import.findMany({
       where: importAccountScope,
       select: { accountId: true, warnings: true, parsedRows: true, skippedRows: true },
@@ -187,6 +189,7 @@ export async function GET(request: Request) {
       },
       orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     }),
+    loadAccountBalanceContext(accountIds),
   ]);
 
   const parsedRows = imports.reduce((sum, row) => sum + row.parsedRows, 0);
@@ -355,6 +358,15 @@ export async function GET(request: Request) {
     return openQty !== closeQty ? count + 1 : count;
   }, 0);
 
+  const duplicateSnapshotDateCount = storedWarnings.filter(
+    (warning) => warning.code === "CASH_BALANCE_DUPLICATE_SNAPSHOT_DATE",
+  ).length;
+  const skippedNonCashSections = {
+    forex: storedWarnings.filter((warning) => warning.code === "CASH_BALANCE_SKIPPED_FOREX_SECTION").length,
+    futures: storedWarnings.filter((warning) => warning.code === "CASH_BALANCE_SKIPPED_FUTURES_SECTION").length,
+    crypto: storedWarnings.filter((warning) => warning.code === "CASH_BALANCE_SKIPPED_CRYPTO_SECTION").length,
+  };
+
   const payload: DiagnosticsResponse = {
     parseCoverage: totalRows === 0 ? 1 : parsedRows / totalRows,
     unsupportedRowCount: skippedRows,
@@ -365,6 +377,13 @@ export async function GET(request: Request) {
     uncategorizedCount: setupInference.setupInferenceUncategorizedTotal,
     warningsCount,
     syntheticExpirationCount: syntheticExecutions.length,
+    accountCash: accountCash.map((account) => ({
+      accountId: account.accountExternalId,
+      cashSource: account.cashSource,
+      cashAsOf: account.cashAsOf,
+    })),
+    duplicateSnapshotDateCount,
+    skippedNonCashSections,
     warningSamples,
     warningGroups,
     setupInferenceGroups,
