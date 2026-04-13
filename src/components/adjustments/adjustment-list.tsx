@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
@@ -27,6 +27,53 @@ function splitDirection(record: ManualAdjustmentRecord): string | null {
   }
   return "No ratio change";
 }
+
+const AdjustmentsTableBody = memo(function AdjustmentsTableBody({
+  rows,
+  onReverse,
+  reversingId,
+  supersededIds,
+}: {
+  rows: ManualAdjustmentRecord[];
+  onReverse: (id: string) => void;
+  reversingId: string | null;
+  supersededIds: Set<string>;
+}) {
+  return (
+    <tbody>
+      {rows.map((record) => (
+        <tr key={record.id} className="border-t border-border text-text">
+          <td className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</td>
+          <td className="px-2 py-2">
+            <AccountLabel accountId={record.accountId} />
+          </td>
+          <td className="px-2 py-2">{record.symbol}</td>
+          <td className="px-2 py-2">
+            {record.adjustmentType}
+            {splitDirection(record) ? <span className="ml-1 text-[10px] text-muted">({splitDirection(record)})</span> : null}
+          </td>
+          <td className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</td>
+          <td className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-muted">{JSON.stringify(record.payload)}</td>
+          <td className="max-w-[260px] px-2 py-2 text-muted">{record.reason}</td>
+          <td className="px-2 py-2">
+            <span className={record.status === "ACTIVE" ? "text-accent-2" : "text-muted"}>{record.status}</span>
+            {record.status === "ACTIVE" && supersededIds.has(record.id) ? <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span> : null}
+          </td>
+          <td className="px-2 py-2 text-right">
+            <button
+              type="button"
+              disabled={record.status !== "ACTIVE" || reversingId === record.id}
+              onClick={() => onReverse(record.id)}
+              className="rounded border border-border bg-panel-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reversingId === record.id ? "Reversing..." : "Reverse"}
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+});
 
 export function AdjustmentList({
   adjustments,
@@ -151,7 +198,10 @@ export function AdjustmentList({
   const totalRows = table.sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(page, totalPages);
-  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const pagedRows = useMemo(
+    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
+    [currentPage, showAll, table.sortedRows],
+  );
 
   function toggleShowAll() {
     const next = !showAll;
@@ -209,40 +259,7 @@ export function AdjustmentList({
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {pagedRows.map((record) => (
-                  <tr key={record.id} className="border-t border-border text-text">
-                    <td className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</td>
-                    <td className="px-2 py-2">
-                      <AccountLabel accountId={record.accountId} />
-                    </td>
-                    <td className="px-2 py-2">{record.symbol}</td>
-                    <td className="px-2 py-2">
-                      {record.adjustmentType}
-                      {splitDirection(record) ? <span className="ml-1 text-[10px] text-muted">({splitDirection(record)})</span> : null}
-                    </td>
-                    <td className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</td>
-                    <td className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-muted">{JSON.stringify(record.payload)}</td>
-                    <td className="max-w-[260px] px-2 py-2 text-muted">{record.reason}</td>
-                    <td className="px-2 py-2">
-                      <span className={record.status === "ACTIVE" ? "text-accent-2" : "text-muted"}>{record.status}</span>
-                      {record.status === "ACTIVE" && supersededIds.has(record.id) ? (
-                        <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span>
-                      ) : null}
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        disabled={record.status !== "ACTIVE" || reversingId === record.id}
-                        onClick={() => onReverse(record.id)}
-                        className="rounded border border-border bg-panel-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {reversingId === record.id ? "Reversing..." : "Reverse"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <AdjustmentsTableBody rows={pagedRows} onReverse={onReverse} reversingId={reversingId} supersededIds={supersededIds} />
             </table>
           </div>
           {showAll ? (

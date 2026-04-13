@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
@@ -53,6 +53,65 @@ function formatQuoteTimestamp(value: Date | null): string {
     timeStyle: "medium",
   });
 }
+
+const PositionsTableBody = memo(function PositionsTableBody({
+  rows,
+  markLoading,
+}: {
+  rows: Array<
+    OpenPosition & {
+      key: string;
+      dte: number | null;
+      mark: number | null;
+      marketValue: number | null;
+      unrealizedPnl: number | null;
+      pnlPct: number | null;
+    }
+  >;
+  markLoading: boolean;
+}) {
+  return (
+    <tbody>
+      {rows.map((row) => (
+        <tr key={row.key} className="border-t border-border text-text">
+          <td className="px-2 py-2 font-semibold">{row.underlyingSymbol}</td>
+          <td className="px-2 py-2">
+            {row.assetClass === "OPTION" ? (
+              <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge>
+            ) : (
+              <Badge variant="stub">EQUITY</Badge>
+            )}
+          </td>
+          <td className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</td>
+          <td className="px-2 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</td>
+          <td
+            className={[
+              "px-2 py-2 text-right",
+              row.dte === null ? "text-muted" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text",
+            ].join(" ")}
+          >
+            {row.dte ?? "—"}
+          </td>
+          <td className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</td>
+          <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</td>
+          <td className="px-2 py-2 text-right font-mono">
+            {markLoading ? <span className="text-muted">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
+          </td>
+          <td className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</td>
+          <td className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
+            {row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}
+          </td>
+          <td className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
+            {row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}
+          </td>
+          <td className="px-2 py-2 text-muted">
+            <AccountLabel accountId={row.accountId} />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+});
 
 export default function Page() {
   const { positions, loading, error } = useOpenPositions();
@@ -241,7 +300,10 @@ export default function Page() {
   const totalRows = table.sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(page, totalPages);
-  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const pagedRows = useMemo(
+    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
+    [currentPage, showAll, table.sortedRows],
+  );
 
   async function handleRefreshQuotes() {
     await openPositionsStore.refresh(selectedAccounts);
@@ -347,45 +409,7 @@ export default function Page() {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {pagedRows.map((row) => (
-                  <tr key={row.key} className="border-t border-border text-text">
-                    <td className="px-2 py-2 font-semibold">{row.underlyingSymbol}</td>
-                    <td className="px-2 py-2">
-                      {row.assetClass === "OPTION" ? (
-                        <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge>
-                      ) : (
-                        <Badge variant="stub">EQUITY</Badge>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</td>
-                    <td className="px-2 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</td>
-                    <td
-                      className={[
-                        "px-2 py-2 text-right",
-                        row.dte === null ? "text-muted" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text",
-                      ].join(" ")}
-                    >
-                      {row.dte ?? "—"}
-                    </td>
-                    <td className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</td>
-                    <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</td>
-                    <td className="px-2 py-2 text-right font-mono">
-                      {snapshot.isLoading ? <span className="text-muted">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
-                    </td>
-                    <td className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</td>
-                    <td className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
-                      {row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}
-                    </td>
-                    <td className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
-                      {row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}
-                    </td>
-                    <td className="px-2 py-2 text-muted">
-                      <AccountLabel accountId={row.accountId} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <PositionsTableBody rows={pagedRows} markLoading={snapshot.isLoading} />
             </table>
           </div>
 

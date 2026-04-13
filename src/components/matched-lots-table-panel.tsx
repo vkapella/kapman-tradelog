@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
@@ -28,6 +28,61 @@ function shortId(value: string): string {
   return `${value.slice(0, 8)}...`;
 }
 
+const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
+  rows,
+  importLabelById,
+}: {
+  rows: MatchedLotRecord[];
+  importLabelById: Map<string, string>;
+}) {
+  return (
+    <tbody>
+      {rows.map((row) => (
+        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+          <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
+          <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
+          <td className="px-2 py-2">
+            <AccountLabel accountId={row.accountId} />
+          </td>
+          <td className="px-2 py-2">
+            {[row.openImportId, row.closeImportId]
+              .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+              .map((value) => importLabelById.get(value) ?? shortId(value))
+              .join(" / ")}
+          </td>
+          <td className="px-2 py-2 text-right">{row.quantity}</td>
+          <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+            {formatCurrency(safeNumber(row.realizedPnl))}
+          </td>
+          <td className="px-2 py-2 text-right">{row.holdingDays}</td>
+          <td className="px-2 py-2">
+            {row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}
+          </td>
+          <td className="px-2 py-2 font-mono">
+            <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
+              {shortId(row.openExecutionId)}
+            </Link>
+          </td>
+          <td className="px-2 py-2 font-mono">
+            {row.closeExecutionId ? (
+              <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
+                {shortId(row.closeExecutionId)}
+              </Link>
+            ) : (
+              "-"
+            )}
+          </td>
+          <td className="px-2 py-2">
+            <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-blue-300 underline">
+              Case file
+            </Link>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+});
+
 export function MatchedLotsTablePanel() {
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
@@ -49,39 +104,63 @@ export function MatchedLotsTablePanel() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadImports() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
         const payload = await fetchAllPages<ImportRecord>("/api/imports", query);
-        setImports(payload.data);
+        if (!cancelled) {
+          setImports(payload.data);
+        }
       } catch {
-        setImports([]);
+        if (!cancelled) {
+          setImports([]);
+        }
       }
     }
 
     void loadImports();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedAccounts]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadMatchedLots() {
-      setLoading(true);
-      setError(null);
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
 
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
         const payload = await fetchAllPages<MatchedLotRecord>("/api/matched-lots", query);
-        setRows(payload.data);
+        if (!cancelled) {
+          setRows(payload.data);
+        }
       } catch {
-        setRows([]);
-        setError("Unable to load matched lots right now.");
+        if (!cancelled) {
+          setRows([]);
+          setError("Unable to load matched lots right now.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     void loadMatchedLots();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedAccounts]);
 
   const importLabelById = useMemo(() => {
@@ -229,7 +308,10 @@ export function MatchedLotsTablePanel() {
   const totalRows = table.sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 25));
   const currentPage = Math.min(page, totalPages);
-  const pagedRows = showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25);
+  const pagedRows = useMemo(
+    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
+    [currentPage, showAll, table.sortedRows],
+  );
 
   function toggleShowAll() {
     const next = !showAll;
@@ -307,56 +389,7 @@ export function MatchedLotsTablePanel() {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {pagedRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-800 text-slate-200">
-                    <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
-                    <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
-                    <td className="px-2 py-2">
-                      <AccountLabel accountId={row.accountId} />
-                    </td>
-                    <td className="px-2 py-2">
-                      {[row.openImportId, row.closeImportId]
-                        .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
-                        .map((value) => importLabelById.get(value) ?? shortId(value))
-                        .join(" / ")}
-                    </td>
-                    <td className="px-2 py-2 text-right">{row.quantity}</td>
-                    <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                      {formatCurrency(safeNumber(row.realizedPnl))}
-                    </td>
-                    <td className="px-2 py-2 text-right">{row.holdingDays}</td>
-                    <td className="px-2 py-2">
-                      {row.outcome === "WIN" ? (
-                        <Badge variant="win">WIN</Badge>
-                      ) : row.outcome === "LOSS" ? (
-                        <Badge variant="loss">LOSS</Badge>
-                      ) : (
-                        <Badge variant="flat">FLAT</Badge>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 font-mono">
-                      <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
-                        {shortId(row.openExecutionId)}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-2 font-mono">
-                      {row.closeExecutionId ? (
-                        <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
-                          {shortId(row.closeExecutionId)}
-                        </Link>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-blue-300 underline">
-                        Case file
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <MatchedLotsTableBody rows={pagedRows} importLabelById={importLabelById} />
             </table>
           </div>
 

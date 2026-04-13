@@ -3,8 +3,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { isWithinFilterPanelBoundary } from "@/components/data-table/filter-panel-interaction";
-import { resolvePanelPosition } from "@/components/data-table/panel-position";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
+
+const PANEL_GAP_PX = 8;
+const PANEL_VIEWPORT_MARGIN_PX = 12;
+const PANEL_MIN_HEIGHT_PX = 160;
+const PANEL_MAX_HEIGHT_PX = 400;
 
 interface ColumnFilterPanelProps<Row> {
   anchorRef: RefObject<HTMLElement>;
@@ -26,17 +30,36 @@ export function ColumnFilterPanel<Row>({
   options,
 }: ColumnFilterPanelProps<Row>) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [panelPosition, setPanelPosition] = useState({
+    top: PANEL_VIEWPORT_MARGIN_PX,
+    left: PANEL_VIEWPORT_MARGIN_PX,
+    maxHeight: PANEL_MAX_HEIGHT_PX,
+    listMaxHeight: 224,
+    ready: false,
+  });
   const [draftSearch, setDraftSearch] = useState("");
   const [draftValues, setDraftValues] = useState<string[]>(currentValues);
   const [draftSortDirection, setDraftSortDirection] = useState<SortDirection | null>(currentSortDirection);
-  const portalTarget = typeof document === "undefined" ? null : document.body;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     setDraftValues(currentValues);
     setDraftSortDirection(currentSortDirection);
     setDraftSearch("");
   }, [currentSortDirection, currentValues]);
+
+  const filteredOptions = useMemo(() => {
+    if (!draftSearch.trim()) {
+      return options;
+    }
+
+    const query = draftSearch.trim().toLowerCase();
+    return options.filter((option) => option.label.toLowerCase().includes(query));
+  }, [draftSearch, options]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -63,63 +86,67 @@ export function ColumnFilterPanel<Row>({
     };
   }, [anchorRef, onClose]);
 
-  const filteredOptions = useMemo(() => {
-    if (!draftSearch.trim()) {
-      return options;
-    }
-
-    const query = draftSearch.trim().toLowerCase();
-    return options.filter((option) => option.label.toLowerCase().includes(query));
-  }, [draftSearch, options]);
-
   useLayoutEffect(() => {
     if (!anchorRef.current || !panelRef.current) {
       return;
     }
 
-    let frameId = 0;
-    const panelElement = panelRef.current;
-    const anchorElement = anchorRef.current;
-
-    const updatePosition = () => {
+    function updatePanelPosition() {
       if (!panelRef.current || !anchorRef.current) {
         return;
       }
 
       const anchorRect = anchorRef.current.getBoundingClientRect();
       const panelRect = panelRef.current.getBoundingClientRect();
-      setPosition(
-        resolvePanelPosition({
-          anchorRect,
-          panelRect,
-          viewportWidth: window.innerWidth,
-          viewportHeight: window.innerHeight,
-        }),
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const panelWidth = Math.min(Math.max(panelRect.width || 288, 200), 320);
+      const availableBelow = viewportHeight - anchorRect.bottom - PANEL_VIEWPORT_MARGIN_PX;
+      const availableAbove = anchorRect.top - PANEL_VIEWPORT_MARGIN_PX;
+      const shouldRenderAbove = availableBelow < PANEL_MIN_HEIGHT_PX && availableAbove > availableBelow;
+      const availableHeight = shouldRenderAbove ? availableAbove : availableBelow;
+      const maxHeight = Math.max(PANEL_MIN_HEIGHT_PX, Math.min(PANEL_MAX_HEIGHT_PX, availableHeight - PANEL_GAP_PX));
+      const panelHeight = Math.min(panelRect.height || maxHeight, maxHeight);
+      const preferredLeft = anchorRect.left;
+      const rightAnchoredLeft = anchorRect.right - panelWidth;
+      const unclampedLeft =
+        preferredLeft + panelWidth > viewportWidth - PANEL_VIEWPORT_MARGIN_PX ? rightAnchoredLeft : preferredLeft;
+      const left = Math.min(
+        Math.max(PANEL_VIEWPORT_MARGIN_PX, unclampedLeft),
+        viewportWidth - panelWidth - PANEL_VIEWPORT_MARGIN_PX,
       );
-    };
+      const unclampedTop = shouldRenderAbove ? anchorRect.top - panelHeight - PANEL_GAP_PX : anchorRect.bottom + PANEL_GAP_PX;
+      const top = Math.min(
+        Math.max(PANEL_VIEWPORT_MARGIN_PX, unclampedTop),
+        viewportHeight - panelHeight - PANEL_VIEWPORT_MARGIN_PX,
+      );
+      const reservedHeight = (column.sortMode ? 72 : 0) + (column.filterMode === "discrete" ? 144 : 0) + 64;
 
-    const scheduleUpdate = () => {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(updatePosition);
-    };
+      setPanelPosition({
+        top,
+        left,
+        maxHeight,
+        listMaxHeight: Math.max(120, maxHeight - reservedHeight),
+        ready: true,
+      });
+    }
 
-    updatePosition();
+    updatePanelPosition();
 
     const resizeObserver = new ResizeObserver(() => {
-      scheduleUpdate();
+      updatePanelPosition();
     });
-    resizeObserver.observe(panelElement);
-    resizeObserver.observe(anchorElement);
-    window.addEventListener("resize", scheduleUpdate);
-    window.addEventListener("scroll", scheduleUpdate, true);
+    resizeObserver.observe(panelRef.current);
+    resizeObserver.observe(anchorRef.current);
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
-      window.removeEventListener("resize", scheduleUpdate);
-      window.removeEventListener("scroll", scheduleUpdate, true);
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
     };
-  }, [anchorRef, column.panelWidthClassName, column.sortMode, draftSearch, filteredOptions.length]);
+  }, [anchorRef, column.filterMode, column.sortMode, draftSearch, filteredOptions.length, isMounted]);
 
   function toggleValue(value: string) {
     setDraftValues((current) => (current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]));
@@ -130,7 +157,7 @@ export function ColumnFilterPanel<Row>({
     onClose();
   }
 
-  if (!portalTarget) {
+  if (!isMounted) {
     return null;
   }
 
@@ -138,12 +165,14 @@ export function ColumnFilterPanel<Row>({
     <div
       ref={panelRef}
       style={{
-        left: position?.left ?? 12,
-        top: position?.top ?? 12,
+        top: panelPosition.top,
+        left: panelPosition.left,
+        maxHeight: panelPosition.maxHeight,
+        visibility: panelPosition.ready ? "visible" : "hidden",
         maxWidth: "calc(100vw - 24px)",
       }}
       className={[
-        "fixed z-40 rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
+        "fixed z-50 min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
         column.panelWidthClassName ?? "w-72",
       ].join(" ")}
     >
@@ -195,7 +224,10 @@ export function ColumnFilterPanel<Row>({
             />
           </div>
 
-          <div className="max-h-56 space-y-1 overflow-auto rounded border border-slate-800 bg-slate-900/50 p-2">
+          <div
+            style={{ maxHeight: panelPosition.listMaxHeight }}
+            className="space-y-1 overflow-y-auto rounded border border-slate-800 bg-slate-900/50 p-2"
+          >
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
                 <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-800/80">
@@ -219,6 +251,6 @@ export function ColumnFilterPanel<Row>({
         </button>
       </div>
     </div>,
-    portalTarget,
+    document.body,
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { ColumnFilterPanel } from "@/components/data-table/ColumnFilterPanel";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
@@ -27,7 +27,7 @@ function alignmentClassName<Row>(align: DataTableColumnDefinition<Row>["align"])
   return "justify-between text-left";
 }
 
-export function DataTableHeader<Row>({
+function DataTableHeaderInner<Row>({
   column,
   currentSortDirection,
   currentValues,
@@ -71,3 +71,5 @@ export function DataTableHeader<Row>({
     </th>
   );
 }
+
+export const DataTableHeader = memo(DataTableHeaderInner) as typeof DataTableHeaderInner;

@@ -19,6 +19,13 @@ interface NormalizedOptionQuoteBatchLeg {
   instrumentKey: string;
 }
 
+export interface OptionQuoteRequest {
+  symbol: string;
+  strike: number;
+  expDate: string;
+  contractType: "CALL" | "PUT";
+}
+
 function numberOrZero(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -140,6 +147,19 @@ function mapOptionContract(contract: Record<string, unknown>): OptionQuoteRecord
   };
 }
 
+function buildOptionQuoteRequestKey(request: OptionQuoteRequest): string {
+  return [request.symbol, String(request.strike), request.expDate, request.contractType].join("|");
+}
+
+function mapGroupedOptionQuotes(expMap: OptionContractMap, requests: OptionQuoteRequest[]): Record<string, OptionQuoteRecord | null> | null {
+  const entries = requests.map((request) => {
+    const contract = getOptionContract(expMap, request.expDate, request.strike);
+    return [buildOptionQuoteRequestKey(request), contract ? mapOptionContract(contract) : null] as const;
+  });
+
+  return entries.some(([, quote]) => quote !== null) ? Object.fromEntries(entries) : null;
+}
+
 async function getOptionContractsForSymbol(
   symbol: string,
   contractType: OptionContractType,
@@ -218,18 +238,63 @@ export async function getOptionQuote(
   contractType: "CALL" | "PUT",
 ): Promise<OptionQuoteRecord | null> {
   try {
-    const expMap = await getOptionContractsForSymbol(symbol, contractType, [{ expirationDate: expDate, strike }]);
-    if (!expMap) {
+    const quoteMap = await getOptionQuotes([{ symbol, strike, expDate, contractType }]);
+    if (quoteMap === null) {
       return null;
     }
 
-    const contract = getOptionContract(expMap, expDate, strike);
-    const mappedQuote = contract ? mapOptionContract(contract) : null;
-    if (!mappedQuote) {
+    return quoteMap[buildOptionQuoteRequestKey({ symbol, strike, expDate, contractType })] ?? null;
+  } catch (error) {
+    if (error instanceof McpUnavailableError) {
       return null;
     }
 
-    return mappedQuote;
+    throw error;
+  }
+}
+
+export async function getOptionQuotes(requests: OptionQuoteRequest[]): Promise<Record<string, OptionQuoteRecord | null> | null> {
+  if (requests.length === 0) {
+    return {};
+  }
+
+  try {
+    const groupedRequests = new Map<string, OptionQuoteRequest[]>();
+
+    for (const request of requests) {
+      const groupKey = [request.symbol, request.contractType].join("|");
+      const existing = groupedRequests.get(groupKey);
+      if (existing) {
+        existing.push(request);
+      } else {
+        groupedRequests.set(groupKey, [request]);
+      }
+    }
+
+    const quoteEntries = await Promise.all(
+      Array.from(groupedRequests.values()).map(async (group) => {
+        const [firstRequest] = group;
+        const expMap = await getOptionContractsForSymbol(
+          firstRequest.symbol,
+          firstRequest.contractType,
+          group.map((request) => ({
+            expirationDate: request.expDate,
+            strike: request.strike,
+          })),
+        );
+
+        if (expMap) {
+          const mappedQuotes = mapGroupedOptionQuotes(expMap, group);
+          if (mappedQuotes) {
+            return Object.entries(mappedQuotes).map(([cacheKey, quote]) => [cacheKey, quote] as const);
+          }
+        }
+
+        return group.map((request) => [buildOptionQuoteRequestKey(request), null] as const);
+      }),
+    );
+
+    return Object.fromEntries(quoteEntries.flat());
   } catch (error) {
     if (error instanceof McpUnavailableError) {
       return null;
