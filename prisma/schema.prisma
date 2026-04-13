@@ -58,6 +58,12 @@ enum AdjustmentStatus {
   REVERSED
 }
 
+enum PositionSnapshotStatus {
+  PENDING
+  COMPLETE
+  FAILED
+}
+
 model Account {
   id              String   @id @default(cuid())
   accountId       String   @unique @map("account_id")
@@ -242,6 +248,27 @@ model DailyAccountSnapshot {
   @@unique([accountId, snapshotDate])
   @@index([snapshotDate])
   @@map("daily_account_snapshots")
+}
+
+model PositionSnapshot {
+  id                String                 @id @default(cuid())
+  accountIds        String                 @map("account_ids")
+  snapshotAt        DateTime               @default(now()) @map("snapshot_at")
+  status            PositionSnapshotStatus @default(PENDING)
+  errorMessage      String?                @map("error_message")
+  positionsJson     String                 @map("positions_json")
+  unrealizedPnl     Decimal?               @map("unrealized_pnl") @db.Decimal(20, 6)
+  realizedPnl       Decimal?               @map("realized_pnl") @db.Decimal(20, 6)
+  cashAdjustments   Decimal?               @map("cash_adjustments") @db.Decimal(20, 6)
+  manualAdjustments Decimal?               @map("manual_adjustments") @db.Decimal(20, 6)
+  currentNlv        Decimal?               @map("current_nlv") @db.Decimal(20, 6)
+  startingCapital   Decimal?               @map("starting_capital") @db.Decimal(20, 6)
+  totalGain         Decimal?               @map("total_gain") @db.Decimal(20, 6)
+  unexplainedDelta  Decimal?               @map("unexplained_delta") @db.Decimal(20, 6)
+  createdAt         DateTime               @default(now()) @map("created_at")
+
+  @@index([snapshotAt(sort: Desc)])
+  @@map("position_snapshots")
 }
 
 model CashEvent {
