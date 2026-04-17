@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fidelityAdapter } from "@/lib/adapters/fidelity";
 import type { UploadedFile } from "@/lib/adapters/types";
-import { FIXTURE_ACCOUNT_ID } from "./fixture-data";
+import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_11, loadFixtureCsvText } from "./fixture-data";
 
 const HEADER =
   "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date";
@@ -30,5 +30,22 @@ describe("fidelityAdapter.parse", () => {
     expect(parsed.executions[0]?.rawRowJson.cancelRebookCode).toBe("CANCEL_REBOOK");
     expect(parsed.warnings.some((warning) => warning.code === "CANCEL_REBOOK")).toBe(true);
     expect(parsed.warnings.some((warning) => warning.message.includes("Cancelled row skipped"))).toBe(false);
+  });
+
+  it("ignores Fidelity trailer text instead of surfacing it as skipped preview rows", () => {
+    const file: UploadedFile = {
+      name: FIXTURE_FILENAME_11,
+      mimeType: "text/csv",
+      size: 0,
+      content: loadFixtureCsvText(FIXTURE_FILENAME_11),
+    };
+
+    const parsed = fidelityAdapter.parse(file);
+    const fidelityPreviewRows = (parsed.previewRows ?? []) as Array<{ rowIndex: number }>;
+
+    expect(parsed.parsedRows).toBe(3);
+    expect(fidelityPreviewRows).toHaveLength(3);
+    expect(fidelityPreviewRows.every((row) => row.rowIndex <= 6)).toBe(true);
+    expect(parsed.skippedRows).toBe(0);
   });
 });

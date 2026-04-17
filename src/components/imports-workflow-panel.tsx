@@ -23,6 +23,8 @@ interface UploadPayload {
   data: UploadImportResponse;
 }
 
+type UploadPhase = "idle" | "uploading" | "parsing";
+
 interface ImportsWorkflowPanelProps {
   mode?: "all" | "upload" | "history";
 }
@@ -87,6 +89,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<UploadImportResponse | null>(null);
   const [commitResult, setCommitResult] = useState<CommitImportResponse | null>(null);
@@ -154,6 +157,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     }
 
     setUploading(true);
+    setUploadPhase("uploading");
     setUploadProgress(0);
     setUploadResult(null);
     setCommitResult(null);
@@ -169,6 +173,13 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       request.upload.onprogress = (event) => {
         if (event.lengthComputable && isMountedRef.current) {
           setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+
+      request.upload.onloadend = () => {
+        if (isMountedRef.current) {
+          setUploadPhase("parsing");
+          setUploadProgress(100);
         }
       };
 
@@ -192,6 +203,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
         } finally {
           if (isMountedRef.current) {
             setUploading(false);
+            setUploadPhase("idle");
           }
           void loadHistory();
           resolve();
@@ -202,6 +214,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
         if (isMountedRef.current) {
           setError("Network error while uploading file.");
           setUploading(false);
+          setUploadPhase("idle");
         }
         resolve();
       };
@@ -491,13 +504,15 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               disabled={!selectedFile || uploading}
               className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm text-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {uploading ? "Uploading..." : "Upload Statement"}
+              {uploading ? (uploadPhase === "parsing" ? "Parsing..." : "Uploading...") : "Upload Statement"}
             </button>
           </div>
 
           {(uploading || uploadProgress > 0) && (
             <div>
-              <p className="mb-1 text-xs text-slate-300">Upload progress: {uploadProgress}%</p>
+              <p className="mb-1 text-xs text-slate-300">
+                {uploadPhase === "parsing" ? "Upload complete. Parsing preview..." : `Upload progress: ${uploadProgress}%`}
+              </p>
               <div className="h-2 rounded-full bg-slate-800">
                 <div className="h-2 rounded-full bg-blue-400" style={{ width: `${uploadProgress}%` }} />
               </div>
