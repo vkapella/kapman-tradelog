@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractAccountIdFromFilename, parseFidelityCsv } from "@/lib/adapters/fidelity/parser";
-import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_10, FIXTURE_FILENAME_8, FIXTURE_FILENAME_9, loadFixtureBuffer } from "./fixture-data";
+import { FIXTURE_ACCOUNT_ID, FIXTURE_FILENAME_10, FIXTURE_FILENAME_11, FIXTURE_FILENAME_8, FIXTURE_FILENAME_9, loadFixtureBuffer } from "./fixture-data";
 
 describe("parseFidelityCsv", () => {
   it("strips UTF-8 BOM and returns expected row count per fixture", () => {
@@ -63,5 +63,14 @@ describe("parseFidelityCsv", () => {
     expect(row.marginType).toBeNull();
     expect(row.price).toBeNull();
     expect(row.settlementDate).toBeNull();
+  });
+
+  it("stops parsing when Fidelity disclaimer and download footer begin", () => {
+    const rows = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_11), FIXTURE_FILENAME_11);
+
+    expect(rows).toHaveLength(3);
+    expect(rows.every((row) => row.rawAction !== "")).toBe(true);
+    expect(rows[0]?.cashBalance).toBeNull();
+    expect(rows[2]?.symbol).toBe("FSIXX");
   });
 });

@@ -5,6 +5,7 @@ export const FIXTURE_ACCOUNT_ID = "T12345678";
 export const FIXTURE_FILENAME_8 = `History_for_Account_${FIXTURE_ACCOUNT_ID}-8.csv`;
 export const FIXTURE_FILENAME_9 = `History_for_Account_${FIXTURE_ACCOUNT_ID}-9.csv`;
 export const FIXTURE_FILENAME_10 = `History_for_Account_${FIXTURE_ACCOUNT_ID}-10.csv`;
+export const FIXTURE_FILENAME_11 = `History_for_Account_${FIXTURE_ACCOUNT_ID}-11.csv`;
 
 function buildCsv(rows: string[]): string {
   return [`History for Account ${FIXTURE_ACCOUNT_ID}`, "Generated for tests", HEADER, ...rows].join("\n");
@@ -39,6 +40,17 @@ const FIXTURE_TEXT_BY_FILENAME: Record<string, string> = {
     "01/09/2026,UNMAPPED FIDELITY ACTION,XYZ,Unknown action,Cash,10,1,0,0,,-10,9010,01/11/2026",
     "01/10/2026,BUY CANCEL CLOSING TRANSACTION CXL DESCRIPTION CANCELLED TRADE,-INTC260117C23,cancelled,Margin,1,-1,0,0,,100,9110,01/12/2026",
     ",,,,,,,,,,,,",
+  ]),
+  [FIXTURE_FILENAME_11]: buildCsv([
+    '04/16/2026,"YOU BOUGHT OPENING TRANSACTION CALL (MU) MICRON TECHNOLOGY JUN 18 26 $450 (100 SHS) (Margin)", -MU260618C450,"CALL (MU) MICRON TECHNOLOGY JUN 18 26 $450 (100 SHS)",Margin,63.26,1,,0.02,,-6326.02,Processing,04/17/2026',
+    '04/16/2026,"YOU SOLD OPENING TRANSACTION CALL (MU) MICRON TECHNOLOGY JUN 18 26 $500 (100 SHS) (Margin)", -MU260618C500,"CALL (MU) MICRON TECHNOLOGY JUN 18 26 $500 (100 SHS)",Margin,42.95,-1,,0.11,,4294.89,Processing,04/17/2026',
+    '04/10/2026,"REDEMPTION FROM CORE ACCOUNT FIMM TREASURY ONLY PORTFOLIO: CL I (FSIXX) (Cash)",FSIXX,"FIMM TREASURY ONLY PORTFOLIO: CL I",Cash,1,-13090.54,,,,13090.54,0.00,',
+    "",
+    "",
+    '"The data and information in this spreadsheet is provided to you solely for your use and is not for distribution. The spreadsheet is provided for"',
+    '"informational purposes only, and is not intended to provide advice, nor should it be construed as an offer to sell, a solicitation of an offer to buy or a"',
+    "",
+    "Date downloaded 04/16/2026 7:53 pm",
   ]),
 };
 

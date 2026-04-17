@@ -53,6 +53,41 @@ function splitCsvLine(line: string): string[] {
   return columns;
 }
 
+function isFooterLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return /^Date downloaded\b/i.test(trimmed) || trimmed.startsWith('"');
+}
+
+function shouldStopParsing(lines: string[], lineIndex: number, hasParsedRows: boolean): boolean {
+  if (!hasParsedRows) {
+    return false;
+  }
+
+  const currentLine = lines[lineIndex] ?? "";
+  if (isFooterLine(currentLine)) {
+    return true;
+  }
+
+  if (currentLine.trim()) {
+    return false;
+  }
+
+  for (let nextIndex = lineIndex + 1; nextIndex < lines.length; nextIndex += 1) {
+    const nextLine = lines[nextIndex] ?? "";
+    if (!nextLine.trim()) {
+      continue;
+    }
+
+    return isFooterLine(nextLine);
+  }
+
+  return false;
+}
+
 function parseNumber(raw: string): number | null {
   const value = raw.trim();
   if (!value) {
@@ -113,6 +148,10 @@ export function parseFidelityCsv(buffer: Buffer, _filename: string): RawFidelity
   const rows: RawFidelityRow[] = [];
 
   for (let lineIndex = DATA_START_INDEX; lineIndex < lines.length; lineIndex += 1) {
+    if (shouldStopParsing(lines, lineIndex, rows.length > 0)) {
+      break;
+    }
+
     const columns = splitCsvLine(lines[lineIndex] ?? "");
 
     const runDate = parseDate(readColumn(columns, headerIndexes, RUN_DATE_COLUMN));
