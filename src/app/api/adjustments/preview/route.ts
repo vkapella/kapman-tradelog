@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
+import { applyExecutionPriceOverrideToLedgerExecutions } from "@/lib/adjustments/execution-price-overrides";
 import { applySplitAdjustmentsToLedgerExecutions } from "@/lib/adjustments/split-ledger-executions";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
@@ -87,6 +88,7 @@ function summarizeForAdjustment(
   symbol: string,
   payload: unknown,
   positions: ReturnType<typeof computeOpenPositions>,
+  executionTarget?: ExecutionRecord | null,
 ) {
   if (adjustmentType === "SPLIT") {
     const relevant = positions.filter((position) => position.assetClass === "EQUITY" && position.symbol.toUpperCase() === symbol.toUpperCase());
@@ -102,6 +104,22 @@ function summarizeForAdjustment(
       return { openQty: 0, grossCost: 0, costBasisPerShare: null };
     }
     const relevant = positions.filter((position) => position.instrumentKey === parsed.instrumentKey);
+    const openQty = relevant.reduce((sum, row) => sum + row.netQty, 0);
+    const grossCost = relevant.reduce((sum, row) => sum + row.costBasis, 0);
+    const multiplier = relevant[0]?.assetClass === "OPTION" ? 100 : 1;
+    const costBasisPerShare = openQty !== 0 ? grossCost / (openQty * multiplier) : null;
+    return { openQty, grossCost, costBasisPerShare };
+  }
+
+  if ((adjustmentType === "EXECUTION_QTY_OVERRIDE" || adjustmentType === "EXECUTION_PRICE_OVERRIDE") && executionTarget) {
+    const instrumentKey =
+      executionTarget.instrumentKey ??
+      (executionTarget.assetClass === "OPTION"
+        ? `${executionTarget.underlyingSymbol ?? executionTarget.symbol}|${executionTarget.optionType ?? "NA"}|${executionTarget.strike ?? "NA"}|${
+            executionTarget.expirationDate ? executionTarget.expirationDate.slice(0, 10) : "NA"
+          }`
+        : executionTarget.symbol);
+    const relevant = positions.filter((position) => position.instrumentKey === instrumentKey);
     const openQty = relevant.reduce((sum, row) => sum + row.netQty, 0);
     const grossCost = relevant.reduce((sum, row) => sum + row.costBasis, 0);
     const multiplier = relevant[0]?.assetClass === "OPTION" ? 100 : 1;
@@ -210,9 +228,15 @@ export async function GET(request: Request) {
     ]);
   }
 
-  const adjustmentType = ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION", "EXECUTION_QTY_OVERRIDE"].includes(
-    adjustmentTypeRaw,
-  )
+  const adjustmentType = [
+    "SPLIT",
+    "QTY_OVERRIDE",
+    "PRICE_OVERRIDE",
+    "ADD_POSITION",
+    "REMOVE_POSITION",
+    "EXECUTION_QTY_OVERRIDE",
+    "EXECUTION_PRICE_OVERRIDE",
+  ].includes(adjustmentTypeRaw)
     ? (adjustmentTypeRaw as AdjustmentType)
     : null;
   if (!adjustmentType) {
@@ -288,23 +312,45 @@ export async function GET(request: Request) {
   const warnings: string[] = [];
   let resolvedSymbol = symbol.toUpperCase();
   let resolvedEffectiveDate = new Date(effectiveDate).toISOString();
+  let resolvedExecution: ExecutionRecord | null = null;
   let executionQtyOverridePreview: AdjustmentPreviewResponse["executionQtyOverridePreview"] | undefined;
+  let executionPriceOverridePreview: AdjustmentPreviewResponse["executionPriceOverridePreview"] | undefined;
 
-  if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
-    const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
-    const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
-    if (!targetExecution) {
-      return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
-        `Execution ${executionPayload.executionId} does not exist for this account.`,
-      ]);
-    }
+  if (adjustmentType === "EXECUTION_QTY_OVERRIDE" || adjustmentType === "EXECUTION_PRICE_OVERRIDE") {
+    if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+      const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
+      const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
+      if (!targetExecution) {
+        return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+          `Execution ${executionPayload.executionId} does not exist for this account.`,
+        ]);
+      }
 
-    resolvedSymbol = targetExecution.symbol.toUpperCase();
-    resolvedEffectiveDate = targetExecution.tradeDate.toISOString();
+      resolvedExecution = mapExecution(targetExecution);
+      resolvedSymbol = targetExecution.symbol.toUpperCase();
+      resolvedEffectiveDate = targetExecution.tradeDate.toISOString();
 
-    const rawQty = Number(targetExecution.quantity);
-    if (Number.isFinite(rawQty) && rawQty === executionPayload.overrideQty) {
-      warnings.push("Override qty equals the raw execution qty; this is a no-op.");
+      const rawQty = Number(targetExecution.quantity);
+      if (Number.isFinite(rawQty) && rawQty === executionPayload.overrideQty) {
+        warnings.push("Override qty equals the raw execution qty; this is a no-op.");
+      }
+    } else {
+      const executionPayload = parsePayloadByType("EXECUTION_PRICE_OVERRIDE", payload);
+      const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
+      if (!targetExecution) {
+        return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+          `Execution ${executionPayload.executionId} does not exist for this account.`,
+        ]);
+      }
+
+      resolvedExecution = mapExecution(targetExecution);
+      resolvedSymbol = targetExecution.symbol.toUpperCase();
+      resolvedEffectiveDate = targetExecution.tradeDate.toISOString();
+
+      const rawPrice = toNumber(targetExecution.price);
+      if (rawPrice !== null && rawPrice === executionPayload.overridePrice) {
+        warnings.push("Override price equals the raw execution price; this is a no-op.");
+      }
     }
   }
 
@@ -327,8 +373,8 @@ export async function GET(request: Request) {
   const before = computeOpenPositions(executions, matchedLots, existingAdjustments);
   const after = computeOpenPositions(executions, matchedLots, [...existingAdjustments, previewAdjustment]);
 
-  const beforeSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, before);
-  const afterSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, after);
+  const beforeSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, before, resolvedExecution);
+  const afterSummary = summarizeForAdjustment(adjustmentType, resolvedSymbol, payload, after, resolvedExecution);
 
   let affectedExecutionCount =
     adjustmentType === "SPLIT"
@@ -396,6 +442,54 @@ export async function GET(request: Request) {
     affectedExecutionCount = 1;
   }
 
+  if (adjustmentType === "EXECUTION_PRICE_OVERRIDE") {
+    const executionPayload = parsePayloadByType("EXECUTION_PRICE_OVERRIDE", payload);
+    const targetExecution = executionsRows.find((row) => row.id === executionPayload.executionId && row.accountId === accountId);
+    if (!targetExecution) {
+      return errorResponse("EXECUTION_NOT_FOUND", "Execution not found.", [
+        `Execution ${executionPayload.executionId} does not exist for this account.`,
+      ]);
+    }
+
+    const matcherInput = executionsRows.flatMap((row) => {
+      const mapped = toLedgerExecution(row);
+      return mapped ? [mapped] : [];
+    });
+    const beforeSplitAdjusted = applySplitAdjustmentsToLedgerExecutions(matcherInput, existingAdjustments);
+    const afterSplitAdjusted = applySplitAdjustmentsToLedgerExecutions(matcherInput, [...existingAdjustments, previewAdjustment]);
+    const beforePriceOverrideResult = applyExecutionPriceOverrideToLedgerExecutions(beforeSplitAdjusted, existingAdjustments);
+    const afterPriceOverrideResult = applyExecutionPriceOverrideToLedgerExecutions(afterSplitAdjusted, [...existingAdjustments, previewAdjustment]);
+    const beforeQtyOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(beforePriceOverrideResult.executions, existingAdjustments);
+    const afterQtyOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(afterPriceOverrideResult.executions, [...existingAdjustments, previewAdjustment]);
+    const beforeFifo = runFifoMatcher(beforeQtyOverrideResult.executions, new Date());
+    const afterFifo = runFifoMatcher(afterQtyOverrideResult.executions, new Date());
+    const rawPrice = toNumber(targetExecution.price);
+    const beforeEffectivePrice = beforePriceOverrideResult.overrideMap.get(executionPayload.executionId)?.overridePrice ?? rawPrice;
+    const afterEffectivePrice = afterPriceOverrideResult.overrideMap.get(executionPayload.executionId)?.overridePrice ?? rawPrice;
+    const beforeAffectedMatchedLots = beforeFifo.matchedLots.filter(
+      (lot) => lot.openExecutionId === executionPayload.executionId || lot.closeExecutionId === executionPayload.executionId,
+    ).length;
+    const afterAffectedMatchedLots = afterFifo.matchedLots.filter(
+      (lot) => lot.openExecutionId === executionPayload.executionId || lot.closeExecutionId === executionPayload.executionId,
+    ).length;
+    const beforeRealizedPnl = sumRealizedPnl(beforeFifo.matchedLots);
+    const afterRealizedPnl = sumRealizedPnl(afterFifo.matchedLots);
+
+    executionPriceOverridePreview = {
+      executionId: executionPayload.executionId,
+      rawPrice,
+      beforeEffectivePrice,
+      afterEffectivePrice,
+      beforeAffectedMatchedLots,
+      afterAffectedMatchedLots,
+      beforeRealizedPnl,
+      afterRealizedPnl,
+      beforeUnexplainedDeltaImpact: beforeRealizedPnl * -1,
+      afterUnexplainedDeltaImpact: afterRealizedPnl * -1,
+    };
+    affectedExecutionCount = 1;
+  }
+
   const result: AdjustmentPreviewResponse = {
     symbol: resolvedSymbol,
     adjustmentType,
@@ -413,6 +507,7 @@ export async function GET(request: Request) {
     affectedExecutionCount,
     effectiveDate: resolvedEffectiveDate,
     executionQtyOverridePreview,
+    executionPriceOverridePreview,
   };
 
   return detailResponse(result);

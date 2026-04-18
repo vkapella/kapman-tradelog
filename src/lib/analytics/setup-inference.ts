@@ -777,9 +777,16 @@ function dedupeReasons(reasons: string[]): string[] {
   return Array.from(new Set(reasons));
 }
 
+function atomOverlapsShortCalls(stockAtom: LotAtom, shortCallAtoms: LotAtom[]): boolean {
+  return stockAtom.lots.some((stockLot) =>
+    shortCallAtoms.some((shortCallAtom) => shortCallAtom.lots.some((shortCallLot) => overlapsAt(shortCallLot.openTradeDate, stockLot))),
+  );
+}
+
 function createGroupsFromAtomCluster(
   cluster: LotAtom[],
   rollWindowDays: number,
+  overlappingStockAnchors: LotAtom[] = [],
 ): Array<{ tag: SetupTag; lots: SetupInferenceLot[]; reasons: string[] }> {
   const stockAtoms = cluster.filter((atom) => atom.tagHint === "stock");
   const shortCallAtoms = cluster.filter((atom) => atom.tagHint === "short_call");
@@ -800,6 +807,23 @@ function createGroupsFromAtomCluster(
       reasons: dedupeReasons([
         "Detected stock and short-call activity in the same setup window; grouped as covered_call.",
         ...coveredCallAtoms.flatMap((atom) => atom.reasons),
+      ]),
+    });
+  }
+
+  if (stockAtoms.length === 0 && shortCallAtoms.length > 0 && overlappingStockAnchors.length > 0) {
+    for (const atom of shortCallAtoms) {
+      for (const lot of atom.lots) {
+        used.add(lot.id);
+      }
+    }
+
+    groups.push({
+      tag: "covered_call",
+      lots: atomsToLots(shortCallAtoms),
+      reasons: dedupeReasons([
+        `Detected overlapping stock inventory from ${overlappingStockAnchors.length} stock anchor(s); grouped short-call activity as covered_call.`,
+        ...shortCallAtoms.flatMap((atom) => atom.reasons),
       ]),
     });
   }
@@ -845,11 +869,30 @@ export function inferSetupGroups(
 
   const atoms = buildAtoms(lots, diagnostics);
   const clusters = clusterAtomsByUnderlyingAndWindow(atoms, groupingWindowDays);
+  const stockAtomsByAccountUnderlying = new Map<string, LotAtom[]>();
+
+  for (const atom of atoms) {
+    if (atom.tagHint !== "stock") {
+      continue;
+    }
+
+    const key = `${atom.accountId}::${atom.underlyingSymbol}`;
+    const existing = stockAtomsByAccountUnderlying.get(key) ?? [];
+    existing.push(atom);
+    stockAtomsByAccountUnderlying.set(key, existing);
+  }
 
   const groups: InferredSetupGroup[] = [];
 
   for (const atomCluster of clusters) {
-    const inferredGroups = createGroupsFromAtomCluster(atomCluster, rollWindowDays);
+    const clusterKey = `${atomCluster[0]!.accountId}::${atomCluster[0]!.underlyingSymbol}`;
+    const stockAnchors = stockAtomsByAccountUnderlying.get(clusterKey) ?? [];
+    const clusterStockAtomIds = new Set(atomCluster.filter((atom) => atom.tagHint === "stock").map((atom) => atom.lots[0]!.id));
+    const shortCallAtoms = atomCluster.filter((atom) => atom.tagHint === "short_call");
+    const overlappingStockAnchors = stockAnchors.filter(
+      (stockAtom) => !clusterStockAtomIds.has(stockAtom.lots[0]!.id) && atomOverlapsShortCalls(stockAtom, shortCallAtoms),
+    );
+    const inferredGroups = createGroupsFromAtomCluster(atomCluster, rollWindowDays, overlappingStockAnchors);
     for (const inferred of inferredGroups) {
       if (inferred.lots.length === 0) {
         continue;

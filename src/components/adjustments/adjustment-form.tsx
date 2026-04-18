@@ -43,6 +43,7 @@ export function AdjustmentForm({
   const [instrumentKey, setInstrumentKey] = useState("");
   const [executionId, setExecutionId] = useState("");
   const [executionOverrideQtyInput, setExecutionOverrideQtyInput] = useState("");
+  const [executionOverridePriceInput, setExecutionOverridePriceInput] = useState("");
   const [resolvedExecution, setResolvedExecution] = useState<ExecutionRecord | null>(null);
   const [executionLookupError, setExecutionLookupError] = useState<string | null>(null);
   const [executionLookupLoading, setExecutionLookupLoading] = useState(false);
@@ -72,6 +73,9 @@ export function AdjustmentForm({
     if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
       return { executionId: executionId.trim(), overrideQty: Number(executionOverrideQtyInput) };
     }
+    if (adjustmentType === "EXECUTION_PRICE_OVERRIDE") {
+      return { executionId: executionId.trim(), overridePrice: Number(executionOverridePriceInput) };
+    }
     if (adjustmentType === "ADD_POSITION") {
       return {
         instrumentKey,
@@ -93,6 +97,7 @@ export function AdjustmentForm({
     addStrike,
     adjustmentType,
     executionId,
+    executionOverridePriceInput,
     executionOverrideQtyInput,
     instrumentKey,
     overridePrice,
@@ -101,19 +106,24 @@ export function AdjustmentForm({
     splitTo,
   ]);
 
-  const effectiveDateLocked = adjustmentType === "EXECUTION_QTY_OVERRIDE";
+  const executionOverrideType = adjustmentType === "EXECUTION_QTY_OVERRIDE" || adjustmentType === "EXECUTION_PRICE_OVERRIDE";
+  const effectiveDateLocked = executionOverrideType;
   const executionResolved =
-    adjustmentType === "EXECUTION_QTY_OVERRIDE" &&
+    executionOverrideType &&
     resolvedExecution !== null &&
     resolvedExecution.id === executionId.trim() &&
     resolvedExecution.accountId === accountId;
   const executionOverrideQty = Number(executionOverrideQtyInput);
+  const executionOverridePrice = Number(executionOverridePriceInput);
   const hasValidExecutionOverrideQty =
     adjustmentType !== "EXECUTION_QTY_OVERRIDE" ||
     (executionOverrideQtyInput.trim().length > 0 && Number.isFinite(executionOverrideQty));
+  const hasValidExecutionOverridePrice =
+    adjustmentType !== "EXECUTION_PRICE_OVERRIDE" ||
+    (executionOverridePriceInput.trim().length > 0 && Number.isFinite(executionOverridePrice));
 
   async function resolveExecutionId(): Promise<ExecutionRecord | null> {
-    if (adjustmentType !== "EXECUTION_QTY_OVERRIDE") {
+    if (!executionOverrideType) {
       return null;
     }
 
@@ -163,19 +173,21 @@ export function AdjustmentForm({
     setAdjustmentType(nextType);
     setError(null);
 
-    if (nextType === "EXECUTION_QTY_OVERRIDE") {
+    if (nextType === "EXECUTION_QTY_OVERRIDE" || nextType === "EXECUTION_PRICE_OVERRIDE") {
       setInstrumentKey("");
       setExecutionLookupError(null);
       setResolvedExecution(null);
       setExecutionOverrideQtyInput("");
+      setExecutionOverridePriceInput("");
       return;
     }
 
     setExecutionId("");
     setExecutionOverrideQtyInput("");
+    setExecutionOverridePriceInput("");
     setExecutionLookupError(null);
     setResolvedExecution(null);
-    if (previousType === "EXECUTION_QTY_OVERRIDE") {
+    if (previousType === "EXECUTION_QTY_OVERRIDE" || previousType === "EXECUTION_PRICE_OVERRIDE") {
       setEffectiveDate(defaultEffectiveDate());
     }
   }
@@ -190,7 +202,13 @@ export function AdjustmentForm({
         return;
       }
 
-      if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+      if (adjustmentType === "EXECUTION_PRICE_OVERRIDE" && !hasValidExecutionOverridePrice) {
+        onPreview(null);
+        setError("Override Price is required.");
+        return;
+      }
+
+      if (executionOverrideType) {
         const match = await resolveExecutionId();
         if (!match) {
           onPreview(null);
@@ -228,7 +246,12 @@ export function AdjustmentForm({
         return;
       }
 
-      if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+      if (adjustmentType === "EXECUTION_PRICE_OVERRIDE" && !hasValidExecutionOverridePrice) {
+        setError("Override Price is required.");
+        return;
+      }
+
+      if (executionOverrideType) {
         const match = await resolveExecutionId();
         if (!match) {
           return;
@@ -277,7 +300,7 @@ export function AdjustmentForm({
             value={accountId}
             onChange={(event) => {
               setAccountId(event.target.value);
-              if (adjustmentType === "EXECUTION_QTY_OVERRIDE") {
+              if (executionOverrideType) {
                 setResolvedExecution(null);
                 setExecutionLookupError(null);
               }
@@ -325,6 +348,7 @@ export function AdjustmentForm({
             <option value="ADD_POSITION">ADD_POSITION</option>
             <option value="REMOVE_POSITION">REMOVE_POSITION</option>
             <option value="EXECUTION_QTY_OVERRIDE">EXECUTION_QTY_OVERRIDE</option>
+            <option value="EXECUTION_PRICE_OVERRIDE">EXECUTION_PRICE_OVERRIDE</option>
           </select>
         </label>
 
@@ -351,7 +375,7 @@ export function AdjustmentForm({
               />
             </label>
           </>
-        ) : adjustmentType === "EXECUTION_QTY_OVERRIDE" ? (
+        ) : executionOverrideType ? (
           <label className="text-xs text-muted md:col-span-2">
             Execution ID
             <input
@@ -408,6 +432,23 @@ export function AdjustmentForm({
               onChange={(event) => setExecutionOverrideQtyInput(event.target.value)}
               className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
               placeholder="2"
+            />
+          </label>
+        ) : null}
+
+        {adjustmentType === "EXECUTION_PRICE_OVERRIDE" ? (
+          <label className="text-xs text-muted">
+            Override Price
+            <input
+              type="number"
+              inputMode="decimal"
+              required
+              min={0}
+              step="0.0001"
+              value={executionOverridePriceInput}
+              onChange={(event) => setExecutionOverridePriceInput(event.target.value)}
+              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              placeholder="72.50"
             />
           </label>
         ) : null}
@@ -536,9 +577,10 @@ export function AdjustmentForm({
             !accountId ||
             !symbol ||
             !reason ||
-            (adjustmentType === "EXECUTION_QTY_OVERRIDE" &&
+            (executionOverrideType &&
               (!executionId.trim() ||
                 !hasValidExecutionOverrideQty ||
+                !hasValidExecutionOverridePrice ||
                 executionLookupLoading ||
                 !!executionLookupError ||
                 !executionResolved))
@@ -555,9 +597,10 @@ export function AdjustmentForm({
             !accountId ||
             !symbol ||
             !reason ||
-            (adjustmentType === "EXECUTION_QTY_OVERRIDE" &&
+            (executionOverrideType &&
               (!executionId.trim() ||
                 !hasValidExecutionOverrideQty ||
+                !hasValidExecutionOverridePrice ||
                 executionLookupLoading ||
                 !!executionLookupError ||
                 !executionResolved))

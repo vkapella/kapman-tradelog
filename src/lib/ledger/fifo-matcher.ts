@@ -150,6 +150,14 @@ function isCloseExecution(execution: LedgerExecution): boolean {
   return execution.eventType === "ASSIGNMENT" || execution.eventType === "EXERCISE";
 }
 
+function shouldTreatUnknownEquityAsClose(execution: LedgerExecution, openLots: OpenLot[]): boolean {
+  if (execution.openingClosingEffect !== "UNKNOWN" || execution.assetClass !== "EQUITY") {
+    return false;
+  }
+
+  return openLots.some((openLot) => matchesCloseSide(openLot.execution.side, execution.side));
+}
+
 function effectiveClosePrice(execution: LedgerExecution): number | null {
   if (execution.price !== null) {
     return execution.price;
@@ -235,14 +243,18 @@ export function runFifoMatcher(executions: LedgerExecution[], asOfDate: Date): F
   for (const execution of sorted) {
     const key = execution.instrumentKey;
     const openLots = openLotsByInstrument.get(key) ?? [];
+    const unknownEquityActsAsClose = shouldTreatUnknownEquityAsClose(execution, openLots);
 
-    if (execution.openingClosingEffect === "TO_OPEN") {
+    if (
+      execution.openingClosingEffect === "TO_OPEN" ||
+      (execution.openingClosingEffect === "UNKNOWN" && execution.assetClass === "EQUITY" && !unknownEquityActsAsClose)
+    ) {
       openLots.push({ execution, remainingQty: execution.quantity });
       openLotsByInstrument.set(key, openLots);
       continue;
     }
 
-    if (!isCloseExecution(execution)) {
+    if (!isCloseExecution(execution) && !unknownEquityActsAsClose) {
       continue;
     }
 

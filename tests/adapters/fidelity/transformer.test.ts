@@ -330,6 +330,77 @@ describe("transformFidelityRows", () => {
     ).toBe(rows.length);
   });
 
+  it("imports share-bearing ACAT receive rows as equity openings with provisional basis warnings", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      {
+        runDate: new Date("2024-10-23T00:00:00.000Z"),
+        rawAction: "TRANSFER OF ASSETS ACAT RECEIVE SELECT SECTOR SPDR TRUST STATE STREET (XLE) (Margin)",
+        symbol: "XLE",
+        description: "SELECT SECTOR SPDR TRUST STATE STREET",
+        marginType: "Margin",
+        price: null,
+        quantity: 100,
+        commission: null,
+        fees: null,
+        accruedInterest: null,
+        amount: 8981,
+        cashBalance: 1485.54,
+        settlementDate: null,
+      },
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+
+    expect(transformed.records).toHaveLength(1);
+    expect(transformed.records[0]?.kind).toBe("EXECUTION");
+    if (transformed.records[0]?.kind === "EXECUTION") {
+      expect(transformed.records[0]).toMatchObject({
+        status: "WARNING",
+        symbol: "XLE",
+        assetClass: "EQUITY",
+        side: "BUY",
+        openClose: "OPEN",
+        quantity: 100,
+        price: 89.81,
+      });
+    }
+
+    expect(transformed.previewRows[0]?.status).toBe("WARNING");
+    expect(transformed.previewRows[0]?.warningMessage).toContain("EXECUTION_PRICE_OVERRIDE");
+    expect(transformed.warnings.some((warning) => warning.code === "ACAT_BASIS_OVERRIDE_RECOMMENDED")).toBe(true);
+  });
+
+  it("keeps cash-only ACAT receive rows as cash events", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      {
+        runDate: new Date("2024-10-23T00:00:00.000Z"),
+        rawAction: "TRANSFER OF ASSETS ACAT RECEIVE (Cash)",
+        symbol: "",
+        description: "No Description",
+        marginType: "Cash",
+        price: null,
+        quantity: 0,
+        commission: null,
+        fees: null,
+        accruedInterest: null,
+        amount: -50,
+        cashBalance: 1485.54,
+        settlementDate: null,
+      },
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+
+    expect(transformed.records).toHaveLength(1);
+    expect(transformed.records[0]?.kind).toBe("CASH_EVENT");
+    if (transformed.records[0]?.kind === "CASH_EVENT") {
+      expect(transformed.records[0]).toMatchObject({
+        cashEventType: "ACAT_RECEIVE",
+        amount: -50,
+      });
+    }
+  });
+
   it("adds warnings for unmatched assignment legs", () => {
     const syntheticRows: RawFidelityRow[] = [
       {
