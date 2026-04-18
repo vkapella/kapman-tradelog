@@ -231,6 +231,7 @@ describe("inferSetupGroups", () => {
     const coveredCallGroup = result.groups.find((group) => group.tag === "covered_call");
     expect(coveredCallGroup?.lotIds).toEqual(["covered-short-late"]);
     expect(result.diagnostics.setupInferenceShortCallStandaloneTotal).toBe(0);
+    expect(result.diagnostics.setupInferencePairFailNoOverlapLongCallTotal).toBe(0);
   });
 
   it("does not force spread classification for same-side spread_group_id lots", () => {
