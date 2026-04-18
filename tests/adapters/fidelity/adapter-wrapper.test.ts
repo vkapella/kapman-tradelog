@@ -48,4 +48,25 @@ describe("fidelityAdapter.parse", () => {
     expect(fidelityPreviewRows.every((row) => row.rowIndex <= 6)).toBe(true);
     expect(parsed.skippedRows).toBe(0);
   });
+
+  it("imports the fixture XLE ACAT share transfer as an execution instead of a cash event", () => {
+    const file = makeFile([
+      "10/23/2024,TRANSFER OF ASSETS ACAT RECEIVE SELECT SECTOR SPDR TRUST STATE STREET (XLE) (Margin),XLE,SELECT SECTOR SPDR TRUST STATE STREET,Margin,,100,,,,8981,1485.54,",
+      "10/23/2024,TRANSFER OF ASSETS ACAT RECEIVE (Cash),,No Description,Cash,,0,,,,-50,1485.54,",
+    ]);
+
+    const parsed = fidelityAdapter.parse(file);
+    const xleExecution = parsed.executions.find((execution) => execution.symbol === "XLE" && execution.side === "BUY");
+    const xleCashEvent = parsed.cashEvents.find((event) => event.symbol === "XLE" && event.rowType === "ACAT_RECEIVE");
+
+    expect(xleExecution).toMatchObject({
+      symbol: "XLE",
+      assetClass: "EQUITY",
+      side: "BUY",
+      openingClosingEffect: "TO_OPEN",
+      price: 89.81,
+    });
+    expect(xleCashEvent).toBeUndefined();
+    expect(parsed.warnings.some((warning) => warning.code === "ACAT_BASIS_OVERRIDE_RECOMMENDED")).toBe(true);
+  });
 });

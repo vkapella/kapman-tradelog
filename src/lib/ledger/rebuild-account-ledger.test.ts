@@ -104,3 +104,80 @@ describe("rebuildAccountLedger execution qty overrides", () => {
     expect(close.quantity.toString()).toBe("21");
   });
 });
+
+describe("rebuildAccountLedger execution price overrides", () => {
+  it("applies execution price overrides before FIFO matching", async () => {
+    const open = tradeExecution({
+      id: "open-1",
+      side: "BUY",
+      quantity: new Prisma.Decimal(100),
+      price: new Prisma.Decimal(89.81),
+      symbol: "XLE",
+      underlyingSymbol: "XLE",
+      instrumentKey: "XLE",
+      openingClosingEffect: "TO_OPEN",
+    });
+    const close = tradeExecution({
+      id: "close-1",
+      side: "SELL",
+      quantity: new Prisma.Decimal(100),
+      price: new Prisma.Decimal(85.42),
+      symbol: "XLE",
+      underlyingSymbol: "XLE",
+      instrumentKey: "XLE",
+      openingClosingEffect: "TO_CLOSE",
+      eventTimestamp: new Date("2026-04-02T14:30:00.000Z"),
+      tradeDate: new Date("2026-04-02T00:00:00.000Z"),
+    });
+
+    const tx = {
+      matchedLot: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      execution: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findMany: vi.fn().mockResolvedValue([open, close]),
+        update: vi.fn().mockResolvedValue({}),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      manualAdjustment: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "basis-override",
+            createdAt: new Date("2026-04-03T00:00:00.000Z"),
+            createdBy: "tester",
+            accountId: "account-1",
+            symbol: "XLE",
+            effectiveDate: new Date("2026-04-01T00:00:00.000Z"),
+            adjustmentType: "EXECUTION_PRICE_OVERRIDE",
+            payloadJson: { executionId: "open-1", overridePrice: 72.5 },
+            reason: "correct transferred basis",
+            evidenceRef: null,
+            status: "ACTIVE",
+            reversedByAdjustmentId: null,
+            account: { accountId: "D-1" },
+          },
+        ]),
+      },
+    };
+
+    const result = await rebuildAccountLedger(
+      tx as unknown as Prisma.TransactionClient,
+      "account-1",
+      new Date("2026-04-10T00:00:00.000Z"),
+    );
+
+    expect(result.matchedLotsPersisted).toBe(1);
+    expect(result.warnings).toEqual([]);
+
+    const createManyArg = tx.matchedLot.createMany.mock.calls[0]?.[0] as { data: Array<Record<string, unknown>> };
+    expect(createManyArg.data[0]).toMatchObject({
+      accountId: "account-1",
+      openExecutionId: "open-1",
+      closeExecutionId: "close-1",
+      quantity: 100,
+    });
+    expect(createManyArg.data[0]?.realizedPnl).toBeCloseTo(1292, 6);
+  });
+});

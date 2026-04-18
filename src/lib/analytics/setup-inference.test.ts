@@ -205,6 +205,34 @@ describe("inferSetupGroups", () => {
     expect(result.groups[0]?.tag).toBe("covered_call");
   });
 
+  it("infers covered_call for later short-call clusters when overlapping stock inventory remains open", () => {
+    const stockLot = lot({
+      id: "stock-anchor",
+      openAssetClass: "EQUITY",
+      optionType: null,
+      strike: null,
+      expirationDate: null,
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+      openSide: "BUY",
+    });
+    const shortCall = lot({
+      id: "covered-short-late",
+      openSide: "SELL",
+      optionType: "CALL",
+      strike: 520,
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+      closeTradeDate: day("2026-01-24T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([stockLot, shortCall], { groupingWindowDays: 5 });
+
+    expect(result.groups.map((group) => group.tag).sort()).toEqual(["covered_call", "stock"]);
+    const coveredCallGroup = result.groups.find((group) => group.tag === "covered_call");
+    expect(coveredCallGroup?.lotIds).toEqual(["covered-short-late"]);
+    expect(result.diagnostics.setupInferenceShortCallStandaloneTotal).toBe(0);
+  });
+
   it("does not force spread classification for same-side spread_group_id lots", () => {
     const first = lot({
       id: "put-group-1",

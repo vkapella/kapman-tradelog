@@ -14,7 +14,7 @@ function mapRowToRecord(row: {
   accountId: string;
   symbol: string;
   effectiveDate: Date;
-  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION" | "EXECUTION_QTY_OVERRIDE";
+  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION" | "EXECUTION_QTY_OVERRIDE" | "EXECUTION_PRICE_OVERRIDE";
   payloadJson: Prisma.JsonValue;
   reason: string;
   evidenceRef: string | null;
@@ -119,8 +119,11 @@ export async function POST(request: Request) {
 
   let effectiveDate = new Date(input.effectiveDate);
   let symbol = input.symbol.toUpperCase();
-  if (input.adjustmentType === "EXECUTION_QTY_OVERRIDE") {
-    const executionPayload = parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload);
+  if (input.adjustmentType === "EXECUTION_QTY_OVERRIDE" || input.adjustmentType === "EXECUTION_PRICE_OVERRIDE") {
+    const executionPayload =
+      input.adjustmentType === "EXECUTION_QTY_OVERRIDE"
+        ? parsePayloadByType("EXECUTION_QTY_OVERRIDE", payload)
+        : parsePayloadByType("EXECUTION_PRICE_OVERRIDE", payload);
     const targetExecution = await prisma.execution.findFirst({
       where: {
         id: executionPayload.executionId,

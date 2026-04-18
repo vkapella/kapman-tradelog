@@ -175,7 +175,7 @@ export async function GET(request: Request) {
           {
             status: "ACTIVE",
             adjustmentType: {
-              in: ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION", "EXECUTION_QTY_OVERRIDE"],
+              in: ["SPLIT", "QTY_OVERRIDE", "PRICE_OVERRIDE", "ADD_POSITION", "REMOVE_POSITION", "EXECUTION_QTY_OVERRIDE", "EXECUTION_PRICE_OVERRIDE"],
             },
           },
         ],

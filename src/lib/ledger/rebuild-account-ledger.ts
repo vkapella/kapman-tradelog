@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { applyExecutionQtyOverrideToLedgerExecutions } from "@/lib/adjustments/execution-qty-overrides";
+import { applyExecutionPriceOverrideToLedgerExecutions } from "@/lib/adjustments/execution-price-overrides";
 import { applySplitAdjustmentsToLedgerExecutions } from "@/lib/adjustments/split-ledger-executions";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import type { ManualAdjustmentRecord } from "@/types/api";
@@ -132,7 +133,7 @@ export async function rebuildAccountLedger(
       accountId,
       status: "ACTIVE",
       adjustmentType: {
-        in: ["SPLIT", "EXECUTION_QTY_OVERRIDE"],
+        in: ["SPLIT", "EXECUTION_QTY_OVERRIDE", "EXECUTION_PRICE_OVERRIDE"],
       },
     },
     include: {
@@ -170,6 +171,7 @@ export async function rebuildAccountLedger(
 
   const splitAdjustments = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "SPLIT");
   const dbExecutionQtyOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_QTY_OVERRIDE");
+  const executionPriceOverrides = activeAdjustments.filter((adjustment) => adjustment.adjustmentType === "EXECUTION_PRICE_OVERRIDE");
   const executionQtyOverrides =
     options?.executionQtyOverrides === undefined
       ? dbExecutionQtyOverrides
@@ -284,11 +286,22 @@ export async function rebuildAccountLedger(
   }
 
   const splitAdjustedMatcherInput = applySplitAdjustmentsToLedgerExecutions(matcherInput, splitAdjustments);
-  const overrideResult = applyExecutionQtyOverrideToLedgerExecutions(splitAdjustedMatcherInput, executionQtyOverrides);
-  const effectiveExecutions = overrideResult.executions.filter((execution) => execution.quantity > 0);
+  const priceOverrideResult = applyExecutionPriceOverrideToLedgerExecutions(splitAdjustedMatcherInput, executionPriceOverrides);
+  const qtyOverrideResult = applyExecutionQtyOverrideToLedgerExecutions(priceOverrideResult.executions, executionQtyOverrides);
+  const effectiveExecutions = qtyOverrideResult.executions.filter((execution) => execution.quantity > 0);
   const matchResult = runFifoMatcher(effectiveExecutions, asOfDate);
-  if (overrideResult.unmatchedExecutionIds.length > 0) {
-    for (const executionId of overrideResult.unmatchedExecutionIds) {
+  if (priceOverrideResult.unmatchedExecutionIds.length > 0) {
+    for (const executionId of priceOverrideResult.unmatchedExecutionIds) {
+      matchResult.warnings.push({
+        code: "EXECUTION_PRICE_OVERRIDE_TARGET_MISSING",
+        message: `Execution price override references missing execution ${executionId}.`,
+        rowRef: executionId,
+      });
+    }
+  }
+
+  if (qtyOverrideResult.unmatchedExecutionIds.length > 0) {
+    for (const executionId of qtyOverrideResult.unmatchedExecutionIds) {
       matchResult.warnings.push({
         code: "EXECUTION_QTY_OVERRIDE_TARGET_MISSING",
         message: `Execution qty override references missing execution ${executionId}.`,

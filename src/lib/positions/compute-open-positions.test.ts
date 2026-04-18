@@ -44,6 +44,24 @@ function matchedLot(overrides: Partial<MatchedLotRecord> & Pick<MatchedLotRecord
   };
 }
 
+function adjustment(overrides: Partial<ManualAdjustmentRecord> = {}): ManualAdjustmentRecord {
+  return {
+    id: overrides.id ?? "adj-1",
+    createdAt: overrides.createdAt ?? "2026-01-01T00:00:00.000Z",
+    createdBy: overrides.createdBy ?? "tester",
+    accountId: overrides.accountId ?? "account-1",
+    accountExternalId: overrides.accountExternalId ?? "D-1",
+    symbol: overrides.symbol ?? "SPY",
+    effectiveDate: overrides.effectiveDate ?? "2026-01-01T00:00:00.000Z",
+    adjustmentType: overrides.adjustmentType ?? "PRICE_OVERRIDE",
+    payload: overrides.payload ?? { instrumentKey: "SPY", overridePrice: 10 },
+    reason: overrides.reason ?? "adjustment",
+    evidenceRef: overrides.evidenceRef ?? null,
+    status: overrides.status ?? "ACTIVE",
+    reversedByAdjustmentId: overrides.reversedByAdjustmentId ?? null,
+  };
+}
+
 describe("computeOpenPositions", () => {
   it("subtracts partial matches from open quantity per execution instead of dropping full opens", () => {
     const executions: ExecutionRecord[] = [
@@ -172,5 +190,35 @@ describe("computeOpenPositions", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.netQty).toBeCloseTo(40, 6);
     expect(result[0]?.costBasis).toBeCloseTo(2974, 6);
+  });
+
+  it("applies execution price overrides to open-position basis", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "open-xle-transfer",
+        accountId: "account-1",
+        broker: "FIDELITY",
+        symbol: "XLE",
+        quantity: "100",
+        price: "89.81",
+        instrumentKey: "XLE",
+        assetClass: "EQUITY",
+        side: "BUY",
+        openingClosingEffect: "TO_OPEN",
+      }),
+    ];
+
+    const adjustments: ManualAdjustmentRecord[] = [
+      adjustment({
+        adjustmentType: "EXECUTION_PRICE_OVERRIDE",
+        payload: { executionId: "open-xle-transfer", overridePrice: 72.5 },
+      }),
+    ];
+
+    const result = computeOpenPositions(executions, [], adjustments);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.netQty).toBe(100);
+    expect(result[0]?.costBasis).toBeCloseTo(7250, 6);
   });
 });

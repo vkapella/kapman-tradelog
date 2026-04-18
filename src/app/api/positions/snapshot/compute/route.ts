@@ -135,7 +135,7 @@ function mapAdjustmentRowsToRecords(rows: Array<{
   accountId: string;
   symbol: string;
   effectiveDate: Date;
-  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION" | "EXECUTION_QTY_OVERRIDE";
+  adjustmentType: "SPLIT" | "QTY_OVERRIDE" | "PRICE_OVERRIDE" | "ADD_POSITION" | "REMOVE_POSITION" | "EXECUTION_QTY_OVERRIDE" | "EXECUTION_PRICE_OVERRIDE";
   payloadJson: Prisma.JsonValue;
   reason: string;
   evidenceRef: string | null;

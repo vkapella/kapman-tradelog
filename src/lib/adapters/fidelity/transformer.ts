@@ -146,6 +146,29 @@ function normalizeMoneyMarketClassification(
   return classification;
 }
 
+function isShareBearingAcatReceiveRow(classification: ActionClassification, row: RawFidelityRow): boolean {
+  return (
+    classification.kind === "CASH_EVENT" &&
+    classification.cashEventType === "ACAT_RECEIVE" &&
+    row.symbol.trim().length > 0 &&
+    row.quantity !== null &&
+    Math.abs(row.quantity) > 0
+  );
+}
+
+function deriveTransferBasisPrice(row: RawFidelityRow): number | null {
+  if (row.price !== null && Number.isFinite(row.price) && row.price >= 0) {
+    return row.price;
+  }
+
+  if (row.amount !== null && row.quantity !== null && row.quantity !== 0) {
+    const derived = Math.abs(row.amount) / Math.abs(row.quantity);
+    return Number.isFinite(derived) ? derived : null;
+  }
+
+  return null;
+}
+
 function updateMoneyMarketHolding(input: {
   holdingsBySymbol: Map<string, number>;
   eligibleSymbols: Set<string>;
@@ -635,6 +658,66 @@ export function transformFidelityRows(rows: RawFidelityRow[], accountId: string 
     const normalizedSymbol = row.symbol.trim();
     const moneyMarketSymbol = normalizeMoneyMarketSymbol(normalizedSymbol);
     const effectiveClassification = normalizeMoneyMarketClassification(classification, moneyMarketSymbol);
+
+    if (isShareBearingAcatReceiveRow(effectiveClassification, row)) {
+      const basisPrice = deriveTransferBasisPrice(row);
+      const warningMessage =
+        basisPrice !== null
+          ? `ACAT share transfer imported as BUY TO_OPEN equity using transfer-date value ${basisPrice.toFixed(4)} as provisional basis. Add EXECUTION_PRICE_OVERRIDE if original basis differs.`
+          : "ACAT share transfer imported as BUY TO_OPEN equity with unknown basis. Add EXECUTION_PRICE_OVERRIDE to set original basis.";
+      appendWarning(csvRowIndex, rawAction, warningMessage, "ACAT_BASIS_OVERRIDE_RECOMMENDED");
+
+      const executionRecord: ExecutionImportRecord = {
+        kind: "EXECUTION",
+        rowIndex: csvRowIndex,
+        status: "WARNING",
+        accountId,
+        executionDate: row.runDate,
+        settlementDate: row.settlementDate,
+        symbol: normalizedSymbol,
+        description: row.description,
+        marginType: row.marginType,
+        rawAction,
+        actionClassification: "EXECUTION BUY OPEN EQUITY (ACAT_RECEIVE)",
+        underlyingTicker: normalizedSymbol,
+        assetClass: "EQUITY",
+        optionType: null,
+        expirationDate: null,
+        strikePrice: null,
+        side: "BUY",
+        openClose: "OPEN",
+        quantity: Math.abs(row.quantity ?? 0),
+        price: basisPrice,
+        commission: row.commission ?? 0,
+        fees: row.fees ?? 0,
+        amount: row.amount,
+        assignmentLinkId: null,
+        cancelRebookCode: null,
+      };
+
+      records.push(executionRecord);
+
+      const preview = makePreviewRow({
+        rowIndex: csvRowIndex,
+        executionDate: row.runDate,
+        actionClassification: executionRecord.actionClassification,
+        symbol: executionRecord.symbol,
+        underlyingTicker: executionRecord.underlyingTicker,
+        assetClass: executionRecord.assetClass,
+        side: executionRecord.side,
+        openClose: executionRecord.openClose,
+        quantity: executionRecord.quantity,
+        price: executionRecord.price,
+        amount: executionRecord.amount,
+        marginType: executionRecord.marginType,
+        status: "WARNING",
+        warningMessage,
+      });
+
+      previewRowByCsvRow.set(csvRowIndex, previewRows.length);
+      previewRows.push(preview);
+      return;
+    }
 
     if (effectiveClassification.kind === "CASH_EVENT") {
       const record: CashEventImportRecord = {

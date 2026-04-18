@@ -3,6 +3,7 @@ import {
   applyPositionAdjustmentsWithWarnings,
   type PositionAdjustmentWarning,
 } from "@/lib/adjustments/apply-adjustments";
+import { buildExecutionPriceOverrideMap } from "@/lib/adjustments/execution-price-overrides";
 import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord, OpenPosition } from "@/types/api";
 
 function signedQuantity(side: string | null, quantity: number): number {
@@ -51,6 +52,7 @@ export function computeOpenPositionsWithDiagnostics(
   }
 
   const grouped = new Map<string, OpenPosition>();
+  const executionPriceOverrides = buildExecutionPriceOverrideMap(adjustments);
 
   for (const execution of executions) {
     const isPlainEquityBuy =
@@ -77,7 +79,8 @@ export function computeOpenPositionsWithDiagnostics(
     const key = execution.instrumentKey ?? fallbackInstrumentKey(execution);
     const groupKey = execution.accountId + "::" + key;
 
-    const price = Number(execution.price ?? 0);
+    const overridePrice = executionPriceOverrides.get(execution.id)?.overridePrice;
+    const price = overridePrice ?? Number(execution.price ?? 0);
     const relevantAdjustments = adjustments.filter((adjustment) => adjustment.accountId === execution.accountId);
     const splitScales = applyExecutionSplitAdjustment(execution, relevantAdjustments);
     const adjustedQuantity = remainingQuantity * splitScales.quantityScale;

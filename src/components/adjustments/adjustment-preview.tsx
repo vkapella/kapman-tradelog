@@ -90,6 +90,50 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
                 </tbody>
               </table>
             </div>
+          ) : preview.adjustmentType === "EXECUTION_PRICE_OVERRIDE" && preview.executionPriceOverridePreview ? (
+            <div className="rounded border border-border">
+              <table className="min-w-full text-xs">
+                <thead className="bg-panel-2 text-muted">
+                  <tr>
+                    <th className="px-2 py-2 text-left">Metric</th>
+                    <th className="px-2 py-2 text-right">Before</th>
+                    <th className="px-2 py-2 text-right">After</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Execution ID</td>
+                    <td className="px-2 py-2 text-right font-mono">{preview.executionPriceOverridePreview.executionId}</td>
+                    <td className="px-2 py-2 text-right font-mono">{preview.executionPriceOverridePreview.executionId}</td>
+                  </tr>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Raw Price</td>
+                    <td className="px-2 py-2 text-right">{formatNumber(preview.executionPriceOverridePreview.rawPrice)}</td>
+                    <td className="px-2 py-2 text-right">{formatNumber(preview.executionPriceOverridePreview.rawPrice)}</td>
+                  </tr>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Effective Price</td>
+                    <td className="px-2 py-2 text-right">{formatNumber(preview.executionPriceOverridePreview.beforeEffectivePrice)}</td>
+                    <td className="px-2 py-2 text-right">{formatNumber(preview.executionPriceOverridePreview.afterEffectivePrice)}</td>
+                  </tr>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Affected Matched Lots</td>
+                    <td className="px-2 py-2 text-right">{preview.executionPriceOverridePreview.beforeAffectedMatchedLots}</td>
+                    <td className="px-2 py-2 text-right">{preview.executionPriceOverridePreview.afterAffectedMatchedLots}</td>
+                  </tr>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Realized P&L Impact</td>
+                    <td className="px-2 py-2 text-right">{formatCurrency(preview.executionPriceOverridePreview.beforeRealizedPnl)}</td>
+                    <td className="px-2 py-2 text-right">{formatCurrency(preview.executionPriceOverridePreview.afterRealizedPnl)}</td>
+                  </tr>
+                  <tr className="border-t border-border text-text">
+                    <td className="px-2 py-2">Unexplained Delta Impact</td>
+                    <td className="px-2 py-2 text-right">{formatCurrency(preview.executionPriceOverridePreview.beforeUnexplainedDeltaImpact)}</td>
+                    <td className="px-2 py-2 text-right">{formatCurrency(preview.executionPriceOverridePreview.afterUnexplainedDeltaImpact)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="rounded border border-border">
               <table className="min-w-full text-xs">

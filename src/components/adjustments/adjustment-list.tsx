@@ -8,6 +8,7 @@ import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { findSupersededExecutionPriceOverrideIds } from "@/lib/adjustments/execution-price-overrides";
 import { findSupersededExecutionQtyOverrideIds } from "@/lib/adjustments/execution-qty-overrides";
 import type { ManualAdjustmentRecord } from "@/types/api";
 
@@ -85,7 +86,12 @@ export function AdjustmentList({
   reversingId: string | null;
 }) {
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
-  const supersededIds = findSupersededExecutionQtyOverrideIds(adjustments);
+  const supersededIds = useMemo(() => {
+    return new Set<string>([
+      ...Array.from(findSupersededExecutionQtyOverrideIds(adjustments)),
+      ...Array.from(findSupersededExecutionPriceOverrideIds(adjustments)),
+    ]);
+  }, [adjustments]);
   const scopedAdjustments = useMemo(() => adjustments.filter((record) => selectedAccounts.includes(record.accountId)), [adjustments, selectedAccounts]);
   const [page, setPage] = useState(1);
   const [showAll, setShowAll] = useState(false);

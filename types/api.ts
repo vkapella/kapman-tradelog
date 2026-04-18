@@ -563,7 +563,8 @@ export type AdjustmentType =
   | "PRICE_OVERRIDE"
   | "ADD_POSITION"
   | "REMOVE_POSITION"
-  | "EXECUTION_QTY_OVERRIDE";
+  | "EXECUTION_QTY_OVERRIDE"
+  | "EXECUTION_PRICE_OVERRIDE";
 export type AdjustmentStatus = "ACTIVE" | "REVERSED";
 
 export interface SplitPayload {
@@ -586,6 +587,11 @@ export interface ExecutionQtyOverridePayload {
   overrideQty: number;
 }
 
+export interface ExecutionPriceOverridePayload {
+  executionId: string;
+  overridePrice: number;
+}
+
 export interface AddPositionPayload {
   instrumentKey: string;
   assetClass: "EQUITY" | "OPTION";
@@ -605,6 +611,7 @@ export type ManualAdjustmentPayload =
   | QtyOverridePayload
   | PriceOverridePayload
   | ExecutionQtyOverridePayload
+  | ExecutionPriceOverridePayload
   | AddPositionPayload
   | RemovePositionPayload;
 
@@ -661,6 +668,18 @@ export interface AdjustmentPreviewResponse {
     rawQty: number;
     beforeEffectiveQty: number;
     afterEffectiveQty: number;
+    beforeAffectedMatchedLots: number;
+    afterAffectedMatchedLots: number;
+    beforeRealizedPnl: number;
+    afterRealizedPnl: number;
+    beforeUnexplainedDeltaImpact: number;
+    afterUnexplainedDeltaImpact: number;
+  };
+  executionPriceOverridePreview?: {
+    executionId: string;
+    rawPrice: number | null;
+    beforeEffectivePrice: number | null;
+    afterEffectivePrice: number | null;
     beforeAffectedMatchedLots: number;
     afterAffectedMatchedLots: number;
     beforeRealizedPnl: number;

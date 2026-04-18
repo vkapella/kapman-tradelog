@@ -86,6 +86,52 @@ describe("runFifoMatcher", () => {
     expect(result.warnings).toHaveLength(0);
   });
 
+  it("treats unknown Fidelity equity sells as closes when long inventory is open", () => {
+    const open = makeExecution({
+      id: "xle-open",
+      eventTimestamp: date("2026-01-01T14:30:00.000Z"),
+      tradeDate: date("2026-01-01T00:00:00.000Z"),
+      broker: "FIDELITY",
+      assetClass: "EQUITY",
+      symbol: "XLE",
+      instrumentKey: "XLE",
+      optionType: null,
+      strike: null,
+      expirationDate: null,
+      side: "BUY",
+      quantity: 100,
+      price: 89.81,
+      openingClosingEffect: "TO_OPEN",
+    });
+    const close = makeExecution({
+      id: "xle-close",
+      eventTimestamp: date("2026-05-16T14:30:00.000Z"),
+      tradeDate: date("2026-05-16T00:00:00.000Z"),
+      broker: "FIDELITY",
+      assetClass: "EQUITY",
+      symbol: "XLE",
+      instrumentKey: "XLE",
+      optionType: null,
+      strike: null,
+      expirationDate: null,
+      side: "SELL",
+      quantity: 100,
+      price: 85.42,
+      openingClosingEffect: "UNKNOWN",
+    });
+
+    const result = runFifoMatcher([open, close], date("2026-06-01T00:00:00.000Z"));
+
+    expect(result.matchedLots).toHaveLength(1);
+    expect(result.matchedLots[0]).toMatchObject({
+      openExecutionId: "xle-open",
+      closeExecutionId: "xle-close",
+      quantity: 100,
+    });
+    expect(result.matchedLots[0]?.realizedPnl).toBeCloseTo(-439, 6);
+    expect(result.warnings).toHaveLength(0);
+  });
+
   it("handles roll behavior as close then fresh open on the same day", () => {
     const firstOpen = makeExecution({
       id: "open-roll-1",
