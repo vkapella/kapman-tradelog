@@ -3,7 +3,8 @@ import { parsePayloadByType } from "@/lib/adjustments/types";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
-import { inferSetupGroups, type SetupInferenceLot } from "@/lib/analytics/setup-inference";
+import { buildInferenceLots } from "@/lib/analytics/inference-lot-builder";
+import { inferSetupGroups } from "@/lib/analytics/setup-inference";
 import { prisma } from "@/lib/db/prisma";
 import {
   buildAccountInstrumentKey,
@@ -271,23 +272,19 @@ export async function GET(request: Request) {
   }
 
   const totalRows = parsedRows + skippedRows;
-  const inferenceLots: SetupInferenceLot[] = matchedLots.map((lot) => ({
-    id: lot.id,
-    accountId: lot.accountId,
-    symbol: lot.openExecution.symbol,
-    underlyingSymbol: lot.openExecution.underlyingSymbol ?? lot.openExecution.symbol,
-    openTradeDate: lot.openExecution.tradeDate,
-    closeTradeDate: lot.closeExecution?.tradeDate ?? null,
-    realizedPnl: Number(lot.realizedPnl),
-    holdingDays: lot.holdingDays,
-    openAssetClass: lot.openExecution.assetClass,
-    openSide: lot.openExecution.side,
-    optionType: lot.openExecution.optionType,
-    strike: lot.openExecution.strike ? Number(lot.openExecution.strike) : null,
-    expirationDate: lot.openExecution.expirationDate,
-    openSpreadGroupId: lot.openExecution.spreadGroupId,
-  }));
-  const setupInference = inferSetupGroups(inferenceLots).diagnostics;
+  const lotsByAccount = new Map<string, typeof matchedLots>();
+  for (const lot of matchedLots) {
+    const accountLots = lotsByAccount.get(lot.accountId) ?? [];
+    accountLots.push(lot);
+    lotsByAccount.set(lot.accountId, accountLots);
+  }
+
+  const allInferenceLots = (
+    await Promise.all(
+      Array.from(lotsByAccount.entries()).map(([accountId, lots]) => buildInferenceLots(prisma, accountId, lots)),
+    )
+  ).flat();
+  const setupInference = inferSetupGroups(allInferenceLots).diagnostics;
   const matchedCount = matchedLots.length;
   const executionQtyOverrideMap = new Map<string, number>();
   for (const adjustment of manualAdjustments) {

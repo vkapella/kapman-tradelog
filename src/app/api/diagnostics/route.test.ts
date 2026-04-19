@@ -33,6 +33,35 @@ vi.mock("@/lib/db/prisma", () => {
   };
 });
 
+function createShortCallMatchedLot(accountId: string, lotId: string) {
+  return {
+    id: lotId,
+    accountId,
+    openExecutionId: `${lotId}-open`,
+    closeExecutionId: null,
+    quantity: 1,
+    realizedPnl: 55,
+    holdingDays: 1,
+    outcome: "OPEN",
+    openExecution: {
+      id: `${lotId}-open`,
+      accountId,
+      symbol: "INTC240607C34",
+      underlyingSymbol: "INTC",
+      tradeDate: new Date("2024-05-07T00:00:00.000Z"),
+      assetClass: "OPTION",
+      side: "SELL",
+      optionType: "CALL",
+      strike: 34,
+      expirationDate: new Date("2024-06-07T00:00:00.000Z"),
+      spreadGroupId: null,
+      quantity: 1,
+      importId: "import-1",
+    },
+    closeExecution: null,
+  };
+}
+
 describe("GET /api/diagnostics", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -191,5 +220,57 @@ describe("GET /api/diagnostics", () => {
         cashAsOf: "2026-04-10T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("does not emit PAIR_FAIL_NO_OVERLAP_LONG_CALL for assignment-backed covered call inference", async () => {
+    diagnosticsRouteMocks.import.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.execution.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "exec-assigned-stock",
+          accountId: "account-a",
+          symbol: "INTC",
+          underlyingSymbol: "INTC",
+          tradeDate: new Date("2024-05-07T00:00:00.000Z"),
+        },
+      ]);
+    diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([createShortCallMatchedLot("account-a", "lot-short-call")]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([]);
+
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/diagnostics"));
+    const payload = (await response.json()) as {
+      data: { setupInference: { setupInferencePairFailNoOverlapLongCallTotal: number; setupInferenceSamples: Array<{ code: string }> } };
+    };
+
+    expect(payload.data.setupInference.setupInferencePairFailNoOverlapLongCallTotal).toBe(0);
+    expect(payload.data.setupInference.setupInferenceSamples).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "PAIR_FAIL_NO_OVERLAP_LONG_CALL" })]),
+    );
+  });
+
+  it("emits PAIR_FAIL_NO_OVERLAP_LONG_CALL for true naked short call without stock anchor", async () => {
+    diagnosticsRouteMocks.import.findMany.mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.execution.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    diagnosticsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([createShortCallMatchedLot("account-a", "lot-naked-short-call")]);
+    diagnosticsRouteMocks.manualAdjustment.findMany.mockResolvedValueOnce([]);
+
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/diagnostics"));
+    const payload = (await response.json()) as {
+      data: { setupInference: { setupInferencePairFailNoOverlapLongCallTotal: number; setupInferenceSamples: Array<{ code: string }> } };
+    };
+
+    expect(payload.data.setupInference.setupInferencePairFailNoOverlapLongCallTotal).toBe(1);
+    expect(payload.data.setupInference.setupInferenceSamples).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "PAIR_FAIL_NO_OVERLAP_LONG_CALL" })]),
+    );
   });
 });
