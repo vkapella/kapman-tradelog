@@ -1,12 +1,11 @@
 import type { Prisma } from "@prisma/client";
-import { inferSetupGroups, type SetupInferenceLot } from "./setup-inference";
+import { buildInferenceLots, STOCK_ANCHOR_PREFIX } from "./inference-lot-builder";
+import { inferSetupGroups } from "./setup-inference";
 
 export interface RebuildAccountSetupsResult {
   setupGroupsPersisted: number;
   uncategorizedCount: number;
 }
-
-const STOCK_ANCHOR_PREFIX = "stock-anchor::";
 
 export async function rebuildAccountSetups(
   tx: Prisma.TransactionClient,
@@ -23,53 +22,7 @@ export async function rebuildAccountSetups(
     orderBy: [{ openExecution: { tradeDate: "asc" } }, { id: "asc" }],
   });
 
-  const inferenceLots: SetupInferenceLot[] = matchedLots.map((lot) => ({
-    id: lot.id,
-    accountId: lot.accountId,
-    symbol: lot.openExecution.symbol,
-    underlyingSymbol: lot.openExecution.underlyingSymbol ?? lot.openExecution.symbol,
-    openTradeDate: lot.openExecution.tradeDate,
-    closeTradeDate: lot.closeExecution?.tradeDate ?? null,
-    realizedPnl: Number(lot.realizedPnl),
-    holdingDays: lot.holdingDays,
-    openAssetClass: lot.openExecution.assetClass,
-    openSide: lot.openExecution.side,
-    optionType: lot.openExecution.optionType,
-    strike: lot.openExecution.strike ? Number(lot.openExecution.strike) : null,
-    expirationDate: lot.openExecution.expirationDate,
-    openSpreadGroupId: lot.openExecution.spreadGroupId,
-  }));
-
-  const matchedOpenExecutionIds = new Set(matchedLots.map((lot) => lot.openExecutionId));
-  const openEquityExecutions = await tx.execution.findMany({
-    where: {
-      accountId,
-      assetClass: "EQUITY",
-      side: "BUY",
-      openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
-      id: { notIn: Array.from(matchedOpenExecutionIds) },
-    },
-    orderBy: [{ tradeDate: "asc" }, { id: "asc" }],
-  });
-
-  const stockAnchorLots: SetupInferenceLot[] = openEquityExecutions.map((execution) => ({
-    id: `${STOCK_ANCHOR_PREFIX}${execution.id}`,
-    accountId: execution.accountId,
-    symbol: execution.symbol,
-    underlyingSymbol: execution.underlyingSymbol ?? execution.symbol,
-    openTradeDate: execution.tradeDate,
-    closeTradeDate: null,
-    realizedPnl: 0,
-    holdingDays: 0,
-    openAssetClass: "EQUITY",
-    openSide: "BUY",
-    optionType: null,
-    strike: null,
-    expirationDate: null,
-    openSpreadGroupId: null,
-  }));
-
-  const allInferenceLots = [...inferenceLots, ...stockAnchorLots];
+  const allInferenceLots = await buildInferenceLots(tx, accountId, matchedLots);
   const inferred = inferSetupGroups(allInferenceLots);
   const lotMetricsById = new Map(
     allInferenceLots.map((lot) => [
