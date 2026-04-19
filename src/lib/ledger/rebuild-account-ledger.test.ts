@@ -72,6 +72,10 @@ describe("rebuildAccountLedger execution qty overrides", () => {
       manualAdjustment: {
         findMany: vi.fn().mockResolvedValue([]),
       },
+      import: {
+        findMany: vi.fn().mockResolvedValue([]),
+        update: vi.fn().mockResolvedValue({}),
+      },
     };
 
     const result = await rebuildAccountLedger(
@@ -160,6 +164,10 @@ describe("rebuildAccountLedger execution price overrides", () => {
           },
         ]),
       },
+      import: {
+        findMany: vi.fn().mockResolvedValue([]),
+        update: vi.fn().mockResolvedValue({}),
+      },
     };
 
     const result = await rebuildAccountLedger(
@@ -179,5 +187,195 @@ describe("rebuildAccountLedger execution price overrides", () => {
       quantity: 100,
     });
     expect(createManyArg.data[0]?.realizedPnl).toBeCloseTo(1292, 6);
+  });
+});
+
+describe("rebuildAccountLedger import warning rewrite", () => {
+  it("clears stale ledger warnings while preserving parse-class warnings", async () => {
+    const open = tradeExecution({
+      id: "open-1",
+      quantity: new Prisma.Decimal(2),
+      price: new Prisma.Decimal(100),
+      openingClosingEffect: "TO_OPEN",
+    });
+    const close = tradeExecution({
+      id: "close-1",
+      side: "SELL",
+      quantity: new Prisma.Decimal(3),
+      price: new Prisma.Decimal(110),
+      openingClosingEffect: "TO_CLOSE",
+      eventTimestamp: new Date("2026-04-02T14:30:00.000Z"),
+      tradeDate: new Date("2026-04-02T00:00:00.000Z"),
+    });
+
+    const tx = {
+      matchedLot: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      execution: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findMany: vi.fn().mockResolvedValue([open, close]),
+        update: vi.fn().mockResolvedValue({}),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      manualAdjustment: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "qty-override",
+            createdAt: new Date("2026-04-03T00:00:00.000Z"),
+            createdBy: "tester",
+            accountId: "account-1",
+            symbol: "GOOG",
+            effectiveDate: new Date("2026-04-02T00:00:00.000Z"),
+            adjustmentType: "EXECUTION_QTY_OVERRIDE",
+            payloadJson: { executionId: "close-1", overrideQty: 2 },
+            reason: "fix stale unmatched close",
+            evidenceRef: null,
+            status: "ACTIVE",
+            reversedByAdjustmentId: null,
+            account: { accountId: "D-1" },
+          },
+        ]),
+      },
+      import: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "import-1",
+            warnings: [
+              {
+                code: "UNMATCHED_CLOSE_QUANTITY",
+                message: "Unmatched close quantity 1 for instrument GOOG.",
+                rowRef: "close-1",
+              },
+              {
+                code: "EXECUTION_QTY_OVERRIDE_TARGET_MISSING",
+                message: "Execution qty override references missing execution missing-close.",
+                rowRef: "missing-close",
+              },
+              {
+                code: "LIMITED_SPREAD_INTERPRETATION",
+                message: "Preserve parse warning.",
+              },
+              {
+                code: "SYNTHETIC_EXPIRATION_INFERRED",
+                message: "Preserve synthetic expiration warning.",
+                rowRef: "synthetic-1",
+              },
+            ],
+          },
+        ]),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await rebuildAccountLedger(
+      tx as unknown as Prisma.TransactionClient,
+      "account-1",
+      new Date("2026-04-10T00:00:00.000Z"),
+    );
+
+    expect(result.warnings).toEqual([]);
+    expect(result.warningsCleared).toBe(2);
+    expect(tx.import.update).toHaveBeenCalledWith({
+      where: { id: "import-1" },
+      data: {
+        warnings: [
+          {
+            code: "LIMITED_SPREAD_INTERPRETATION",
+            message: "Preserve parse warning.",
+          },
+          {
+            code: "SYNTHETIC_EXPIRATION_INFERRED",
+            message: "Preserve synthetic expiration warning.",
+            rowRef: "synthetic-1",
+          },
+        ],
+      },
+    });
+  });
+
+  it("rewrites current ledger warnings back onto the owning import", async () => {
+    const open = tradeExecution({
+      id: "open-1",
+      quantity: new Prisma.Decimal(1),
+      price: new Prisma.Decimal(100),
+      openingClosingEffect: "TO_OPEN",
+    });
+    const close = tradeExecution({
+      id: "close-1",
+      side: "SELL",
+      quantity: new Prisma.Decimal(2),
+      price: new Prisma.Decimal(110),
+      openingClosingEffect: "TO_CLOSE",
+      eventTimestamp: new Date("2026-04-02T14:30:00.000Z"),
+      tradeDate: new Date("2026-04-02T00:00:00.000Z"),
+    });
+
+    const tx = {
+      matchedLot: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      execution: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findMany: vi.fn().mockResolvedValue([open, close]),
+        update: vi.fn().mockResolvedValue({}),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      manualAdjustment: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      import: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "import-1",
+            warnings: [
+              {
+                code: "UNMATCHED_CLOSE_QUANTITY",
+                message: "Outdated unmatched close quantity warning.",
+                rowRef: "close-1",
+              },
+              {
+                code: "LIMITED_SPREAD_INTERPRETATION",
+                message: "Preserve parse warning.",
+              },
+            ],
+          },
+        ]),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const result = await rebuildAccountLedger(
+      tx as unknown as Prisma.TransactionClient,
+      "account-1",
+      new Date("2026-04-10T00:00:00.000Z"),
+    );
+
+    expect(result.warnings).toEqual([
+      {
+        code: "UNMATCHED_CLOSE_QUANTITY",
+        message: "Unmatched close quantity 1 for instrument GOOG.",
+        rowRef: "close-1",
+      },
+    ]);
+    expect(result.warningsCleared).toBe(1);
+    expect(tx.import.update).toHaveBeenCalledWith({
+      where: { id: "import-1" },
+      data: {
+        warnings: [
+          {
+            code: "LIMITED_SPREAD_INTERPRETATION",
+            message: "Preserve parse warning.",
+          },
+          {
+            code: "UNMATCHED_CLOSE_QUANTITY",
+            message: "Unmatched close quantity 1 for instrument GOOG.",
+            rowRef: "close-1",
+          },
+        ],
+      },
+    });
   });
 });
