@@ -341,6 +341,10 @@ function buildPairingCandidates(shortCallLot: SetupInferenceLot, anchorLots: Set
   const candidates: PairingCandidate[] = [];
 
   for (const anchorLot of anchorLots) {
+    if (anchorLot.underlyingSymbol !== shortCallLot.underlyingSymbol) {
+      continue;
+    }
+
     const pairTag = inferPairTag(anchorLot, shortCallLot);
     if (!pairTag) {
       continue;
@@ -464,149 +468,176 @@ function resolveAnchorTag(
 }
 
 function buildLongCallAnchorAtoms(lots: SetupInferenceLot[], diagnostics: SetupInferenceDiagnostics): PairingResult {
-  const longCalls = sortLotsByOpenDate(
-    lots.filter((lot) => lot.openAssetClass === "OPTION" && lot.optionType === "CALL" && lot.openSide === "BUY"),
-  );
-  const shortCalls = sortLotsByOpenDate(
-    lots.filter((lot) => lot.openAssetClass === "OPTION" && lot.optionType === "CALL" && lot.openSide === "SELL"),
-  );
-
-  const anchors = new Map<
-    string,
-    {
-      anchorLot: SetupInferenceLot;
-      pairedShortCalls: SetupInferenceLot[];
-      pairTags: Array<Extract<SetupTag, "bull_vertical" | "bear_vertical" | "calendar" | "diagonal">>;
-      reasons: string[];
-    }
-  >();
-
-  for (const longCallLot of longCalls) {
-    anchors.set(longCallLot.id, {
-      anchorLot: longCallLot,
-      pairedShortCalls: [],
-      pairTags: [],
-      reasons: [],
-    });
+  const lotsByUnderlying = new Map<string, SetupInferenceLot[]>();
+  for (const lot of lots) {
+    const entries = lotsByUnderlying.get(lot.underlyingSymbol) ?? [];
+    entries.push(lot);
+    lotsByUnderlying.set(lot.underlyingSymbol, entries);
   }
 
-  const pairedShortCallIds = new Set<string>();
+  const allAnchorAtoms: LotAtom[] = [];
+  const allUnmatchedShortCalls: SetupInferenceLot[] = [];
+  const allConsumedLotIds = new Set<string>();
 
-  for (const shortCallLot of shortCalls) {
-    if (shortCallLot.expirationDate === null || shortCallLot.strike === null) {
-      diagnostics.setupInferencePairFailMissingMetadataTotal += 1;
-      addDiagnosticSample(diagnostics, {
-        code: "PAIR_FAIL_MISSING_METADATA",
-        message: "Short call could not be paired because strike or expiration is missing.",
-        underlyingSymbol: shortCallLot.underlyingSymbol,
-        lotIds: [shortCallLot.id],
+  for (const underlyingSymbol of Array.from(lotsByUnderlying.keys()).sort()) {
+    const underlyingLots = lotsByUnderlying.get(underlyingSymbol) ?? [];
+    const longCalls = sortLotsByOpenDate(
+      underlyingLots.filter((lot) => lot.openAssetClass === "OPTION" && lot.optionType === "CALL" && lot.openSide === "BUY"),
+    );
+    const shortCalls = sortLotsByOpenDate(
+      underlyingLots.filter((lot) => lot.openAssetClass === "OPTION" && lot.optionType === "CALL" && lot.openSide === "SELL"),
+    );
+
+    if (longCalls.length === 0 && shortCalls.length === 0) {
+      continue;
+    }
+
+    const anchors = new Map<
+      string,
+      {
+        anchorLot: SetupInferenceLot;
+        pairedShortCalls: SetupInferenceLot[];
+        pairTags: Array<Extract<SetupTag, "bull_vertical" | "bear_vertical" | "calendar" | "diagonal">>;
+        reasons: string[];
+      }
+    >();
+
+    for (const longCallLot of longCalls) {
+      anchors.set(longCallLot.id, {
+        anchorLot: longCallLot,
+        pairedShortCalls: [],
+        pairTags: [],
+        reasons: [],
       });
-      continue;
     }
 
-    const overlappingLongCalls = longCalls.filter((longCallLot) => overlapsAt(shortCallLot.openTradeDate, longCallLot));
+    const pairedShortCallIds = new Set<string>();
 
-    if (overlappingLongCalls.length === 0) {
-      continue;
-    }
-
-    const candidates = buildPairingCandidates(shortCallLot, overlappingLongCalls).sort(comparePairingCandidates);
-
-    if (candidates.length === 0) {
-      const hasMissingAnchorMetadata = overlappingLongCalls.some((candidate) => candidate.expirationDate === null || candidate.strike === null);
-      if (hasMissingAnchorMetadata) {
+    for (const shortCallLot of shortCalls) {
+      if (shortCallLot.expirationDate === null || shortCallLot.strike === null) {
         diagnostics.setupInferencePairFailMissingMetadataTotal += 1;
         addDiagnosticSample(diagnostics, {
           code: "PAIR_FAIL_MISSING_METADATA",
-          message: "Overlapping long call anchors exist but are missing strike or expiration.",
+          message: "Short call could not be paired because strike or expiration is missing.",
           underlyingSymbol: shortCallLot.underlyingSymbol,
-          lotIds: [shortCallLot.id, ...overlappingLongCalls.map((lot) => lot.id)],
+          lotIds: [shortCallLot.id],
         });
-      } else {
-        diagnostics.setupInferencePairFailNoEligibleExpTotal += 1;
+        continue;
+      }
+
+      const overlappingLongCalls = longCalls.filter((longCallLot) => overlapsAt(shortCallLot.openTradeDate, longCallLot));
+
+      if (overlappingLongCalls.length === 0) {
+        continue;
+      }
+
+      const candidates = buildPairingCandidates(shortCallLot, overlappingLongCalls).sort(comparePairingCandidates);
+
+      if (candidates.length === 0) {
+        const hasMissingAnchorMetadata = overlappingLongCalls.some(
+          (candidate) => candidate.expirationDate === null || candidate.strike === null,
+        );
+        if (hasMissingAnchorMetadata) {
+          diagnostics.setupInferencePairFailMissingMetadataTotal += 1;
+          addDiagnosticSample(diagnostics, {
+            code: "PAIR_FAIL_MISSING_METADATA",
+            message: "Overlapping long call anchors exist but are missing strike or expiration.",
+            underlyingSymbol: shortCallLot.underlyingSymbol,
+            lotIds: [shortCallLot.id, ...overlappingLongCalls.map((lot) => lot.id)],
+          });
+        } else {
+          diagnostics.setupInferencePairFailNoEligibleExpTotal += 1;
+          addDiagnosticSample(diagnostics, {
+            code: "PAIR_FAIL_NO_ELIGIBLE_EXP",
+            message: "Overlapping long call anchors exist but none satisfy vertical/calendar/diagonal expiration rules.",
+            underlyingSymbol: shortCallLot.underlyingSymbol,
+            lotIds: [shortCallLot.id, ...overlappingLongCalls.map((lot) => lot.id)],
+          });
+        }
+        continue;
+      }
+
+      const bestCandidate = candidates[0]!;
+      if (hasPairingAmbiguity(bestCandidate, candidates[1])) {
+        diagnostics.setupInferencePairAmbiguousTotal += 1;
         addDiagnosticSample(diagnostics, {
-          code: "PAIR_FAIL_NO_ELIGIBLE_EXP",
-          message: "Overlapping long call anchors exist but none satisfy vertical/calendar/diagonal expiration rules.",
+          code: "PAIR_AMBIGUOUS",
+          message: "Multiple anchor candidates had equal pairing score. Deterministic tie-breaker selected one.",
           underlyingSymbol: shortCallLot.underlyingSymbol,
-          lotIds: [shortCallLot.id, ...overlappingLongCalls.map((lot) => lot.id)],
+          lotIds: [shortCallLot.id, bestCandidate.anchorLot.id, candidates[1]!.anchorLot.id],
         });
       }
-      continue;
+
+      const anchor = anchors.get(bestCandidate.anchorLot.id);
+      if (!anchor) {
+        continue;
+      }
+
+      pairedShortCallIds.add(shortCallLot.id);
+      anchor.pairedShortCalls.push(shortCallLot);
+      anchor.pairTags.push(bestCandidate.tag);
+
+      if (VERTICAL_TAGS.includes(bestCandidate.tag)) {
+        diagnostics.setupInferencePairVerticalTotal += 1;
+      } else if (bestCandidate.tag === "calendar") {
+        diagnostics.setupInferencePairCalendarTotal += 1;
+      } else {
+        diagnostics.setupInferencePairDiagonalTotal += 1;
+      }
+
+      diagnostics.setupInferenceShortCallPairedTotal += 1;
+
+      anchor.reasons.push(
+        `Paired short call lot ${shortCallLot.id} to long call anchor ${bestCandidate.anchorLot.id} as ${bestCandidate.tag}.`,
+      );
     }
 
-    const bestCandidate = candidates[0]!;
-    if (hasPairingAmbiguity(bestCandidate, candidates[1])) {
-      diagnostics.setupInferencePairAmbiguousTotal += 1;
-      addDiagnosticSample(diagnostics, {
-        code: "PAIR_AMBIGUOUS",
-        message: "Multiple anchor candidates had equal pairing score. Deterministic tie-breaker selected one.",
-        underlyingSymbol: shortCallLot.underlyingSymbol,
-        lotIds: [shortCallLot.id, bestCandidate.anchorLot.id, candidates[1]!.anchorLot.id],
+    const anchorAtoms: LotAtom[] = [];
+
+    for (const entry of Array.from(anchors.values())) {
+      const sortedPairedShortCalls = sortLotsByOpenDate(entry.pairedShortCalls);
+      const allLotIds = [entry.anchorLot.id, ...sortedPairedShortCalls.map((lot) => lot.id)];
+      const tagHint =
+        sortedPairedShortCalls.length === 0
+          ? "long_call"
+          : resolveAnchorTag(entry.pairTags, diagnostics, entry.anchorLot.underlyingSymbol, allLotIds);
+
+      const reasons =
+        sortedPairedShortCalls.length === 0
+          ? ["No short-call leg pairing was detected for this long-call anchor."]
+          : [
+              `Long-call anchor absorbed ${sortedPairedShortCalls.length} short-call leg(s); resolved tag ${tagHint}.`,
+              ...entry.reasons,
+            ];
+
+      anchorAtoms.push({
+        accountId: entry.anchorLot.accountId,
+        underlyingSymbol: entry.anchorLot.underlyingSymbol,
+        anchorDate: entry.anchorLot.openTradeDate,
+        tagHint,
+        lots: [entry.anchorLot, ...sortedPairedShortCalls],
+        reasons,
       });
     }
 
-    const anchor = anchors.get(bestCandidate.anchorLot.id);
-    if (!anchor) {
-      continue;
+    const unmatchedShortCalls = shortCalls.filter((shortCallLot) => !pairedShortCallIds.has(shortCallLot.id));
+    const consumedLotIds = new Set<string>([
+      ...longCalls.map((lot) => lot.id),
+      ...Array.from(pairedShortCallIds.values()),
+    ]);
+
+    allAnchorAtoms.push(...anchorAtoms);
+    allUnmatchedShortCalls.push(...unmatchedShortCalls);
+
+    for (const lotId of Array.from(consumedLotIds.values())) {
+      allConsumedLotIds.add(lotId);
     }
-
-    pairedShortCallIds.add(shortCallLot.id);
-    anchor.pairedShortCalls.push(shortCallLot);
-    anchor.pairTags.push(bestCandidate.tag);
-
-    if (VERTICAL_TAGS.includes(bestCandidate.tag)) {
-      diagnostics.setupInferencePairVerticalTotal += 1;
-    } else if (bestCandidate.tag === "calendar") {
-      diagnostics.setupInferencePairCalendarTotal += 1;
-    } else {
-      diagnostics.setupInferencePairDiagonalTotal += 1;
-    }
-
-    diagnostics.setupInferenceShortCallPairedTotal += 1;
-
-    anchor.reasons.push(
-      `Paired short call lot ${shortCallLot.id} to long call anchor ${bestCandidate.anchorLot.id} as ${bestCandidate.tag}.`,
-    );
   }
-
-  const anchorAtoms: LotAtom[] = [];
-
-  for (const entry of Array.from(anchors.values())) {
-    const sortedPairedShortCalls = sortLotsByOpenDate(entry.pairedShortCalls);
-    const allLotIds = [entry.anchorLot.id, ...sortedPairedShortCalls.map((lot) => lot.id)];
-    const tagHint =
-      sortedPairedShortCalls.length === 0
-        ? "long_call"
-        : resolveAnchorTag(entry.pairTags, diagnostics, entry.anchorLot.underlyingSymbol, allLotIds);
-
-    const reasons =
-      sortedPairedShortCalls.length === 0
-        ? ["No short-call leg pairing was detected for this long-call anchor."]
-        : [
-            `Long-call anchor absorbed ${sortedPairedShortCalls.length} short-call leg(s); resolved tag ${tagHint}.`,
-            ...entry.reasons,
-          ];
-
-    anchorAtoms.push({
-      accountId: entry.anchorLot.accountId,
-      underlyingSymbol: entry.anchorLot.underlyingSymbol,
-      anchorDate: entry.anchorLot.openTradeDate,
-      tagHint,
-      lots: [entry.anchorLot, ...sortedPairedShortCalls],
-      reasons,
-    });
-  }
-
-  const unmatchedShortCalls = shortCalls.filter((shortCallLot) => !pairedShortCallIds.has(shortCallLot.id));
-  const consumedLotIds = new Set<string>([
-    ...longCalls.map((lot) => lot.id),
-    ...Array.from(pairedShortCallIds.values()),
-  ]);
 
   return {
-    anchorAtoms,
-    unmatchedShortCalls,
-    consumedLotIds,
+    anchorAtoms: allAnchorAtoms,
+    unmatchedShortCalls: allUnmatchedShortCalls,
+    consumedLotIds: allConsumedLotIds,
   };
 }
 

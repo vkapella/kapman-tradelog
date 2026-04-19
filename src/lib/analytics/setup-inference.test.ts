@@ -182,6 +182,114 @@ describe("inferSetupGroups", () => {
     expect(result.diagnostics.setupInferencePairFailNoEligibleExpTotal).toBe(1);
   });
 
+  it("ignores cross-underlying anchors that only create a no-eligible-exp false positive", () => {
+    const spxwLongCall = lot({
+      id: "spxw-long",
+      symbol: "SPXW",
+      underlyingSymbol: "SPXW",
+      strike: 6080,
+      expirationDate: day("2026-01-10T00:00:00.000Z"),
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-02-15T00:00:00.000Z"),
+    });
+    const xleShortCall = lot({
+      id: "xle-short",
+      symbol: "XLE",
+      underlyingSymbol: "XLE",
+      openSide: "SELL",
+      strike: 95,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([spxwLongCall, xleShortCall]);
+    const diagnosticCodes = result.diagnostics.setupInferenceSamples.map((sample) => sample.code);
+    const xleGroup = result.groups.find((group) => group.underlyingSymbol === "XLE");
+
+    expect(result.groups).toHaveLength(2);
+    expect(xleGroup?.tag).toBe("short_call");
+    expect(result.diagnostics.setupInferencePairFailNoEligibleExpTotal).toBe(0);
+    expect(result.diagnostics.setupInferencePairFailNoOverlapLongCallTotal).toBe(1);
+    expect(diagnosticCodes).not.toContain("PAIR_FAIL_NO_ELIGIBLE_EXP");
+  });
+
+  it("ignores cross-underlying anchors that would otherwise create a pairing ambiguity", () => {
+    const armAnchorAlpha = lot({
+      id: "arm-anchor-alpha",
+      symbol: "ARM",
+      underlyingSymbol: "ARM",
+      strike: 140,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-10T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+    });
+    const armAnchorBeta = lot({
+      id: "arm-anchor-beta",
+      symbol: "ARM",
+      underlyingSymbol: "ARM",
+      strike: 140,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-10T00:00:00.000Z"),
+      closeTradeDate: day("2026-03-01T00:00:00.000Z"),
+    });
+    const nvdaShortCall = lot({
+      id: "nvda-short",
+      symbol: "NVDA",
+      underlyingSymbol: "NVDA",
+      openSide: "SELL",
+      strike: 160,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([armAnchorAlpha, armAnchorBeta, nvdaShortCall]);
+    const diagnosticCodes = result.diagnostics.setupInferenceSamples.map((sample) => sample.code);
+    const nvdaGroup = result.groups.find((group) => group.underlyingSymbol === "NVDA");
+
+    expect(nvdaGroup?.tag).toBe("short_call");
+    expect(result.diagnostics.setupInferencePairAmbiguousTotal).toBe(0);
+    expect(diagnosticCodes).not.toContain("PAIR_AMBIGUOUS");
+  });
+
+  it("prevents cross-underlying short calls from contaminating anchor tag resolution", () => {
+    const tsmLongCall = lot({
+      id: "tsm-anchor",
+      symbol: "TSM",
+      underlyingSymbol: "TSM",
+      strike: 200,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-01T00:00:00.000Z"),
+      closeTradeDate: day("2026-04-01T00:00:00.000Z"),
+    });
+    const nvdaShortVertical = lot({
+      id: "nvda-short-vertical",
+      symbol: "NVDA",
+      underlyingSymbol: "NVDA",
+      openSide: "SELL",
+      strike: 220,
+      expirationDate: day("2026-06-19T00:00:00.000Z"),
+      openTradeDate: day("2026-01-20T00:00:00.000Z"),
+    });
+    const nvdaShortCalendar = lot({
+      id: "nvda-short-calendar",
+      symbol: "NVDA",
+      underlyingSymbol: "NVDA",
+      openSide: "SELL",
+      strike: 200,
+      expirationDate: day("2026-03-20T00:00:00.000Z"),
+      openTradeDate: day("2026-01-22T00:00:00.000Z"),
+    });
+
+    const result = inferSetupGroups([tsmLongCall, nvdaShortVertical, nvdaShortCalendar]);
+    const diagnosticCodes = result.diagnostics.setupInferenceSamples.map((sample) => sample.code);
+    const tsmGroup = result.groups.find((group) => group.underlyingSymbol === "TSM");
+    const nvdaGroup = result.groups.find((group) => group.underlyingSymbol === "NVDA");
+
+    expect(tsmGroup?.tag).toBe("long_call");
+    expect(nvdaGroup?.tag).toBe("short_call");
+    expect(diagnosticCodes).not.toContain("ANCHOR_TAG_AMBIGUOUS");
+  });
+
   it("infers covered_call when stock and short_call atoms are in the same setup window", () => {
     const stockLot = lot({
       id: "stock-1",
