@@ -71,6 +71,7 @@ describe("rebuildAccountSetups", () => {
       openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
       id: { notIn: [shortCallOpenExecutionId] },
     });
+    expect(executionQueryArg.where).not.toHaveProperty("spreadGroupId");
 
     expect(tx.setupGroup.create).toHaveBeenCalledWith(
       expect.objectContaining({
