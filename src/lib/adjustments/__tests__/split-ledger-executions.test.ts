@@ -123,4 +123,138 @@ describe("applySplitAdjustmentsToLedgerExecutions", () => {
     expect(adjusted?.quantity).toBeCloseTo(200, 8);
     expect(adjusted?.price).toBeCloseTo(25, 8);
   });
+
+  it("keeps fully pre-closed option positions on their original key while remapping cross-split positions", () => {
+    const preClosedOpen = optionExecution({
+      id: "xle-preclosed-open-90",
+      tradeDate: date("2025-11-14T00:00:00.000Z"),
+      eventTimestamp: date("2025-11-14T15:00:00.000Z"),
+      quantity: 1,
+      price: 3.6,
+      strike: 90,
+      instrumentKey: "XLE|CALL|90|2026-01-16",
+      openingClosingEffect: "TO_OPEN",
+      side: "BUY",
+    });
+    const preClosedClose = optionExecution({
+      id: "xle-preclosed-close-90",
+      tradeDate: date("2025-11-24T00:00:00.000Z"),
+      eventTimestamp: date("2025-11-24T15:00:00.000Z"),
+      quantity: 1,
+      price: 4.1,
+      strike: 90,
+      instrumentKey: "XLE|CALL|90|2026-01-16",
+      openingClosingEffect: "TO_CLOSE",
+      side: "SELL",
+    });
+    const straddleOpen = optionExecution({
+      id: "xle-straddle-open-80",
+      tradeDate: date("2025-11-26T00:00:00.000Z"),
+      eventTimestamp: date("2025-11-26T15:00:00.000Z"),
+      quantity: 1,
+      price: 5.2,
+      strike: 80,
+      instrumentKey: "XLE|CALL|80|2026-01-16",
+      openingClosingEffect: "TO_OPEN",
+      side: "BUY",
+    });
+    const straddleClose = optionExecution({
+      id: "xle-straddle-close-40",
+      tradeDate: date("2025-12-10T00:00:00.000Z"),
+      eventTimestamp: date("2025-12-10T15:00:00.000Z"),
+      quantity: 2,
+      price: 2.9,
+      strike: 40,
+      instrumentKey: "XLE|CALL|40|2026-01-16",
+      openingClosingEffect: "TO_CLOSE",
+      side: "SELL",
+    });
+    const adjustments = [splitAdjustment()];
+    const asOfDate = date("2026-02-01T00:00:00.000Z");
+
+    const before = runFifoMatcher([preClosedOpen, preClosedClose, straddleOpen, straddleClose], asOfDate);
+    expect(before.syntheticExecutions).toHaveLength(1);
+    expect(before.warnings.some((warning) => warning.code === "UNMATCHED_CLOSE_QUANTITY")).toBe(true);
+    expect(before.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(true);
+
+    const adjustedExecutions = applySplitAdjustmentsToLedgerExecutions(
+      [preClosedOpen, preClosedClose, straddleOpen, straddleClose],
+      adjustments,
+    );
+    const adjustedPreClosedOpen = adjustedExecutions.find((execution) => execution.id === "xle-preclosed-open-90");
+    const adjustedPreClosedClose = adjustedExecutions.find((execution) => execution.id === "xle-preclosed-close-90");
+    const adjustedStraddleOpen = adjustedExecutions.find((execution) => execution.id === "xle-straddle-open-80");
+
+    expect(adjustedPreClosedOpen?.instrumentKey).toBe("XLE|CALL|90|2026-01-16");
+    expect(adjustedPreClosedOpen?.strike).toBeCloseTo(90, 8);
+    expect(adjustedPreClosedClose?.instrumentKey).toBe("XLE|CALL|90|2026-01-16");
+    expect(adjustedPreClosedClose?.strike).toBeCloseTo(90, 8);
+    expect(adjustedStraddleOpen?.instrumentKey).toBe("XLE|CALL|40|2026-01-16");
+    expect(adjustedStraddleOpen?.quantity).toBeCloseTo(2, 8);
+    expect(adjustedStraddleOpen?.price).toBeCloseTo(2.6, 8);
+    expect(adjustedStraddleOpen?.strike).toBeCloseTo(40, 8);
+
+    const after = runFifoMatcher(adjustedExecutions, asOfDate);
+    expect(after.syntheticExecutions).toHaveLength(0);
+    expect(after.warnings.some((warning) => warning.code === "UNMATCHED_CLOSE_QUANTITY")).toBe(false);
+    expect(after.warnings.some((warning) => warning.code === "SYNTHETIC_EXPIRATION_INFERRED")).toBe(false);
+    expect(after.matchedLots).toHaveLength(2);
+    expect(after.matchedLots.map((lot) => [lot.openExecutionId, lot.closeExecutionId])).toEqual([
+      ["xle-preclosed-open-90", "xle-preclosed-close-90"],
+      ["xle-straddle-open-80", "xle-straddle-close-40"],
+    ]);
+  });
+
+  it("does not let a fresh post-split open consume an older pre-split option key", () => {
+    const legacyOpen = optionExecution({
+      id: "xle-legacy-open-90",
+      tradeDate: date("2025-11-14T00:00:00.000Z"),
+      eventTimestamp: date("2025-11-14T15:00:00.000Z"),
+      quantity: 2,
+      price: 4.3,
+      strike: 90,
+      instrumentKey: "XLE|CALL|90|2026-01-16",
+      openingClosingEffect: "TO_OPEN",
+      side: "BUY",
+    });
+    const postSplitOpen = optionExecution({
+      id: "xle-postsplit-open-45",
+      tradeDate: date("2026-01-02T00:00:00.000Z"),
+      eventTimestamp: date("2026-01-02T15:00:00.000Z"),
+      quantity: 4,
+      price: 0.74,
+      strike: 45,
+      instrumentKey: "XLE|CALL|45|2026-01-16",
+      openingClosingEffect: "TO_OPEN",
+      side: "BUY",
+    });
+    const postSplitClose = optionExecution({
+      id: "xle-postsplit-close-45",
+      tradeDate: date("2026-01-05T00:00:00.000Z"),
+      eventTimestamp: date("2026-01-05T15:00:00.000Z"),
+      quantity: 4,
+      price: 1.96,
+      strike: 45,
+      instrumentKey: "XLE|CALL|45|2026-01-16",
+      openingClosingEffect: "TO_CLOSE",
+      side: "SELL",
+    });
+    const adjustments = [splitAdjustment()];
+    const asOfDate = date("2026-02-01T00:00:00.000Z");
+
+    const adjustedExecutions = applySplitAdjustmentsToLedgerExecutions([legacyOpen, postSplitOpen, postSplitClose], adjustments);
+    const adjustedLegacyOpen = adjustedExecutions.find((execution) => execution.id === "xle-legacy-open-90");
+
+    expect(adjustedLegacyOpen?.instrumentKey).toBe("XLE|CALL|90|2026-01-16");
+    expect(adjustedLegacyOpen?.strike).toBeCloseTo(90, 8);
+
+    const after = runFifoMatcher(adjustedExecutions, asOfDate);
+    expect(after.syntheticExecutions).toHaveLength(1);
+    expect(after.matchedLots).toHaveLength(2);
+    const legacyLot = after.matchedLots.find((lot) => lot.openExecutionId === "xle-legacy-open-90");
+    const postSplitLot = after.matchedLots.find((lot) => lot.openExecutionId === "xle-postsplit-open-45");
+
+    expect(postSplitLot?.closeExecutionId).toBe("xle-postsplit-close-45");
+    expect(legacyLot?.closeExecutionId).not.toBe("xle-postsplit-close-45");
+  });
 });

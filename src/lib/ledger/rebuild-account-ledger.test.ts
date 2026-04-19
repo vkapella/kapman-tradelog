@@ -191,7 +191,7 @@ describe("rebuildAccountLedger execution price overrides", () => {
 });
 
 describe("rebuildAccountLedger import warning rewrite", () => {
-  it("clears stale ledger warnings while preserving parse-class warnings", async () => {
+  it("clears stale ledger-managed warnings while preserving parse-class warnings", async () => {
     const open = tradeExecution({
       id: "open-1",
       quantity: new Prisma.Decimal(2),
@@ -259,7 +259,7 @@ describe("rebuildAccountLedger import warning rewrite", () => {
               },
               {
                 code: "SYNTHETIC_EXPIRATION_INFERRED",
-                message: "Preserve synthetic expiration warning.",
+                message: "Clear stale synthetic expiration warning.",
                 rowRef: "synthetic-1",
               },
             ],
@@ -276,7 +276,7 @@ describe("rebuildAccountLedger import warning rewrite", () => {
     );
 
     expect(result.warnings).toEqual([]);
-    expect(result.warningsCleared).toBe(2);
+    expect(result.warningsCleared).toBe(3);
     expect(tx.import.update).toHaveBeenCalledWith({
       where: { id: "import-1" },
       data: {
@@ -284,11 +284,6 @@ describe("rebuildAccountLedger import warning rewrite", () => {
           {
             code: "LIMITED_SPREAD_INTERPRETATION",
             message: "Preserve parse warning.",
-          },
-          {
-            code: "SYNTHETIC_EXPIRATION_INFERRED",
-            message: "Preserve synthetic expiration warning.",
-            rowRef: "synthetic-1",
           },
         ],
       },

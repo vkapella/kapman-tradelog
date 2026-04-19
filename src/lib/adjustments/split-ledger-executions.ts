@@ -64,6 +64,18 @@ function nullableNumbersDiffer(left: number | null, right: number | null): boole
   return numbersDiffer(left, right);
 }
 
+function signedQuantity(execution: LedgerExecution): number {
+  return execution.side === "SELL" ? -execution.quantity : execution.quantity;
+}
+
+function compareExecutionsByTime(left: LedgerExecution, right: LedgerExecution): number {
+  return (
+    left.tradeDate.getTime() - right.tradeDate.getTime() ||
+    left.eventTimestamp.getTime() - right.eventTimestamp.getTime() ||
+    left.id.localeCompare(right.id)
+  );
+}
+
 function calculateSplitScales(
   execution: LedgerExecution,
   splitAdjustments: ManualAdjustmentRecord[],
@@ -101,17 +113,20 @@ function calculateSplitScales(
   };
 }
 
-export function applySplitAdjustmentToLedgerExecution(
+function activeSplitAdjustments(adjustments: ManualAdjustmentRecord[]): ManualAdjustmentRecord[] {
+  return sortAdjustments(
+    adjustments.filter((adjustment) => adjustment.status === "ACTIVE" && adjustment.adjustmentType === "SPLIT"),
+  );
+}
+
+function applySplitAdjustmentToLedgerExecutionWithSplitAdjustments(
   execution: LedgerExecution,
-  adjustments: ManualAdjustmentRecord[],
+  splitAdjustments: ManualAdjustmentRecord[],
 ): { execution: LedgerExecution; affected: boolean } {
   if (execution.assetClass !== "EQUITY" && execution.assetClass !== "OPTION") {
     return { execution, affected: false };
   }
 
-  const splitAdjustments = sortAdjustments(
-    adjustments.filter((adjustment) => adjustment.status === "ACTIVE" && adjustment.adjustmentType === "SPLIT"),
-  );
   if (splitAdjustments.length === 0) {
     return { execution, affected: false };
   }
@@ -154,9 +169,121 @@ export function applySplitAdjustmentToLedgerExecution(
   };
 }
 
+function splitExclusionKey(adjustmentId: string, instrumentKey: string): string {
+  return `${adjustmentId}:${instrumentKey}`;
+}
+
+function hasPostSplitContinuation(
+  executions: LedgerExecution[],
+  keyExecutions: LedgerExecution[],
+  adjustment: ManualAdjustmentRecord,
+  effectiveDateTime: number,
+  netQuantity: number,
+): boolean {
+  const representative = keyExecutions[0];
+  if (!representative || representative.assetClass !== "OPTION") {
+    return false;
+  }
+
+  const adjustedKey = applySplitAdjustmentToLedgerExecutionWithSplitAdjustments(representative, [adjustment]).execution.instrumentKey;
+  const postSplitExecutions = executions
+    .filter(
+      (execution) =>
+        execution.tradeDate.getTime() >= effectiveDateTime &&
+        execution.instrumentKey === adjustedKey &&
+        symbolMatches(adjustment.symbol, execution),
+    )
+    .sort(compareExecutionsByTime);
+
+  for (const execution of postSplitExecutions) {
+    if (execution.openingClosingEffect === "TO_CLOSE") {
+      return signedQuantity(execution) * netQuantity < 0;
+    }
+
+    if (execution.openingClosingEffect === "TO_OPEN") {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+function buildPreClosedSplitExclusions(
+  executions: LedgerExecution[],
+  splitAdjustments: ManualAdjustmentRecord[],
+): Set<string> {
+  const exclusions = new Set<string>();
+
+  for (const adjustment of splitAdjustments) {
+    const effectiveDateTime = new Date(adjustment.effectiveDate).getTime();
+    if (!Number.isFinite(effectiveDateTime)) {
+      continue;
+    }
+
+    const executionsByKey = new Map<string, LedgerExecution[]>();
+    for (const execution of executions) {
+      if (!symbolMatches(adjustment.symbol, execution)) {
+        continue;
+      }
+
+      const bucket = executionsByKey.get(execution.instrumentKey) ?? [];
+      bucket.push(execution);
+      executionsByKey.set(execution.instrumentKey, bucket);
+    }
+
+    for (const [instrumentKey, keyExecutions] of Array.from(executionsByKey.entries())) {
+      const representative = keyExecutions[0];
+      let latestTradeDate = Number.NEGATIVE_INFINITY;
+      let netQuantity = 0;
+      for (const execution of keyExecutions) {
+        latestTradeDate = Math.max(latestTradeDate, execution.tradeDate.getTime());
+        netQuantity += signedQuantity(execution);
+      }
+
+      if (latestTradeDate >= effectiveDateTime) {
+        continue;
+      }
+
+      if (!numbersDiffer(netQuantity, 0)) {
+        exclusions.add(splitExclusionKey(adjustment.id, instrumentKey));
+        continue;
+      }
+
+      if (representative?.assetClass !== "OPTION") {
+        continue;
+      }
+
+      if (!hasPostSplitContinuation(executions, keyExecutions, adjustment, effectiveDateTime, netQuantity)) {
+        exclusions.add(splitExclusionKey(adjustment.id, instrumentKey));
+      }
+    }
+  }
+
+  return exclusions;
+}
+
+export function applySplitAdjustmentToLedgerExecution(
+  execution: LedgerExecution,
+  adjustments: ManualAdjustmentRecord[],
+): { execution: LedgerExecution; affected: boolean } {
+  return applySplitAdjustmentToLedgerExecutionWithSplitAdjustments(execution, activeSplitAdjustments(adjustments));
+}
+
 export function applySplitAdjustmentsToLedgerExecutions(
   executions: LedgerExecution[],
   adjustments: ManualAdjustmentRecord[],
 ): LedgerExecution[] {
-  return executions.map((execution) => applySplitAdjustmentToLedgerExecution(execution, adjustments).execution);
+  const splitAdjustments = activeSplitAdjustments(adjustments);
+  if (splitAdjustments.length === 0) {
+    return executions;
+  }
+
+  const preClosedSplitExclusions = buildPreClosedSplitExclusions(executions, splitAdjustments);
+
+  return executions.map((execution) => {
+    const applicableAdjustments = splitAdjustments.filter(
+      (adjustment) => !preClosedSplitExclusions.has(splitExclusionKey(adjustment.id, execution.instrumentKey)),
+    );
+    return applySplitAdjustmentToLedgerExecutionWithSplitAdjustments(execution, applicableAdjustments).execution;
+  });
 }
