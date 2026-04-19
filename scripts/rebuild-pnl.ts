@@ -61,23 +61,7 @@ async function main() {
     for (const account of accounts) {
       const before = await loadAccountStats(prisma, account.id);
       const rebuilt = await prisma.$transaction(async (tx) => {
-        const executionQtyOverrides = await tx.manualAdjustment.findMany({
-          where: {
-            accountId: account.id,
-            adjustmentType: "EXECUTION_QTY_OVERRIDE",
-            status: "ACTIVE",
-          },
-          select: {
-            payloadJson: true,
-          },
-        });
-
-        const ledger = await rebuildAccountLedger(tx, account.id, new Date(), {
-          executionQtyOverrides: executionQtyOverrides.map((override) => ({
-            executionId: (override.payloadJson as { executionId: string; overrideQty: number }).executionId,
-            overrideQty: (override.payloadJson as { executionId: string; overrideQty: number }).overrideQty,
-          })),
-        });
+        const ledger = await rebuildAccountLedger(tx, account.id, new Date());
         const setups = await rebuildAccountSetups(tx, account.id);
         return { ledger, setups };
       });
