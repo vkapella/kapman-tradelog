@@ -6,6 +6,8 @@ export interface RebuildAccountSetupsResult {
   uncategorizedCount: number;
 }
 
+const STOCK_ANCHOR_PREFIX = "stock-anchor::";
+
 export async function rebuildAccountSetups(
   tx: Prisma.TransactionClient,
   accountId: string,
@@ -38,9 +40,39 @@ export async function rebuildAccountSetups(
     openSpreadGroupId: lot.openExecution.spreadGroupId,
   }));
 
-  const inferred = inferSetupGroups(inferenceLots);
+  const matchedOpenExecutionIds = new Set(matchedLots.map((lot) => lot.openExecutionId));
+  const openEquityExecutions = await tx.execution.findMany({
+    where: {
+      accountId,
+      assetClass: "EQUITY",
+      side: "BUY",
+      openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
+      id: { notIn: Array.from(matchedOpenExecutionIds) },
+    },
+    orderBy: [{ tradeDate: "asc" }, { id: "asc" }],
+  });
+
+  const stockAnchorLots: SetupInferenceLot[] = openEquityExecutions.map((execution) => ({
+    id: `${STOCK_ANCHOR_PREFIX}${execution.id}`,
+    accountId: execution.accountId,
+    symbol: execution.symbol,
+    underlyingSymbol: execution.underlyingSymbol ?? execution.symbol,
+    openTradeDate: execution.tradeDate,
+    closeTradeDate: null,
+    realizedPnl: 0,
+    holdingDays: 0,
+    openAssetClass: "EQUITY",
+    openSide: "BUY",
+    optionType: null,
+    strike: null,
+    expirationDate: null,
+    openSpreadGroupId: null,
+  }));
+
+  const allInferenceLots = [...inferenceLots, ...stockAnchorLots];
+  const inferred = inferSetupGroups(allInferenceLots);
   const lotMetricsById = new Map(
-    inferenceLots.map((lot) => [
+    allInferenceLots.map((lot) => [
       lot.id,
       {
         realizedPnl: lot.realizedPnl,
@@ -90,9 +122,10 @@ export async function rebuildAccountSetups(
       },
     });
 
-    if (group.lotIds.length > 0) {
+    const persistableLotIds = group.lotIds.filter((id) => !id.startsWith(STOCK_ANCHOR_PREFIX));
+    if (persistableLotIds.length > 0) {
       await tx.setupGroupLot.createMany({
-        data: group.lotIds.map((matchedLotId) => ({
+        data: persistableLotIds.map((matchedLotId) => ({
           setupGroupId: created.id,
           matchedLotId,
         })),

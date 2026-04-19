@@ -98,6 +98,11 @@ interface PairingResult {
   consumedLotIds: Set<string>;
 }
 
+interface BuildAtomsResult {
+  atoms: LotAtom[];
+  unmatchedShortCalls: SetupInferenceLot[];
+}
+
 const MAX_DIAGNOSTIC_SAMPLES = 20;
 const VERTICAL_TAGS: SetupTag[] = ["bull_vertical", "bear_vertical"];
 
@@ -502,13 +507,6 @@ function buildLongCallAnchorAtoms(lots: SetupInferenceLot[], diagnostics: SetupI
     const overlappingLongCalls = longCalls.filter((longCallLot) => overlapsAt(shortCallLot.openTradeDate, longCallLot));
 
     if (overlappingLongCalls.length === 0) {
-      diagnostics.setupInferencePairFailNoOverlapLongCallTotal += 1;
-      addDiagnosticSample(diagnostics, {
-        code: "PAIR_FAIL_NO_OVERLAP_LONG_CALL",
-        message: "No overlapping long call anchor was open when this short call opened.",
-        underlyingSymbol: shortCallLot.underlyingSymbol,
-        lotIds: [shortCallLot.id],
-      });
       continue;
     }
 
@@ -612,7 +610,7 @@ function buildLongCallAnchorAtoms(lots: SetupInferenceLot[], diagnostics: SetupI
   };
 }
 
-function buildAtoms(lots: SetupInferenceLot[], diagnostics: SetupInferenceDiagnostics): LotAtom[] {
+function buildAtoms(lots: SetupInferenceLot[], diagnostics: SetupInferenceDiagnostics): BuildAtomsResult {
   const atoms: LotAtom[] = [];
   const consumedLotIds = new Set<string>();
 
@@ -691,7 +689,10 @@ function buildAtoms(lots: SetupInferenceLot[], diagnostics: SetupInferenceDiagno
     consumedLotIds.add(lot.id);
   }
 
-  return atoms;
+  return {
+    atoms,
+    unmatchedShortCalls: pairingResult.unmatchedShortCalls,
+  };
 }
 
 function createClusterMetrics(lots: SetupInferenceLot[]): Pick<InferredSetupGroup, "realizedPnl" | "winRate" | "expectancy" | "averageHoldDays"> {
@@ -867,7 +868,8 @@ export function inferSetupGroups(
   const rollWindowDays = options?.rollWindowDays ?? 5;
   const diagnostics = createEmptyDiagnostics();
 
-  const atoms = buildAtoms(lots, diagnostics);
+  const buildResult = buildAtoms(lots, diagnostics);
+  const atoms = buildResult.atoms;
   const clusters = clusterAtomsByUnderlyingAndWindow(atoms, groupingWindowDays);
   const stockAtomsByAccountUnderlying = new Map<string, LotAtom[]>();
 
@@ -911,6 +913,21 @@ export function inferSetupGroups(
         inferenceReasons: inferred.reasons,
       });
     }
+  }
+
+  const finalShortCallLotIds = new Set(groups.filter((group) => group.tag === "short_call").flatMap((group) => group.lotIds));
+  for (const shortCallLot of buildResult.unmatchedShortCalls) {
+    if (!finalShortCallLotIds.has(shortCallLot.id)) {
+      continue;
+    }
+
+    diagnostics.setupInferencePairFailNoOverlapLongCallTotal += 1;
+    addDiagnosticSample(diagnostics, {
+      code: "PAIR_FAIL_NO_OVERLAP_LONG_CALL",
+      message: "No overlapping long call anchor was open when this short call opened.",
+      underlyingSymbol: shortCallLot.underlyingSymbol,
+      lotIds: [shortCallLot.id],
+    });
   }
 
   diagnostics.setupInferenceTotal = groups.length;
