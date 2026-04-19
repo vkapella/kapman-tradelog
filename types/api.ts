@@ -647,6 +647,13 @@ export interface ReverseManualAdjustmentResponse {
   reversalId: string;
 }
 
+export interface AccountLedgerRebuildResponse {
+  matchedLotsPersisted: number;
+  syntheticExecutionsPersisted: number;
+  warningsCleared: number;
+  setupGroupsPersisted: number;
+}
+
 export interface AdjustmentPreviewResponse {
   symbol: string;
   adjustmentType: AdjustmentType;
@@ -716,6 +723,7 @@ export type AdjustmentsListApiResponse = ApiListResponse<ManualAdjustmentRecord>
 export type AdjustmentCreateApiResponse = ApiDetailResponse<ManualAdjustmentRecord> | ApiErrorResponse;
 export type AdjustmentReverseApiResponse = ApiDetailResponse<ReverseManualAdjustmentResponse> | ApiErrorResponse;
 export type AdjustmentPreviewApiResponse = ApiDetailResponse<AdjustmentPreviewResponse> | ApiErrorResponse;
+export type AccountLedgerRebuildApiResponse = ApiDetailResponse<AccountLedgerRebuildResponse> | ApiErrorResponse;
 export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
 export type PositionSnapshotComputeApiResponse = ApiDetailResponse<PositionSnapshotComputeResponse> | ApiErrorResponse;
 export type PositionSnapshotApiResponse = PositionSnapshotResponse | ApiErrorResponse;

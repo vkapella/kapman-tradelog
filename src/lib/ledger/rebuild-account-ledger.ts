@@ -11,6 +11,7 @@ import { runFifoMatcher, type LedgerExecution, type LedgerWarning } from "./fifo
 export interface RebuildAccountLedgerResult {
   matchedLotsPersisted: number;
   syntheticExecutionsPersisted: number;
+  warningsCleared: number;
   warnings: LedgerWarning[];
 }
 
@@ -22,6 +23,97 @@ export interface RebuildAccountLedgerOptions {
 }
 
 const FIDELITY_COMPACT_OPTION_SYMBOL_REGEX = /^-([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d+(?:\.\d+)?)$/;
+const LEDGER_WARNING_CODES = new Set([
+  "UNMATCHED_CLOSE_QUANTITY",
+  "EXECUTION_QTY_OVERRIDE_TARGET_MISSING",
+  "EXECUTION_PRICE_OVERRIDE_TARGET_MISSING",
+]);
+
+function isWarningObject(value: unknown): value is LedgerWarning {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as { code?: unknown; message?: unknown; rowRef?: unknown };
+  return (
+    typeof candidate.code === "string" &&
+    typeof candidate.message === "string" &&
+    (candidate.rowRef === undefined || typeof candidate.rowRef === "string")
+  );
+}
+
+function warningKey(warning: Pick<LedgerWarning, "code" | "message" | "rowRef">): string {
+  return `${warning.code}::${warning.rowRef ?? ""}::${warning.message}`;
+}
+
+async function rewriteLedgerWarningsOnImports(
+  tx: Prisma.TransactionClient,
+  accountId: string,
+  sourceExecutions: Array<{ id: string; importId: string }>,
+  warnings: LedgerWarning[],
+): Promise<number> {
+  const importRows = await tx.import.findMany({
+    where: { accountId },
+    select: { id: true, warnings: true },
+  });
+
+  const importIdByExecutionId = new Map(sourceExecutions.map((execution) => [execution.id, execution.importId]));
+  const newWarningsByImportId = new Map<string, LedgerWarning[]>();
+  for (const warning of warnings) {
+    if (!warning.rowRef) {
+      continue;
+    }
+
+    const importId = importIdByExecutionId.get(warning.rowRef);
+    if (!importId) {
+      continue;
+    }
+
+    const existing = newWarningsByImportId.get(importId) ?? [];
+    existing.push(warning);
+    newWarningsByImportId.set(importId, existing);
+  }
+
+  let warningsCleared = 0;
+  for (const importRow of importRows) {
+    const existingWarnings: unknown[] = Array.isArray(importRow.warnings) ? importRow.warnings : [];
+    const existingLedgerWarnings = existingWarnings.filter(
+      (warning): warning is LedgerWarning => isWarningObject(warning) && LEDGER_WARNING_CODES.has(warning.code),
+    );
+    const freshWarnings = newWarningsByImportId.get(importRow.id) ?? [];
+
+    if (existingLedgerWarnings.length === 0 && freshWarnings.length === 0) {
+      continue;
+    }
+
+    const freshWarningCounts = new Map<string, number>();
+    for (const warning of freshWarnings) {
+      const key = warningKey(warning);
+      freshWarningCounts.set(key, (freshWarningCounts.get(key) ?? 0) + 1);
+    }
+
+    for (const warning of existingLedgerWarnings) {
+      const key = warningKey(warning);
+      const remaining = freshWarningCounts.get(key) ?? 0;
+      if (remaining > 0) {
+        freshWarningCounts.set(key, remaining - 1);
+        continue;
+      }
+
+      warningsCleared += 1;
+    }
+
+    const preservedWarnings = existingWarnings.filter((warning) => !isWarningObject(warning) || !LEDGER_WARNING_CODES.has(warning.code));
+    await tx.import.update({
+      where: { id: importRow.id },
+      data: {
+        warnings: [...preservedWarnings, ...freshWarnings] as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  return warningsCleared;
+}
 
 function toNumber(value: Prisma.Decimal | null): number | null {
   return value === null ? null : Number(value);
@@ -371,9 +463,12 @@ export async function rebuildAccountLedger(
     });
   }
 
+  const warningsCleared = await rewriteLedgerWarningsOnImports(tx, accountId, sourceExecutions, matchResult.warnings);
+
   return {
     matchedLotsPersisted: matchResult.matchedLots.length,
     syntheticExecutionsPersisted: matchResult.syntheticExecutions.length,
+    warningsCleared,
     warnings: matchResult.warnings,
   };
 }
