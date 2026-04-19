@@ -93,10 +93,12 @@ describe("buildInferenceLots", () => {
         where: expect.objectContaining({
           accountId: "account-1",
           openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
-          spreadGroupId: null,
         }),
       }),
     );
+    const whereArg = (db.execution.findMany as { mock: { calls: Array<Array<{ where: Record<string, unknown> }>> } }).mock.calls[0]?.[0]
+      ?.where;
+    expect(whereArg).not.toHaveProperty("spreadGroupId");
   });
 
   it("does not duplicate stock anchors for matched open equity executions", async () => {
@@ -132,6 +134,38 @@ describe("buildInferenceLots", () => {
           id: { notIn: ["exec-equity-open"] },
         }),
       }),
+    );
+  });
+
+  it("includes assignment-linked equity buys with non-null spreadGroupId as stock anchors", async () => {
+    const db = {
+      execution: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "exec-assignment-linked-buy",
+            accountId: "account-1",
+            symbol: "INTC",
+            underlyingSymbol: "INTC",
+            tradeDate: new Date("2024-05-07T00:00:00.000Z"),
+            spreadGroupId: "51176f78-c86b-4920-b3a1-76d939074076",
+          },
+        ]),
+      },
+    };
+
+    const lots = await buildInferenceLots(db as never, "account-1", []);
+
+    expect(lots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: `${STOCK_ANCHOR_PREFIX}exec-assignment-linked-buy`,
+          accountId: "account-1",
+          symbol: "INTC",
+          underlyingSymbol: "INTC",
+          openAssetClass: "EQUITY",
+          openSide: "BUY",
+        }),
+      ]),
     );
   });
 });

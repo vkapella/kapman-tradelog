@@ -69,7 +69,6 @@ describe("rebuildAccountSetups", () => {
       assetClass: "EQUITY",
       side: "BUY",
       openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
-      spreadGroupId: null,
       id: { notIn: [shortCallOpenExecutionId] },
     });
 
