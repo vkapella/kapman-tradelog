@@ -49,6 +49,7 @@ describe("rebuildAccountSetups", () => {
             symbol: "INTC",
             underlyingSymbol: "INTC",
             tradeDate: new Date("2024-05-07T00:00:00.000Z"),
+            spreadGroupId: "assignment-link-1",
           },
         ]),
       },
@@ -62,18 +63,15 @@ describe("rebuildAccountSetups", () => {
     expect(result.setupGroupsPersisted).toBe(1);
     expect(result.uncategorizedCount).toBe(0);
 
-    expect(tx.execution.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          accountId,
-          assetClass: "EQUITY",
-          side: "BUY",
-          openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
-          spreadGroupId: null,
-          id: { notIn: [shortCallOpenExecutionId] },
-        }),
-      }),
-    );
+    const executionQueryArg = tx.execution.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(executionQueryArg.where).toMatchObject({
+      accountId,
+      assetClass: "EQUITY",
+      side: "BUY",
+      openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
+      id: { notIn: [shortCallOpenExecutionId] },
+    });
+    expect(executionQueryArg.where).not.toHaveProperty("spreadGroupId");
 
     expect(tx.setupGroup.create).toHaveBeenCalledWith(
       expect.objectContaining({

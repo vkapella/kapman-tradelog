@@ -47,7 +47,6 @@ export async function rebuildAccountSetups(
       assetClass: "EQUITY",
       side: "BUY",
       openingClosingEffect: { in: ["TO_OPEN", "UNKNOWN"] },
-      spreadGroupId: null,
       id: { notIn: Array.from(matchedOpenExecutionIds) },
     },
     orderBy: [{ tradeDate: "asc" }, { id: "asc" }],
