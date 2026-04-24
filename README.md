@@ -33,7 +33,90 @@ All non-quote application features continue to work without MCP configuration.
 
 ## Local development
 
-1. Install dependencies:
+### Start from a machine reboot
+
+Use this path when your Mac has just restarted and `http://localhost:3002` is not responding yet.
+
+1. Start Docker Desktop and wait until it says the Docker engine is running.
+
+2. Open a terminal in this repository:
+
+```bash
+cd "/Volumes/OWC Envoy Pro SX/App Development/kapman-tradelog"
+```
+
+3. Confirm the required environment file exists:
+
+```bash
+test -f .env || cp .env.example .env
+```
+
+4. Start the database and app containers:
+
+```bash
+docker compose up --build
+```
+
+Keep this terminal open while using the app. On startup, the app container runs `npm install`, Prisma client generation, migrations, fixture seeding, and then Next.js on container port `3000`. Docker maps that to host port `3002`.
+
+5. In another terminal, verify the app is ready:
+
+```bash
+curl -sf http://localhost:3002/api/health
+curl -sf http://localhost:3002/api/overview/summary | grep netPnl
+```
+
+Expected health output:
+
+```json
+{"status":"ok","db":"connected"}
+```
+
+6. Open the app:
+
+- `http://localhost:3002`
+
+If the browser cannot connect, check container status:
+
+```bash
+docker compose ps
+docker compose logs --tail=120 app
+```
+
+The healthy state should show both `kapman-tradelog-app-1` and `kapman-tradelog-db-1` as `Up`, with the app exposing `0.0.0.0:3002->3000/tcp`.
+
+### Common recovery commands
+
+Restart the app without deleting database data:
+
+```bash
+docker compose restart app
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Refresh the app runtime while preserving database data:
+
+```bash
+docker compose down
+docker volume rm kapman-tradelog_app-node-modules
+docker compose up --build
+```
+
+Only use a full database reset when you intentionally want to delete local Postgres data:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+### First-time local setup
+
+1. Install dependencies for host-side scripts and validation:
 
 ```bash
 npm install
