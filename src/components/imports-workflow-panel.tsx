@@ -13,6 +13,7 @@ import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
+import { openPositionsStore } from "@/store/openPositionsStore";
 import type { CommitImportResponse, ImportRecord, UploadImportResponse } from "@/types/api";
 
 interface CommitPayload {
@@ -248,6 +249,10 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       const payload = (await response.json()) as CommitPayload;
       if (isMountedRef.current) {
         setCommitResult(payload.data);
+      }
+      const committedImport = history.find((row) => row.id === uploadResult.importId);
+      if (committedImport) {
+        openPositionsStore.invalidateAccount(committedImport.accountId);
       }
       await loadHistory();
     } finally {
