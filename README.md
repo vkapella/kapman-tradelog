@@ -2,6 +2,62 @@
 
 Containerized Next.js MVP for importing broker statements, normalizing executions, matching FIFO lots, and surfacing setup analytics.
 
+## After a system restart: start the app without losing data
+
+Use these commands after rebooting your Mac. They restart the existing Docker
+containers and preserve the Postgres data stored in the `postgres-data` Docker
+volume.
+
+1. Start Docker Desktop and wait until it says the Docker engine is running.
+
+2. Open a terminal in this repository:
+
+```bash
+cd "/Volumes/OWC Envoy Pro SX/App Development/kapman-tradelog"
+```
+
+3. Confirm the environment file exists:
+
+```bash
+test -f .env || cp .env.example .env
+```
+
+4. Start the database and app:
+
+```bash
+docker compose up --build
+```
+
+Keep this terminal open while using the app. When startup finishes, Docker maps
+the app to `http://localhost:3002`.
+
+5. In another terminal, verify the app is ready:
+
+```bash
+curl -sf http://localhost:3002/api/health
+curl -sf http://localhost:3002/api/overview/summary | grep netPnl
+```
+
+Expected health output:
+
+```json
+{"status":"ok","db":"connected"}
+```
+
+6. Open the app:
+
+- `http://localhost:3002`
+
+If the browser cannot connect, check the containers and app logs:
+
+```bash
+docker compose ps
+docker compose logs --tail=120 app
+```
+
+Do not run `docker compose down -v` for a normal restart. That deletes the
+Postgres Docker volume and removes local database data.
+
 ## UI target
 
 Use [design/kapman_dashboard_mock_v6.html](design/kapman_dashboard_mock_v6.html) as the visual hierarchy target for page structure and card/table emphasis.
@@ -35,54 +91,7 @@ All non-quote application features continue to work without MCP configuration.
 
 ### Start from a machine reboot
 
-Use this path when your Mac has just restarted and `http://localhost:3002` is not responding yet.
-
-1. Start Docker Desktop and wait until it says the Docker engine is running.
-
-2. Open a terminal in this repository:
-
-```bash
-cd "/Volumes/OWC Envoy Pro SX/App Development/kapman-tradelog"
-```
-
-3. Confirm the required environment file exists:
-
-```bash
-test -f .env || cp .env.example .env
-```
-
-4. Start the database and app containers:
-
-```bash
-docker compose up --build
-```
-
-Keep this terminal open while using the app. On startup, the app container runs `npm install`, Prisma client generation, migrations, fixture seeding, and then Next.js on container port `3000`. Docker maps that to host port `3002`.
-
-5. In another terminal, verify the app is ready:
-
-```bash
-curl -sf http://localhost:3002/api/health
-curl -sf http://localhost:3002/api/overview/summary | grep netPnl
-```
-
-Expected health output:
-
-```json
-{"status":"ok","db":"connected"}
-```
-
-6. Open the app:
-
-- `http://localhost:3002`
-
-If the browser cannot connect, check container status:
-
-```bash
-docker compose ps
-docker compose logs --tail=120 app
-```
-
+Use the top-level [After a system restart](#after-a-system-restart-start-the-app-without-losing-data) section.
 The healthy state should show both `kapman-tradelog-app-1` and `kapman-tradelog-db-1` as `Up`, with the app exposing `0.0.0.0:3002->3000/tcp`.
 
 ### Common recovery commands
