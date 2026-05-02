@@ -19,6 +19,7 @@ export interface AccountSnapshot {
 export interface OpenPositionsStore {
   hydrate(accountIds: string[]): void;
   refresh(accountIds: string[]): Promise<void>;
+  invalidateAccount(accountId: string): void;
   getSnapshot(accountIds: string | string[]): AccountSnapshot;
   subscribe(listener: () => void): () => void;
 }
@@ -42,7 +43,7 @@ function normalizeAccountIds(accountIds: string | string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))).sort((left, right) => left.localeCompare(right));
 }
 
-function buildStorageKey(accountId: string): string {
+export function buildStorageKey(accountId: string): string {
   return `kapman_positions_${accountId}`;
 }
 
@@ -363,6 +364,26 @@ function createOpenPositionsStore(): OpenPositionsStore {
         });
       }
       emitChange();
+    },
+
+    invalidateAccount(accountId) {
+      const normalizedAccountId = accountId.trim();
+      if (normalizedAccountId.length === 0) {
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem(buildStorageKey(normalizedAccountId));
+        } catch {
+          // Ignore localStorage errors.
+        }
+      }
+
+      const hadSnapshot = snapshotsByAccount.delete(normalizedAccountId);
+      if (hadSnapshot) {
+        emitChange();
+      }
     },
 
     getSnapshot(accountIds) {
