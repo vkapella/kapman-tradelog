@@ -6,8 +6,7 @@ import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
@@ -32,6 +31,8 @@ interface ImportsWorkflowPanelProps {
   mode?: "all" | "upload" | "history";
 }
 
+const IMPORTS_COLUMN_TEMPLATE = "190px 300px 110px 160px 110px 95px 100px 150px 95px 130px 130px 90px";
+
 const ImportsHistoryTableRow = memo(function ImportsHistoryTableRow({
   row,
   deletingImportId,
@@ -43,24 +44,24 @@ const ImportsHistoryTableRow = memo(function ImportsHistoryTableRow({
 }) {
   return (
     <>
-          <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
-          <td className="px-2 py-2">{row.filename}</td>
-          <td className="px-2 py-2">{row.broker}</td>
-          <td className="px-2 py-2">
+          <div className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</div>
+          <div className="px-2 py-2">{row.filename}</div>
+          <div className="px-2 py-2">{row.broker}</div>
+          <div className="px-2 py-2">
             <AccountLabel accountId={row.accountId} />
-          </td>
-          <td className="px-2 py-2">{row.status}</td>
-          <td className="px-2 py-2 text-right">{row.parsedRows}</td>
-          <td className="px-2 py-2 text-right">{row.insertedExecutions}</td>
-          <td className="px-2 py-2 text-right">{row.skipped_duplicate}</td>
-          <td className="px-2 py-2 text-right">{row.failed}</td>
-          <td className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</td>
-          <td className="px-2 py-2">
+          </div>
+          <div className="px-2 py-2">{row.status}</div>
+          <div className="px-2 py-2 text-right">{row.parsedRows}</div>
+          <div className="px-2 py-2 text-right">{row.insertedExecutions}</div>
+          <div className="px-2 py-2 text-right">{row.skipped_duplicate}</div>
+          <div className="px-2 py-2 text-right">{row.failed}</div>
+          <div className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</div>
+          <div className="px-2 py-2">
             <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-accent underline">
               View executions
             </a>
-          </td>
-          <td className="px-2 py-2 text-center">
+          </div>
+          <div className="px-2 py-2 text-center">
             <button
               type="button"
               onClick={() => void onRequestDeleteImport(row)}
@@ -73,7 +74,7 @@ const ImportsHistoryTableRow = memo(function ImportsHistoryTableRow({
                 <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z" />
               </svg>
             </button>
-          </td>
+          </div>
     </>
   );
 });
@@ -552,33 +553,31 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
             <LoadingSkeleton lines={4} />
           ) : (
             <div className="space-y-2">
-              <ScrollableTableShell scrollContainerRef={scrollContainerRef}>
-                <table className="min-w-[1440px] table-fixed text-xs">
-                  <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                    <tr>
-                      {columns.map((column) => (
-                        <DataTableHeader
-                          key={column.id}
-                          column={column}
-                          currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                          currentValues={table.filters[column.id] ?? []}
-                          isOpen={openColumnId === column.id}
-                          onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                          onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                          onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                          options={table.filterOptions[column.id] ?? []}
-                        />
-                      ))}
-                    </tr>
-                  </thead>
-                  <VirtualTableBody
-                    rows={table.sortedRows}
-                    scrollContainerRef={scrollContainerRef}
-                    getRowKey={(row) => row.id}
-                    renderRow={(row) => <ImportsHistoryTableRow row={row} deletingImportId={deletingImportId} onRequestDeleteImport={requestDeleteImport} />}
-                  />
-                </table>
-              </ScrollableTableShell>
+              <VirtualGridTableShell scrollContainerRef={scrollContainerRef}>
+                <VirtualGridHeaderRow columnTemplate={IMPORTS_COLUMN_TEMPLATE}>
+                  {columns.map((column) => (
+                    <DataTableHeader
+                      key={column.id}
+                      as="div"
+                      column={column}
+                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                      currentValues={table.filters[column.id] ?? []}
+                      isOpen={openColumnId === column.id}
+                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                      options={table.filterOptions[column.id] ?? []}
+                    />
+                  ))}
+                </VirtualGridHeaderRow>
+                <VirtualGridBody
+                  columnTemplate={IMPORTS_COLUMN_TEMPLATE}
+                  rows={table.sortedRows}
+                  scrollContainerRef={scrollContainerRef}
+                  getRowKey={(row) => row.id}
+                  renderRow={(row) => <ImportsHistoryTableRow row={row} deletingImportId={deletingImportId} onRequestDeleteImport={requestDeleteImport} />}
+                />
+              </VirtualGridTableShell>
             </div>
           )}
         </div>

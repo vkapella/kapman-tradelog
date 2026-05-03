@@ -7,8 +7,7 @@ import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -22,18 +21,21 @@ import type { ApiDetailResponse, SetupDetailResponse, SetupSummaryRecord } from 
 
 interface SetupDetailPayload extends ApiDetailResponse<SetupDetailResponse> {}
 
+const SETUPS_COLUMN_TEMPLATE = "180px 140px 160px 150px 130px 170px 120px 120px 120px";
+const SETUP_LOTS_COLUMN_TEMPLATE = "140px 80px 150px 110px 110px 190px 190px";
+
 const SetupsTableRow = memo(function SetupsTableRow({ row, pathname }: { row: SetupSummaryRecord; pathname: string }) {
   return (
     <>
-      <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
-      <td className="px-2 py-2">{row.underlyingSymbol}</td>
-      <td className="px-2 py-2"><AccountLabel accountId={row.accountId} /></td>
-      <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</td>
-      <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
-      <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
-      <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
-      <td className="px-2 py-2"><Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">View detail</Link></td>
-      <td className="px-2 py-2"><Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">Case file</Link></td>
+      <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>
+      <div className="px-2 py-2">{row.underlyingSymbol}</div>
+      <div className="px-2 py-2"><AccountLabel accountId={row.accountId} /></div>
+      <div className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</div>
+      <div className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</div>
+      <div className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</div>
+      <div className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</div>
+      <div className="px-2 py-2"><Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">View detail</Link></div>
+      <div className="px-2 py-2"><Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">Case file</Link></div>
     </>
   );
 });
@@ -210,33 +212,31 @@ export function SetupsAnalyticsPanel() {
       {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && table.sortedRows.length > 0 ? (
-        <ScrollableTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
-          <table className="min-w-[1440px] table-fixed text-xs">
-            <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-              <tr>
-                {columns.map((column) => (
-                  <DataTableHeader
-                    key={column.id}
-                    column={column}
-                    currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                    currentValues={table.filters[column.id] ?? []}
-                    isOpen={openColumnId === column.id}
-                    onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                    onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                    onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                    options={table.filterOptions[column.id] ?? []}
-                  />
-                ))}
-              </tr>
-            </thead>
-            <VirtualTableBody
-              rows={table.sortedRows}
-              scrollContainerRef={scrollContainerRef}
-              getRowKey={(row) => row.id}
-              renderRow={(row) => <SetupsTableRow row={row} pathname={pathname} />}
-            />
-          </table>
-        </ScrollableTableShell>
+        <VirtualGridTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
+          <VirtualGridHeaderRow columnTemplate={SETUPS_COLUMN_TEMPLATE}>
+            {columns.map((column) => (
+              <DataTableHeader
+                key={column.id}
+                as="div"
+                column={column}
+                currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                currentValues={table.filters[column.id] ?? []}
+                isOpen={openColumnId === column.id}
+                onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                options={table.filterOptions[column.id] ?? []}
+              />
+            ))}
+          </VirtualGridHeaderRow>
+          <VirtualGridBody
+            columnTemplate={SETUPS_COLUMN_TEMPLATE}
+            rows={table.sortedRows}
+            scrollContainerRef={scrollContainerRef}
+            getRowKey={(row) => row.id}
+            renderRow={(row) => <SetupsTableRow row={row} pathname={pathname} />}
+          />
+        </VirtualGridTableShell>
       ) : null}
 
       {selectedSetupId ? (
@@ -259,37 +259,34 @@ export function SetupsAnalyticsPanel() {
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-2">{detail.inference.reasons.map((reason, index) => <li key={`${reason}-${index}`}>{reason}</li>)}</ul>
                 )}
               </div>
-              <ScrollableTableShell height={320} scrollContainerRef={drawerLotsScrollRef}>
-                <table className="min-w-[980px] table-fixed text-xs">
-                  <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                    <tr>
-                      <th className="px-2 py-2 text-left">Symbol</th>
-                      <th className="px-2 py-2 text-right">Qty</th>
-                      <th className="px-2 py-2 text-right">Realized P&amp;L ($)</th>
-                      <th className="px-2 py-2 text-right">Hold Days</th>
-                      <th className="px-2 py-2 text-left">Outcome</th>
-                      <th className="px-2 py-2 text-left">Open Execution</th>
-                      <th className="px-2 py-2 text-left">Close Execution</th>
-                    </tr>
-                  </thead>
-                  <VirtualTableBody
-                    rows={detail.lots}
-                    scrollContainerRef={drawerLotsScrollRef}
-                    getRowKey={(lot) => lot.id}
-                    renderRow={(lot) => (
-                      <>
-                        <td className="px-2 py-2">{lot.symbol}</td>
-                        <td className="px-2 py-2 text-right">{lot.quantity}</td>
-                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(lot.realizedPnl))}</td>
-                        <td className="px-2 py-2 text-right">{lot.holdingDays}</td>
-                        <td className="px-2 py-2">{lot.outcome}</td>
-                        <td className="px-2 py-2"><Link href={`/trade-records?tab=executions&execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.openExecutionId.slice(0, 8)}...</Link></td>
-                        <td className="px-2 py-2">{lot.closeExecutionId ? <Link href={`/trade-records?tab=executions&execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.closeExecutionId.slice(0, 8)}...</Link> : "-"}</td>
-                      </>
-                    )}
-                  />
-                </table>
-              </ScrollableTableShell>
+              <VirtualGridTableShell height={320} scrollContainerRef={drawerLotsScrollRef}>
+                <VirtualGridHeaderRow columnTemplate={SETUP_LOTS_COLUMN_TEMPLATE}>
+                  <div className="px-2 py-2 text-left">Symbol</div>
+                  <div className="px-2 py-2 text-right">Qty</div>
+                  <div className="px-2 py-2 text-right">Realized P&amp;L ($)</div>
+                  <div className="px-2 py-2 text-right">Hold Days</div>
+                  <div className="px-2 py-2 text-left">Outcome</div>
+                  <div className="px-2 py-2 text-left">Open Execution</div>
+                  <div className="px-2 py-2 text-left">Close Execution</div>
+                </VirtualGridHeaderRow>
+                <VirtualGridBody
+                  columnTemplate={SETUP_LOTS_COLUMN_TEMPLATE}
+                  rows={detail.lots}
+                  scrollContainerRef={drawerLotsScrollRef}
+                  getRowKey={(lot) => lot.id}
+                  renderRow={(lot) => (
+                    <>
+                      <div className="px-2 py-2">{lot.symbol}</div>
+                      <div className="px-2 py-2 text-right">{lot.quantity}</div>
+                      <div className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(lot.realizedPnl))}</div>
+                      <div className="px-2 py-2 text-right">{lot.holdingDays}</div>
+                      <div className="px-2 py-2">{lot.outcome}</div>
+                      <div className="px-2 py-2"><Link href={`/trade-records?tab=executions&execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.openExecutionId.slice(0, 8)}...</Link></div>
+                      <div className="px-2 py-2">{lot.closeExecutionId ? <Link href={`/trade-records?tab=executions&execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.closeExecutionId.slice(0, 8)}...</Link> : "-"}</div>
+                    </>
+                  )}
+                />
+              </VirtualGridTableShell>
             </div>
           ) : null}
         </section>

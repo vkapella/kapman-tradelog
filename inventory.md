@@ -3,6 +3,9 @@
 ## Toolbar
 Virtual scroll toolbar shows active filters, clear filters action, and total row count only.
 
+## Alignment Notes
+S2-07 virtualized tables use shared grid column templates for headers and rows so column alignment remains deterministic during vertical and horizontal scroll.
+
 ## Table Pagination Notes
 - Executions: Virtual scroll — all rows rendered on demand; no page size limit.
 - Matched Lots: Virtual scroll — all rows rendered on demand; no page size limit.

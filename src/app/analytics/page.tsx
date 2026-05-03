@@ -3,8 +3,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -14,6 +13,8 @@ import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "
 
 type SortColumn = "tag" | "underlyingSymbol" | "realizedPnl" | "winRate" | "expectancy" | "averageHoldDays";
 type SortDirection = "asc" | "desc";
+
+const ANALYTICS_SETUPS_COLUMN_TEMPLATE = "220px 180px 170px 150px 190px 130px";
 
 interface SetupsPayload { data: SetupSummaryRecord[]; }
 interface MatchedLotsPayload { data: MatchedLotRecord[]; }
@@ -157,35 +158,32 @@ export default function Page() {
 
       <article className="rounded-xl border border-border bg-surface p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold text-text">Setup Analytics Table</h2><span className="text-xs text-text-2">{sortedTableRows.length} rows</span></div>
-        <ScrollableTableShell height="calc(100vh - 480px)" scrollContainerRef={scrollContainerRef}>
-          <table className="min-w-[1440px] table-fixed text-xs">
-            <thead className="sticky top-0 z-10 bg-surface-2 text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-              <tr>
-                <th className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("tag")}>Tag</button></th>
-                <th className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></th>
-                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></th>
-                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</button></th>
-                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</button></th>
-                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button></th>
-              </tr>
-            </thead>
-            <VirtualTableBody
-              rows={sortedTableRows}
-              scrollContainerRef={scrollContainerRef}
-              getRowKey={(row) => row.id}
-              renderRow={(row) => (
-                <>
-                  <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
-                  <td className="px-2 py-2">{row.underlyingSymbol}</td>
-                  <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</td>
-                  <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
-                  <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</td>
-                  <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
-                </>
-              )}
-            />
-          </table>
-        </ScrollableTableShell>
+        <VirtualGridTableShell height="calc(100vh - 480px)" scrollContainerRef={scrollContainerRef}>
+          <VirtualGridHeaderRow columnTemplate={ANALYTICS_SETUPS_COLUMN_TEMPLATE} className="bg-surface-2 text-text-2">
+            <div className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("tag")}>Tag</button></div>
+            <div className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></div>
+            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></div>
+            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</button></div>
+            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</button></div>
+            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button></div>
+          </VirtualGridHeaderRow>
+          <VirtualGridBody
+            columnTemplate={ANALYTICS_SETUPS_COLUMN_TEMPLATE}
+            rows={sortedTableRows}
+            scrollContainerRef={scrollContainerRef}
+            getRowKey={(row) => row.id}
+            renderRow={(row) => (
+              <>
+                <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>
+                <div className="px-2 py-2">{row.underlyingSymbol}</div>
+                <div className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</div>
+                <div className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</div>
+                <div className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</div>
+                <div className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</div>
+              </>
+            )}
+          />
+        </VirtualGridTableShell>
       </article>
     </section>
   );

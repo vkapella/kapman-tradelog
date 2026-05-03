@@ -6,8 +6,7 @@ import { Badge } from "@/components/Badge";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -15,6 +14,8 @@ import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
 import { openPositionsStore } from "@/store/openPositionsStore";
 import type { OpenPosition } from "@/types/api";
+
+const POSITIONS_COLUMN_TEMPLATE = "120px 100px 100px 130px 80px 90px 140px 110px 140px 150px 110px 160px";
 
 function positionKey(position: OpenPosition): string {
   return position.accountId + "::" + position.instrumentKey;
@@ -42,18 +43,18 @@ function formatQuoteTimestamp(value: Date | null): string {
 const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenPosition & { key: string; dte: number | null; mark: number | null; marketValue: number | null; unrealizedPnl: number | null; pnlPct: number | null }; markLoading: boolean; }) {
   return (
     <>
-      <td className="px-2 py-2 font-semibold">{row.underlyingSymbol}</td>
-      <td className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge variant="stub">EQUITY</Badge>}</td>
-      <td className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</td>
-      <td className="px-2 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</td>
-      <td className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text"].join(" ")}>{row.dte ?? "—"}</td>
-      <td className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</td>
-      <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</td>
-      <td className="px-2 py-2 text-right font-mono">{markLoading ? <span className="text-text-2">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}</td>
-      <td className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</td>
-      <td className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</td>
-      <td className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</td>
-      <td className="px-2 py-2 text-text-2"><AccountLabel accountId={row.accountId} /></td>
+      <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>
+      <div className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge variant="stub">EQUITY</Badge>}</div>
+      <div className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</div>
+      <div className="px-2 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</div>
+      <div className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text"].join(" ")}>{row.dte ?? "—"}</div>
+      <div className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</div>
+      <div className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</div>
+      <div className="px-2 py-2 text-right font-mono">{markLoading ? <span className="text-text-2">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}</div>
+      <div className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</div>
+      <div className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</div>
+      <div className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</div>
+      <div className="px-2 py-2 text-text-2"><AccountLabel accountId={row.accountId} /></div>
     </>
   );
 });
@@ -138,33 +139,31 @@ export default function Page() {
 
           <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
 
-          <ScrollableTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
-            <table className="min-w-[1440px] table-fixed text-xs">
-              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                <tr>
-                  {columns.map((column) => (
-                    <DataTableHeader
-                      key={column.id}
-                      column={column}
-                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                      currentValues={table.filters[column.id] ?? []}
-                      isOpen={openColumnId === column.id}
-                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                      options={table.filterOptions[column.id] ?? []}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <VirtualTableBody
-                rows={table.sortedRows}
-                scrollContainerRef={scrollContainerRef}
-                getRowKey={(row) => row.key}
-                renderRow={(row) => <PositionRow row={row} markLoading={snapshot.isLoading} />}
-              />
-            </table>
-          </ScrollableTableShell>
+          <VirtualGridTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
+            <VirtualGridHeaderRow columnTemplate={POSITIONS_COLUMN_TEMPLATE} className="bg-surface-2 text-text-2">
+              {columns.map((column) => (
+                <DataTableHeader
+                  key={column.id}
+                  as="div"
+                  column={column}
+                  currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                  currentValues={table.filters[column.id] ?? []}
+                  isOpen={openColumnId === column.id}
+                  onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                  onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                  onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                  options={table.filterOptions[column.id] ?? []}
+                />
+              ))}
+            </VirtualGridHeaderRow>
+            <VirtualGridBody
+              columnTemplate={POSITIONS_COLUMN_TEMPLATE}
+              rows={table.sortedRows}
+              scrollContainerRef={scrollContainerRef}
+              getRowKey={(row) => row.key}
+              renderRow={(row) => <PositionRow row={row} markLoading={snapshot.isLoading} />}
+            />
+          </VirtualGridTableShell>
         </div>
       ) : null}
     </section>
