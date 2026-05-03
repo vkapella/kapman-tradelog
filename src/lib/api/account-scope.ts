@@ -38,3 +38,19 @@ export function buildAccountScopeWhere(accountIds: string[]): Record<string, unk
     OR: [{ accountId: { in: accountIds } }, { account: { accountId: { in: accountIds } } }],
   };
 }
+
+export interface DateRangeParams {
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export function parseDateRangeParams(params: URLSearchParams): DateRangeParams {
+  return {
+    startDate: params.get("startDate"),
+    endDate: params.get("endDate"),
+  };
+}
+
+export function toEndOfDayUtcIso(date: string): Date {
+  return new Date(`${date}T23:59:59.999Z`);
+}

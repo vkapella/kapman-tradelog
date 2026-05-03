@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type {
   PositionSnapshotApiResponse,
@@ -25,6 +26,7 @@ interface UsePositionSnapshotResult {
 }
 
 export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotResult {
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const normalizedAccountIds = useMemo(
     () => Array.from(new Set(accountIds.map((value) => value.trim()).filter((value) => value.length > 0))).sort((left, right) => left.localeCompare(right)),
     [accountIds],
@@ -59,6 +61,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
           query.set("snapshotId", activeSnapshotId);
         } else {
           applyAccountIdsToSearchParams(query, normalizedAccountIds);
+          applyRangeToSearchParams(query);
         }
 
         const response = await fetch(`/api/positions/snapshot?${query.toString()}`, {
@@ -103,7 +106,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     return () => {
       controller.abort();
     };
-  }, [activeSnapshotId, normalizedAccountIds, pollToken]);
+  }, [activeSnapshotId, normalizedAccountIds, pollToken, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     if (snapshot?.status !== "PENDING" && !activeSnapshotId) {

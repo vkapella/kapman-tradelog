@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
@@ -12,6 +12,7 @@ import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
@@ -111,6 +112,7 @@ const ExecutionsTableBody = memo(function ExecutionsTableBody({
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<ExecutionRecord[]>([]);
@@ -175,6 +177,7 @@ export function ExecutionsTablePanel() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
+        applyRangeToSearchParams(query);
         const payload = await fetchAllPages<ExecutionRecord>("/api/executions", query);
         if (!cancelled) {
           setRows(payload.data);
@@ -196,7 +199,7 @@ export function ExecutionsTablePanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     let canceled = false;
@@ -215,6 +218,7 @@ export function ExecutionsTablePanel() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
+        applyRangeToSearchParams(query);
         const response = await fetch(`/api/executions/${selectedExecutionId}?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           if (!canceled) {
@@ -245,7 +249,7 @@ export function ExecutionsTablePanel() {
     return () => {
       canceled = true;
     };
-  }, [selectedExecutionId, selectedAccounts]);
+  }, [selectedExecutionId, selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const importLabelById = useMemo(() => {
     return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));

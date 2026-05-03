@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatDays, formatInteger } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 interface OverviewPayload {
@@ -44,6 +46,7 @@ const overviewKpiHelpText: Record<string, InfoTooltipContent> = {
 
 export function OverviewDashboardPanel() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<OverviewSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +57,8 @@ export function OverviewDashboardPanel() {
       setError(null);
 
       const params = new URLSearchParams();
-      if (selectedAccounts.length > 0) {
-        params.set("accountIds", selectedAccounts.join(","));
-      }
+      applyAccountIdsToSearchParams(params, selectedAccounts);
+      applyRangeToSearchParams(params);
 
       const response = await fetch(`/api/overview/summary?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) {
@@ -71,7 +73,7 @@ export function OverviewDashboardPanel() {
     }
 
     void loadOverview();
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const hasData = Boolean(data && (data.executionCount > 0 || data.snapshotCount > 0 || data.matchedLotCount > 0));
   const snapshotPreview = useMemo(() => {

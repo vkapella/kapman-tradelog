@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
+import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
@@ -18,22 +18,86 @@ function formatNullableMetric(value: number | null): string | null {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
   const whereAccount = buildAccountScopeWhere(accountIds);
+  const executionDateWhere = startDate || endDate
+    ? {
+        eventTimestamp: {
+          ...(startDate ? { gte: new Date(startDate) } : {}),
+          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+        },
+      }
+    : undefined;
+  const matchedLotDateWhere = startDate || endDate
+    ? {
+        OR: [
+          {
+            closeExecution: {
+              is: {
+                tradeDate: {
+                  ...(startDate ? { gte: new Date(startDate) } : {}),
+                  ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                },
+              },
+            },
+          },
+          {
+            AND: [
+              { closeExecution: { is: null } },
+              {
+                openExecution: {
+                  tradeDate: {
+                    ...(startDate ? { gte: new Date(startDate) } : {}),
+                    ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }
+    : undefined;
+  const setupDateWhere = startDate || endDate
+    ? {
+        createdAt: {
+          ...(startDate ? { gte: new Date(startDate) } : {}),
+          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+        },
+      }
+    : undefined;
+  const snapshotDateWhere = startDate || endDate
+    ? {
+        snapshotDate: {
+          ...(startDate ? { gte: new Date(startDate) } : {}),
+          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+        },
+      }
+    : undefined;
 
   const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots, accountBalances, startingCapitalSummary] = await Promise.all([
-    prisma.execution.count({ where: whereAccount as Prisma.ExecutionWhereInput | undefined }),
+    prisma.execution.count({
+      where: { AND: [whereAccount as Prisma.ExecutionWhereInput, executionDateWhere as Prisma.ExecutionWhereInput].filter(Boolean) },
+    }),
     prisma.matchedLot.findMany({
-      where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
+      where: { AND: [whereAccount as Prisma.MatchedLotWhereInput, matchedLotDateWhere as Prisma.MatchedLotWhereInput].filter(Boolean) },
       select: { realizedPnl: true, holdingDays: true, outcome: true },
     }),
-    prisma.setupGroup.count({ where: whereAccount as Prisma.SetupGroupWhereInput | undefined }),
+    prisma.setupGroup.count({
+      where: { AND: [whereAccount as Prisma.SetupGroupWhereInput, setupDateWhere as Prisma.SetupGroupWhereInput].filter(Boolean) },
+    }),
     prisma.import.findMany({
       where: whereAccount as Prisma.ImportWhereInput | undefined,
       select: { status: true, parsedRows: true, skippedRows: true },
     }),
-    prisma.dailyAccountSnapshot.count({ where: whereAccount as Prisma.DailyAccountSnapshotWhereInput | undefined }),
+    prisma.dailyAccountSnapshot.count({
+      where: {
+        AND: [whereAccount as Prisma.DailyAccountSnapshotWhereInput, snapshotDateWhere as Prisma.DailyAccountSnapshotWhereInput].filter(Boolean),
+      },
+    }),
     prisma.dailyAccountSnapshot.findMany({
-      where: whereAccount as Prisma.DailyAccountSnapshotWhereInput | undefined,
+      where: {
+        AND: [whereAccount as Prisma.DailyAccountSnapshotWhereInput, snapshotDateWhere as Prisma.DailyAccountSnapshotWhereInput].filter(Boolean),
+      },
       include: {
         account: {
           select: { accountId: true },

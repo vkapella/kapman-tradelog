@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
+import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import type { TtsEvidenceResponse } from "@/types/api";
@@ -32,11 +32,57 @@ function computeMedian(values: number[]): number | null {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
   const whereAccount = buildAccountScopeWhere(accountIds);
+  const executionDateWhere =
+    startDate || endDate
+      ? {
+          eventTimestamp: {
+            ...(startDate ? { gte: new Date(startDate) } : {}),
+            ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          },
+        }
+      : undefined;
+  const matchedLotDateWhere =
+    startDate || endDate
+      ? {
+          OR: [
+            {
+              closeExecution: {
+                is: {
+                  tradeDate: {
+                    ...(startDate ? { gte: new Date(startDate) } : {}),
+                    ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                  },
+                },
+              },
+            },
+            {
+              AND: [
+                { closeExecution: { is: null } },
+                {
+                  openExecution: {
+                    tradeDate: {
+                      ...(startDate ? { gte: new Date(startDate) } : {}),
+                      ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        }
+      : undefined;
+  const executionWhere = executionDateWhere
+    ? { AND: [whereAccount as Prisma.ExecutionWhereInput, executionDateWhere as Prisma.ExecutionWhereInput].filter(Boolean) }
+    : (whereAccount as Prisma.ExecutionWhereInput | undefined);
+  const matchedLotWhere = matchedLotDateWhere
+    ? { AND: [whereAccount as Prisma.MatchedLotWhereInput, matchedLotDateWhere as Prisma.MatchedLotWhereInput].filter(Boolean) }
+    : (whereAccount as Prisma.MatchedLotWhereInput | undefined);
 
   const [executions, matchedLots] = await Promise.all([
     prisma.execution.findMany({
-      where: whereAccount as Prisma.ExecutionWhereInput | undefined,
+      where: executionWhere,
       select: {
         tradeDate: true,
         quantity: true,
@@ -45,7 +91,7 @@ export async function GET(request: Request) {
       orderBy: [{ tradeDate: "asc" }, { id: "asc" }],
     }),
     prisma.matchedLot.findMany({
-      where: whereAccount as Prisma.MatchedLotWhereInput | undefined,
+      where: matchedLotWhere,
       select: {
         holdingDays: true,
         createdAt: true,

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, LabelList, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import {
   getOverallTtsReadinessStatus,
@@ -130,6 +131,7 @@ function buildDistributionData(data: TtsEvidenceResponse) {
 
 export function TtsEvidencePanel() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<TtsEvidenceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +143,7 @@ export function TtsEvidencePanel() {
 
       const query = new URLSearchParams();
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
 
       const response = await fetch(`/api/tts/evidence?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
@@ -155,7 +158,7 @@ export function TtsEvidencePanel() {
     }
 
     void loadEvidence();
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const hasData = Boolean(data && data.annualizedTradeCount > 0);
   const overallStatus = data ? getOverallTtsReadinessStatus(data) : "info";
