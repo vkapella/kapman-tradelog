@@ -81,12 +81,22 @@ export function SidebarNav() {
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-180px)] flex-col justify-between">
-      <nav className="space-y-5">
+    <div className="flex min-h-[calc(100vh-var(--topbar-h))] flex-col justify-between py-2">
+      <nav>
         {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className="mb-2 text-[10px] uppercase tracking-[0.08em] text-muted">{group.label}</p>
-            <div className="space-y-1">
+          <div key={group.label} className="mb-[3px]">
+            <p
+              style={{
+                color: "var(--text-3)",
+                fontSize: "9.5px",
+                fontWeight: 700,
+                letterSpacing: "0.10em",
+                padding: "6px 14px 2px",
+              }}
+            >
+              {group.label}
+            </p>
+            <div>
               {group.items.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                 const badgeValue = item.badgeKey ? badgeValues[item.badgeKey] : null;
@@ -96,13 +106,32 @@ export function SidebarNav() {
                     key={item.href}
                     href={item.href}
                     className={[
-                      "flex items-center justify-between border-l-2 px-2 py-2 text-[11px] font-medium transition-colors",
-                      isActive ? "border-accent bg-accent/10 text-text" : "border-transparent text-muted hover:bg-panel-2 hover:text-text",
+                      "flex items-center justify-between border-l-2 transition-colors hover:bg-surface-2",
+                      isActive ? "" : "border-transparent",
                     ].join(" ")}
+                    style={{
+                      background: isActive ? "var(--accent-dim)" : "transparent",
+                      borderLeftColor: isActive ? "var(--accent)" : "transparent",
+                      color: isActive ? "var(--accent)" : "var(--text-2)",
+                      fontSize: "12px",
+                      fontWeight: isActive ? 500 : 400,
+                      padding: "6px 14px",
+                    }}
                   >
                     <span>{item.label}</span>
                     {typeof badgeValue === "number" ? (
-                      <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[10px] text-muted">{badgeValue}</span>
+                      <span
+                        style={{
+                          background: "var(--surface-3)",
+                          borderRadius: "3px",
+                          color: "var(--text-3)",
+                          fontFamily: "var(--mono)",
+                          fontSize: "10px",
+                          padding: "1px 5px",
+                        }}
+                      >
+                        {badgeValue}
+                      </span>
                     ) : null}
                   </Link>
                 );
@@ -112,7 +141,9 @@ export function SidebarNav() {
         ))}
       </nav>
 
-      <p className="mt-4 text-[10px] text-muted">v7.0 · {accountTotal} accounts · {snapshotTotal} snapshots</p>
+      <p className="px-[14px] pb-3" style={{ color: "var(--text-3)", fontSize: "10px" }}>
+        {accountTotal} accounts / {snapshotTotal} snapshots
+      </p>
     </div>
   );
 }

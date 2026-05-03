@@ -55,7 +55,7 @@ function Sparkline({
   const hasTrend = chartSeries.filter((entry) => entry.value !== null).length >= 2;
 
   if (!hasTrend) {
-    return <p className="text-[11px] text-muted">Trend pending more monthly history.</p>;
+    return <p className="text-[11px] text-text-2">Trend pending more monthly history.</p>;
   }
 
   return (
@@ -87,22 +87,22 @@ function MetricSection({
   series: TtsEvidenceResponse["monthlySeries"];
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-panel p-5">
+    <section className="rounded-2xl border border-border bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-muted">{definition.label}</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-text-2">{definition.label}</p>
           <p className="mt-2 text-3xl font-semibold text-text">{definition.value}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border bg-panel-2 px-3 py-1 text-xs text-text">
+        <div className="flex items-center gap-2 rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text">
           <StatusDot status={definition.status} />
           <span>{getTtsStatusLabel(definition.status)}</span>
         </div>
       </div>
-      <p className="mt-2 text-xs text-muted">{definition.target}</p>
-      <div className="mt-4 rounded-xl border border-border bg-panel-2 p-3">
+      <p className="mt-2 text-xs text-text-2">{definition.target}</p>
+      <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3">
         <Sparkline series={series} dataKey={definition.trendKey} />
       </div>
-      <p className="mt-4 text-sm text-muted">{definition.description}</p>
+      <p className="mt-4 text-sm text-text-2">{definition.description}</p>
     </section>
   );
 }
@@ -112,11 +112,11 @@ function buildDistributionData(data: TtsEvidenceResponse) {
 
   return data.holdingPeriodDistribution.map((bucket) => {
     const percentage = total > 0 ? (bucket.count / total) * 100 : 0;
-    let color = "var(--color-text-danger)";
+    let color = "var(--neg)";
     if (bucket.bucket === "0-1d" || bucket.bucket === "2-5d") {
-      color = "var(--color-text-success)";
+      color = "var(--pos)";
     } else if (bucket.bucket === "6-20d") {
-      color = "var(--color-text-warning)";
+      color = "var(--warn)";
     }
 
     return {
@@ -222,12 +222,12 @@ export function TtsEvidencePanel() {
 
   return (
     <section className="space-y-6">
-      <header className="rounded-2xl border border-border bg-panel p-6">
+      <header className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">TTS Evidence / Readiness</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-text-2">TTS Evidence / Readiness</p>
             <h1 className="text-3xl font-semibold text-text">Court-relevant trading activity metrics</h1>
-            <p className="max-w-3xl text-sm text-muted">
+            <p className="max-w-3xl text-sm text-text-2">
               Evidence-oriented activity metrics only. These are readiness signals for documentation, not legal determinations.
             </p>
           </div>
@@ -238,12 +238,12 @@ export function TtsEvidencePanel() {
       </header>
 
       {loading ? <LoadingSkeleton lines={8} /> : null}
-      {error ? <p className="text-sm text-[color:var(--color-text-danger)]">{error}</p> : null}
+      {error ? <p className="text-sm text-[color:var(--neg)]">{error}</p> : null}
 
       {!loading && !error && !hasData ? (
-        <div className="rounded-2xl border border-border bg-panel p-6">
+        <div className="rounded-2xl border border-border bg-surface p-6">
           <h2 className="text-xl font-semibold text-text">No evidence metrics yet</h2>
-          <p className="mt-2 text-sm text-muted">Commit imports and generate matched lots to compute holding-period and activity evidence metrics.</p>
+          <p className="mt-2 text-sm text-text-2">Commit imports and generate matched lots to compute holding-period and activity evidence metrics.</p>
           <Link href="/imports" className="mt-4 inline-block text-sm text-[color:var(--accent)] underline">
             Go to Imports & Connections
           </Link>
@@ -254,13 +254,13 @@ export function TtsEvidencePanel() {
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {metricSections.map((metric) => (
-              <div key={metric.id} className="rounded-2xl border border-border bg-panel p-4">
+              <div key={metric.id} className="rounded-2xl border border-border bg-surface p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted">{metric.label}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-text-2">{metric.label}</p>
                   <StatusDot status={metric.status} />
                 </div>
                 <p className="mt-3 text-2xl font-semibold text-text">{metric.value}</p>
-                <p className="mt-1 text-[11px] text-muted">{metric.target}</p>
+                <p className="mt-1 text-[11px] text-text-2">{metric.target}</p>
               </div>
             ))}
           </div>
@@ -271,17 +271,17 @@ export function TtsEvidencePanel() {
             ))}
           </div>
 
-          <section className="rounded-2xl border border-border bg-panel p-5">
+          <section className="rounded-2xl border border-border bg-surface p-5">
             <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.22em] text-muted">Time-In-Market Distribution</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-text-2">Time-In-Market Distribution</p>
               <h2 className="text-2xl font-semibold text-text">Holding-period profile</h2>
-              <p className="text-sm text-muted">Courts use this to verify activity is short-duration, not appreciation-seeking.</p>
+              <p className="text-sm text-text-2">Courts use this to verify activity is short-duration, not appreciation-seeking.</p>
             </div>
             <div className="mt-4 h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={distributionData} layout="vertical" margin={{ left: 8, right: 48 }}>
                   <XAxis type="number" hide />
-                  <YAxis dataKey="bucket" type="category" width={56} tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                  <YAxis dataKey="bucket" type="category" width={56} tick={{ fill: "var(--text-2)", fontSize: 12 }} />
                   <Bar dataKey="count" radius={[0, 8, 8, 0]} isAnimationActive={false}>
                     {distributionData.map((entry) => (
                       <Cell key={entry.bucket} fill={entry.color} />

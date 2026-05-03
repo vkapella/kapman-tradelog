@@ -54,7 +54,7 @@ export function RecentExecutionsWidget() {
           <div key={row.id} className="flex items-center justify-between gap-2 text-xs">
             <div>
               <p className="font-semibold text-text">{row.symbol}</p>
-              <p className="text-muted">{new Date(row.tradeDate).toLocaleDateString()} · {row.price ?? "~"}</p>
+              <p className="text-text-2">{new Date(row.tradeDate).toLocaleDateString()} · {row.price ?? "~"}</p>
             </div>
             <div className="flex items-center gap-1">
               {row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : null}

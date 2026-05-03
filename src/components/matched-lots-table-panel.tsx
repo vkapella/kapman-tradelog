@@ -38,7 +38,7 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
   return (
     <tbody>
       {rows.map((row) => (
-        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+        <tr key={row.id} className="border-t border-border text-text">
           <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
           <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
           <td className="px-2 py-2">
@@ -51,7 +51,7 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
               .join(" / ")}
           </td>
           <td className="px-2 py-2 text-right">{row.quantity}</td>
-          <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+          <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
             {formatCurrency(safeNumber(row.realizedPnl))}
           </td>
           <td className="px-2 py-2 text-right">{row.holdingDays}</td>
@@ -59,13 +59,13 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
             {row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}
           </td>
           <td className="px-2 py-2 font-mono">
-            <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
+            <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-accent underline">
               {shortId(row.openExecutionId)}
             </Link>
           </td>
           <td className="px-2 py-2 font-mono">
             {row.closeExecutionId ? (
-              <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-blue-300 underline">
+              <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-accent underline">
                 {shortId(row.closeExecutionId)}
               </Link>
             ) : (
@@ -73,7 +73,7 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
             )}
           </td>
           <td className="px-2 py-2">
-            <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-blue-300 underline">
+            <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-accent underline">
               Case file
             </Link>
           </td>
@@ -335,10 +335,10 @@ export function MatchedLotsTablePanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-100">Matched Lots Table (T2)</h2>
-        <p className="text-sm text-slate-300">Review FIFO close-to-open linkage, realized P&L, and holding period by lot.</p>
+        <h2 className="text-xl font-semibold text-text">Matched Lots Table (T2)</h2>
+        <p className="text-sm text-text-2">Review FIFO close-to-open linkage, realized P&L, and holding period by lot.</p>
       </header>
 
       <DataTableToolbar
@@ -353,13 +353,13 @@ export function MatchedLotsTablePanel() {
       />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
-          <h3 className="text-lg font-medium text-slate-100">No matched lots found</h3>
-          <p className="mt-2 text-sm text-slate-300">Commit an import and run matching to populate FIFO lot records.</p>
-          <Link href="/imports" className="mt-3 inline-block text-sm text-blue-300 underline">
+        <div className="rounded-xl border border-border bg-bg p-6">
+          <h3 className="text-lg font-medium text-text">No matched lots found</h3>
+          <p className="mt-2 text-sm text-text-2">Commit an import and run matching to populate FIFO lot records.</p>
+          <Link href="/imports" className="mt-3 inline-block text-sm text-accent underline">
             Go to Imports & Connections
           </Link>
         </div>
@@ -368,11 +368,11 @@ export function MatchedLotsTablePanel() {
       {!loading && !error && totalRows > 0 ? (
         <div className="space-y-3">
           <div
-            className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+            className={showAll ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
             style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
           >
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+              <thead className="sticky top-0 z-10 bg-surface text-text-2">
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -394,9 +394,9 @@ export function MatchedLotsTablePanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
+            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
           ) : (
-            <div className="flex items-center justify-between text-xs text-slate-300">
+            <div className="flex items-center justify-between text-xs text-text-2">
               <p>
                 Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
@@ -405,7 +405,7 @@ export function MatchedLotsTablePanel() {
                   type="button"
                   disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Prev
                 </button>
@@ -413,7 +413,7 @@ export function MatchedLotsTablePanel() {
                   type="button"
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Next
                 </button>

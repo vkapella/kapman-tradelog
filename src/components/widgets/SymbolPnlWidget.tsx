@@ -60,18 +60,18 @@ export function SymbolPnlWidget() {
     <WidgetCard title="Symbol P&L Ranking">
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <p className="mb-1 text-xs text-muted">Top Winners</p>
+          <p className="mb-1 text-xs text-text-2">Top Winners</p>
           <div className="space-y-1">
             {winners.map((row) => (
               <div key={row.symbol} className="flex items-center justify-between text-xs">
                 <span className="text-text">{row.symbol}</span>
-                <span className="text-accent-2">{formatCurrency(row.pnl)}</span>
+                <span className="text-pos">{formatCurrency(row.pnl)}</span>
               </div>
             ))}
           </div>
         </div>
         <div>
-          <p className="mb-1 text-xs text-muted">Top Losers</p>
+          <p className="mb-1 text-xs text-text-2">Top Losers</p>
           <div className="space-y-1">
             {losers.map((row) => (
               <div key={row.symbol} className="flex items-center justify-between text-xs">

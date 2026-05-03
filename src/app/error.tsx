@@ -14,13 +14,13 @@ export default function RootError({ error, reset }: RootErrorProps) {
 
   return (
     <html lang="en">
-      <body className="bg-slate-950 p-8 text-slate-100">
+      <body className="bg-bg p-8 text-text">
         <h1 className="text-2xl font-semibold">Application Error</h1>
-        <p className="mt-2 text-sm text-slate-300">An unexpected error occurred while rendering this page.</p>
+        <p className="mt-2 text-sm text-text-2">An unexpected error occurred while rendering this page.</p>
         <button
           type="button"
           onClick={reset}
-          className="mt-4 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm"
+          className="mt-4 rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm"
         >
           Retry
         </button>

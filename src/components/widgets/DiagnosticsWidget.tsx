@@ -44,19 +44,19 @@ export function DiagnosticsWidget() {
   return (
     <WidgetCard title="Diagnostics Badge">
       {data ? (
-        <div className="space-y-1 text-xs text-muted">
+        <div className="space-y-1 text-xs text-text-2">
           <p>Parse coverage: {(data.parseCoverage * 100).toFixed(1)}%</p>
           <p>Matching coverage: {(data.matchingCoverage * 100).toFixed(1)}%</p>
           <p>Warnings: {data.warningsCount}</p>
           <p>Pair ambiguity: {data.setupInference.setupInferencePairAmbiguousTotal}</p>
           <p>Synthetic expiration: {data.syntheticExpirationCount}</p>
-          <p className={clear ? "text-accent-2" : "text-amber-300"}>{clear ? "All clear" : data.warningsCount + " warnings"}</p>
+          <p className={clear ? "text-pos" : "text-amber-300"}>{clear ? "All clear" : data.warningsCount + " warnings"}</p>
           <Link href="/diagnostics" className="text-accent underline">
             View diagnostics →
           </Link>
         </div>
       ) : (
-        <p className="text-xs text-muted">Diagnostics unavailable.</p>
+        <p className="text-xs text-text-2">Diagnostics unavailable.</p>
       )}
     </WidgetCard>
   );

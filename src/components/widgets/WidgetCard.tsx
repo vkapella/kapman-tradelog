@@ -13,7 +13,7 @@ export function WidgetCard({ title, children, action, helpText }: WidgetCardProp
   const resolvedHelpText = helpText ?? getWidgetHelpTextByTitle(title);
 
   return (
-    <article className="h-full rounded-xl border border-border bg-panel p-4">
+    <article className="h-full rounded-xl border border-border bg-surface p-4">
       <header className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-text">{title}</h3>
         <div className="flex items-center gap-2">

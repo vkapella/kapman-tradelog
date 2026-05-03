@@ -33,11 +33,11 @@ export function WidgetPicker({ open, widgets, onClose, onSelect }: WidgetPickerP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4" onClick={onClose}>
-      <div className="max-h-[80vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-border bg-panel p-4" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--bg)_80%,transparent)] p-4" onClick={onClose}>
+      <div className="max-h-[80vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-border bg-surface p-4" onClick={(event) => event.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text">Add Widget</h2>
-          <button type="button" onClick={onClose} className="rounded border border-border px-2 py-1 text-xs text-muted">
+          <button type="button" onClick={onClose} className="rounded border border-border px-2 py-1 text-xs text-text-2">
             Close
           </button>
         </div>
@@ -51,10 +51,10 @@ export function WidgetPicker({ open, widgets, onClose, onSelect }: WidgetPickerP
                 onSelect(widget.id);
                 onClose();
               }}
-              className="rounded-lg border border-border bg-panel-2 p-3 text-left"
+              className="rounded-lg border border-border bg-surface-2 p-3 text-left"
             >
               <p className="text-sm font-semibold text-text">{widget.name}</p>
-              <p className="mt-1 text-xs text-muted">{widget.description}</p>
+              <p className="mt-1 text-xs text-text-2">{widget.description}</p>
             </button>
           ))}
         </div>

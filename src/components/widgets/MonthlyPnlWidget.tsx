@@ -62,15 +62,15 @@ export function MonthlyPnlWidget() {
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} />
+            <XAxis dataKey="label" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+            <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} />
             <Tooltip
-              contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }}
+              contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
               formatter={(value: number) => [formatCurrency(value), "P&L"]}
             />
             <Bar dataKey="pnl">
               {chartData.map((entry) => (
-                <Cell key={entry.month} fill={entry.pnl >= 0 ? "var(--accent-2)" : "var(--danger)"} />
+                <Cell key={entry.month} fill={entry.pnl >= 0 ? "var(--pos)" : "var(--neg)"} />
               ))}
             </Bar>
           </BarChart>

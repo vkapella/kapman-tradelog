@@ -7,12 +7,12 @@ import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 
 function signClass(value: number): string {
   if (value > 0) {
-    return "text-accent-2";
+    return "text-pos";
   }
   if (value < 0) {
     return "text-red-300";
   }
-  return "text-muted";
+  return "text-text-2";
 }
 
 function formatSnapshotTime(value: string): string {
@@ -28,7 +28,7 @@ export function ReconciliationWidget() {
       type="button"
       onClick={() => void triggerCompute()}
       disabled={computing}
-      className="rounded border border-border bg-panel-2 px-2 py-0.5 text-[10px] text-muted disabled:opacity-50"
+      className="rounded border border-border bg-surface-2 px-2 py-0.5 text-[10px] text-text-2 disabled:opacity-50"
     >
       {computing ? "Computing..." : "Compute now"}
     </button>
@@ -51,18 +51,18 @@ export function ReconciliationWidget() {
   return (
     <WidgetCard title="Portfolio Reconciliation" action={action}>
       {snapshot ? (
-        <div className="mb-2 flex items-center gap-2 text-[11px] text-muted">
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-text-2">
           <span>As of {formatSnapshotTime(snapshot.snapshotAt)}</span>
           {stale ? <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300">Stale</span> : null}
           {snapshot.status === "PENDING" ? <span>Refreshing…</span> : null}
         </div>
       ) : null}
 
-      {loading && !snapshot ? <p className="text-xs text-muted">Loading reconciliation snapshot…</p> : null}
+      {loading && !snapshot ? <p className="text-xs text-text-2">Loading reconciliation snapshot…</p> : null}
       {!loading && error ? <p className="text-xs text-red-300">{error}</p> : null}
 
       {!loading && !error && !snapshot ? (
-        <div className="space-y-2 text-xs text-muted">
+        <div className="space-y-2 text-xs text-text-2">
           <p>No snapshot available for the selected accounts.</p>
           <p>Compute a snapshot to load reconciliation totals.</p>
         </div>
@@ -71,7 +71,7 @@ export function ReconciliationWidget() {
       {!loading && !error && snapshot?.status === "FAILED" ? (
         <div className="space-y-2 text-xs">
           <p className="text-red-300">{snapshot.errorMessage ?? "Snapshot computation failed."}</p>
-          <p className="text-muted">Recompute the snapshot to refresh reconciliation totals.</p>
+          <p className="text-text-2">Recompute the snapshot to refresh reconciliation totals.</p>
         </div>
       ) : null}
 
@@ -85,13 +85,13 @@ export function ReconciliationWidget() {
           {rows.map((row) => {
             const rowClass = row.highlighted
               ? row.value === 0
-                ? "text-accent-2"
+                ? "text-pos"
                 : "text-amber-300"
               : signClass(row.value);
 
             return (
               <div key={row.label} className="flex items-center justify-between gap-3">
-                <span className="text-muted">{row.label}</span>
+                <span className="text-text-2">{row.label}</span>
                 <span className={rowClass}>{formatCurrency(row.value)}</span>
               </div>
             );

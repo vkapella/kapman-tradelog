@@ -31,25 +31,25 @@ const SetupsTableBody = memo(function SetupsTableBody({
   return (
     <tbody>
       {rows.map((row) => (
-        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+        <tr key={row.id} className="border-t border-border text-text">
           <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
           <td className="px-2 py-2">{row.underlyingSymbol}</td>
           <td className="px-2 py-2">
             <AccountLabel accountId={row.accountId} />
           </td>
-          <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+          <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
             {formatCurrency(safeNumber(row.realizedPnl))}
           </td>
           <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
           <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
           <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
           <td className="px-2 py-2">
-            <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-blue-300 underline">
+            <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">
               View detail
             </Link>
           </td>
           <td className="px-2 py-2">
-            <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-blue-300 underline">
+            <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">
               Case file
             </Link>
           </td>
@@ -346,32 +346,32 @@ export function SetupsAnalyticsPanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-100">Setup Analytics (T3)</h2>
-        <p className="text-sm text-slate-300">Grouped setup performance summary with drill-through to matched lots and source executions.</p>
+        <h2 className="text-xl font-semibold text-text">Setup Analytics (T3)</h2>
+        <p className="text-sm text-text-2">Grouped setup performance summary with drill-through to matched lots and source executions.</p>
       </header>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400">Performance Summary ($)</p>
-          <p className={`text-lg font-semibold ${summary.totalPnl >= 0 ? "text-emerald-300" : "text-red-300"}`}>{formatCurrency(summary.totalPnl)}</p>
+        <div className="rounded-lg border border-border bg-bg p-3">
+          <p className="text-xs text-text-3">Performance Summary ($)</p>
+          <p className={`text-lg font-semibold ${summary.totalPnl >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(summary.totalPnl)}</p>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400" title="Percent of closed lots with positive outcome. Flat lots excluded.">
+        <div className="rounded-lg border border-border bg-bg p-3">
+          <p className="text-xs text-text-3" title="Percent of closed lots with positive outcome. Flat lots excluded.">
             Win Rate (%)
           </p>
-          <p className="text-lg font-semibold text-slate-100">{formatNullablePercent(summary.averageWinRate, 1)}</p>
+          <p className="text-lg font-semibold text-text">{formatNullablePercent(summary.averageWinRate, 1)}</p>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400" title="Average realized P&L per matched lot in this setup.">
+        <div className="rounded-lg border border-border bg-bg p-3">
+          <p className="text-xs text-text-3" title="Average realized P&L per matched lot in this setup.">
             Expectancy ($ / lot)
           </p>
-          <p className="text-lg font-semibold text-slate-100">{formatCurrency(summary.averageExpectancy)} / lot</p>
+          <p className="text-lg font-semibold text-text">{formatCurrency(summary.averageExpectancy)} / lot</p>
         </div>
-        <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3">
-          <p className="text-xs text-slate-400">Average Hold (Days)</p>
-          <p className="text-lg font-semibold text-slate-100">{summary.averageHoldDays.toFixed(2)}</p>
+        <div className="rounded-lg border border-border bg-bg p-3">
+          <p className="text-xs text-text-3">Average Hold (Days)</p>
+          <p className="text-lg font-semibold text-text">{summary.averageHoldDays.toFixed(2)}</p>
         </div>
       </div>
 
@@ -387,13 +387,13 @@ export function SetupsAnalyticsPanel() {
       />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
-          <h3 className="text-lg font-medium text-slate-100">No setup groups found</h3>
-          <p className="mt-2 text-sm text-slate-300">Commit an import so setup inference can generate T3 groups from matched lots.</p>
-          <Link href="/imports" className="mt-3 inline-block text-sm text-blue-300 underline">
+        <div className="rounded-xl border border-border bg-bg p-6">
+          <h3 className="text-lg font-medium text-text">No setup groups found</h3>
+          <p className="mt-2 text-sm text-text-2">Commit an import so setup inference can generate T3 groups from matched lots.</p>
+          <Link href="/imports" className="mt-3 inline-block text-sm text-accent underline">
             Go to Imports & Connections
           </Link>
         </div>
@@ -402,11 +402,11 @@ export function SetupsAnalyticsPanel() {
       {!loading && !error && totalRows > 0 ? (
         <div className="space-y-3">
           <div
-            className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+            className={showAll ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
             style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
           >
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+              <thead className="sticky top-0 z-10 bg-surface text-text-2">
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -428,9 +428,9 @@ export function SetupsAnalyticsPanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
+            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
           ) : (
-            <div className="flex items-center justify-between text-xs text-slate-300">
+            <div className="flex items-center justify-between text-xs text-text-2">
               <p>
                 Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
@@ -439,7 +439,7 @@ export function SetupsAnalyticsPanel() {
                   type="button"
                   disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Prev
                 </button>
@@ -447,7 +447,7 @@ export function SetupsAnalyticsPanel() {
                   type="button"
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -458,40 +458,40 @@ export function SetupsAnalyticsPanel() {
       ) : null}
 
       {selectedSetupId ? (
-        <section id="setup-detail" className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+        <section id="setup-detail" className="space-y-3 rounded-xl border border-border bg-bg p-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-100">Setup Detail Drill-through</h3>
-            <button type="button" onClick={() => router.push(pathname, { scroll: false })} className="text-xs text-slate-300 underline">
+            <h3 className="text-base font-semibold text-text">Setup Detail Drill-through</h3>
+            <button type="button" onClick={() => router.push(pathname, { scroll: false })} className="text-xs text-text-2 underline">
               Close
             </button>
           </div>
           {detailLoading ? <LoadingSkeleton lines={4} /> : null}
-          {!detailLoading && detailError ? <p className="text-xs text-red-200">{detailError}</p> : null}
+          {!detailLoading && detailError ? <p className="text-xs text-neg">{detailError}</p> : null}
           {!detailLoading && detail ? (
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-text-2">
                 <p>
                   {detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}
                 </p>
-                <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: detail.setup.id })} className="text-blue-300 underline">
+                <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: detail.setup.id })} className="text-accent underline">
                   Open diagnostics case file
                 </Link>
               </div>
-              <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-                <h4 className="text-xs font-semibold text-slate-100">Inference Notes</h4>
+              <div className="rounded border border-border bg-bg p-3">
+                <h4 className="text-xs font-semibold text-text">Inference Notes</h4>
                 {detail.inference.reasons.length === 0 ? (
-                  <p className="mt-2 text-xs text-slate-400">No inference notes available.</p>
+                  <p className="mt-2 text-xs text-text-3">No inference notes available.</p>
                 ) : (
-                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-300">
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-2">
                     {detail.inference.reasons.map((reason, index) => (
                       <li key={`${reason}-${index}`}>{reason}</li>
                     ))}
                   </ul>
                 )}
               </div>
-              <div className="overflow-auto rounded border border-slate-700">
+              <div className="overflow-auto rounded border border-border">
                 <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+                  <thead className="sticky top-0 z-10 bg-surface text-text-2">
                     <tr>
                       <th className="px-2 py-2 text-left">Symbol</th>
                       <th className="px-2 py-2 text-right">Qty</th>
@@ -504,22 +504,22 @@ export function SetupsAnalyticsPanel() {
                   </thead>
                   <tbody>
                     {detail.lots.map((lot) => (
-                      <tr key={lot.id} className="border-t border-slate-800 text-slate-200">
+                      <tr key={lot.id} className="border-t border-border text-text">
                         <td className="px-2 py-2">{lot.symbol}</td>
                         <td className="px-2 py-2 text-right">{lot.quantity}</td>
-                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
                           {formatCurrency(safeNumber(lot.realizedPnl))}
                         </td>
                         <td className="px-2 py-2 text-right">{lot.holdingDays}</td>
                         <td className="px-2 py-2">{lot.outcome}</td>
                         <td className="px-2 py-2">
-                          <Link href={`/executions?execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-blue-300 underline">
+                          <Link href={`/executions?execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">
                             {lot.openExecutionId.slice(0, 8)}...
                           </Link>
                         </td>
                         <td className="px-2 py-2">
                           {lot.closeExecutionId ? (
-                            <Link href={`/executions?execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-blue-300 underline">
+                            <Link href={`/executions?execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">
                               {lot.closeExecutionId.slice(0, 8)}...
                             </Link>
                           ) : (

@@ -291,10 +291,10 @@ export function AdjustmentForm({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-panel p-3">
+    <div className="rounded-xl border border-border bg-surface p-3">
       <p className="mb-3 text-sm font-semibold text-text">Create Adjustment</p>
       <div className="grid gap-2 md:grid-cols-2">
-        <label className="text-xs text-muted">
+        <label className="text-xs text-text-2">
           Account
           <select
             value={accountId}
@@ -305,7 +305,7 @@ export function AdjustmentForm({
                 setExecutionLookupError(null);
               }
             }}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
           >
             <option value="">Select account</option>
             {availableAccounts.map((value) => (
@@ -315,16 +315,16 @@ export function AdjustmentForm({
             ))}
           </select>
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-xs text-text-2">
           Symbol
           <input
             value={symbol}
             onChange={(event) => setSymbol(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
             placeholder="SDS"
           />
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-xs text-text-2">
           Effective Date
           <input
             type="date"
@@ -332,15 +332,15 @@ export function AdjustmentForm({
             onChange={(event) => setEffectiveDate(event.target.value)}
             readOnly={effectiveDateLocked}
             disabled={effectiveDateLocked}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
           />
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-xs text-text-2">
           Type
           <select
             value={adjustmentType}
             onChange={(event) => handleAdjustmentTypeChange(event.target.value as AdjustmentType)}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
           >
             <option value="SPLIT">SPLIT</option>
             <option value="QTY_OVERRIDE">QTY_OVERRIDE</option>
@@ -354,29 +354,29 @@ export function AdjustmentForm({
 
         {adjustmentType === "SPLIT" ? (
           <>
-            <label className="text-xs text-muted">
+            <label className="text-xs text-text-2">
               Ratio From
               <input
                 type="number"
                 min={1}
                 value={splitFrom}
                 onChange={(event) => setSplitFrom(Number(event.target.value))}
-                className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               />
             </label>
-            <label className="text-xs text-muted">
+            <label className="text-xs text-text-2">
               Ratio To
               <input
                 type="number"
                 min={1}
                 value={splitTo}
                 onChange={(event) => setSplitTo(Number(event.target.value))}
-                className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               />
             </label>
           </>
         ) : executionOverrideType ? (
-          <label className="text-xs text-muted md:col-span-2">
+          <label className="text-xs text-text-2 md:col-span-2">
             Execution ID
             <input
               value={executionId}
@@ -388,39 +388,39 @@ export function AdjustmentForm({
               onBlur={() => {
                 void resolveExecutionId();
               }}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               placeholder="clt123..."
             />
             {executionLookupError ? <span className="mt-1 block text-red-300">{executionLookupError}</span> : null}
-            {executionLookupLoading ? <span className="mt-1 block text-muted">Validating execution...</span> : null}
-            {executionResolved ? <span className="mt-1 block text-muted">Matched trade date {effectiveDate}.</span> : null}
+            {executionLookupLoading ? <span className="mt-1 block text-text-2">Validating execution...</span> : null}
+            {executionResolved ? <span className="mt-1 block text-text-2">Matched trade date {effectiveDate}.</span> : null}
           </label>
         ) : (
-          <label className="text-xs text-muted md:col-span-2">
+          <label className="text-xs text-text-2 md:col-span-2">
             Instrument Key
             <input
               value={instrumentKey}
               onChange={(event) => setInstrumentKey(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               placeholder="SDS or SPY|CALL|650|2027-12-17"
             />
           </label>
         )}
 
         {adjustmentType === "QTY_OVERRIDE" ? (
-          <label className="text-xs text-muted">
+          <label className="text-xs text-text-2">
             Override Qty
             <input
               type="number"
               value={overrideQty}
               onChange={(event) => setOverrideQty(Number(event.target.value))}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
             />
           </label>
         ) : null}
 
         {adjustmentType === "EXECUTION_QTY_OVERRIDE" ? (
-          <label className="text-xs text-muted">
+          <label className="text-xs text-text-2">
             Override Qty
             <input
               type="number"
@@ -430,14 +430,14 @@ export function AdjustmentForm({
               step="0.0001"
               value={executionOverrideQtyInput}
               onChange={(event) => setExecutionOverrideQtyInput(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               placeholder="2"
             />
           </label>
         ) : null}
 
         {adjustmentType === "EXECUTION_PRICE_OVERRIDE" ? (
-          <label className="text-xs text-muted">
+          <label className="text-xs text-text-2">
             Override Price
             <input
               type="number"
@@ -447,14 +447,14 @@ export function AdjustmentForm({
               step="0.0001"
               value={executionOverridePriceInput}
               onChange={(event) => setExecutionOverridePriceInput(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               placeholder="72.50"
             />
           </label>
         ) : null}
 
         {adjustmentType === "PRICE_OVERRIDE" ? (
-          <label className="text-xs text-muted">
+          <label className="text-xs text-text-2">
             Override Price
             <input
               type="number"
@@ -462,70 +462,70 @@ export function AdjustmentForm({
               step="0.0001"
               value={overridePrice}
               onChange={(event) => setOverridePrice(Number(event.target.value))}
-              className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+              className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
             />
           </label>
         ) : null}
 
         {adjustmentType === "ADD_POSITION" ? (
           <>
-            <label className="text-xs text-muted">
+            <label className="text-xs text-text-2">
               Asset Class
               <select
                 value={addAssetClass}
                 onChange={(event) => setAddAssetClass(event.target.value as "EQUITY" | "OPTION")}
-                className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               >
                 <option value="EQUITY">EQUITY</option>
                 <option value="OPTION">OPTION</option>
               </select>
             </label>
-            <label className="text-xs text-muted">
+            <label className="text-xs text-text-2">
               Net Qty
               <input
                 type="number"
                 value={addNetQty}
                 onChange={(event) => setAddNetQty(Number(event.target.value))}
-                className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               />
             </label>
-            <label className="text-xs text-muted">
+            <label className="text-xs text-text-2">
               Cost Basis
               <input
                 type="number"
                 value={addCostBasis}
                 onChange={(event) => setAddCostBasis(Number(event.target.value))}
-                className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
               />
             </label>
             {addAssetClass === "OPTION" ? (
               <>
-                <label className="text-xs text-muted">
+                <label className="text-xs text-text-2">
                   Option Type
                   <select
                     value={addOptionType}
                     onChange={(event) => setAddOptionType(event.target.value as "CALL" | "PUT")}
-                    className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                    className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
                   >
                     <option value="CALL">CALL</option>
                     <option value="PUT">PUT</option>
                   </select>
                 </label>
-                <label className="text-xs text-muted">
+                <label className="text-xs text-text-2">
                   Strike
                   <input
                     value={addStrike}
                     onChange={(event) => setAddStrike(event.target.value)}
-                    className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                    className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
                   />
                 </label>
-                <label className="text-xs text-muted">
+                <label className="text-xs text-text-2">
                   Expiration
                   <input
                     type="date"
                     value={addExpirationDate}
                     onChange={(event) => setAddExpirationDate(event.target.value)}
-                    className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+                    className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
                   />
                 </label>
               </>
@@ -533,36 +533,36 @@ export function AdjustmentForm({
           </>
         ) : null}
 
-        <label className="text-xs text-muted md:col-span-2">
+        <label className="text-xs text-text-2 md:col-span-2">
           Reason (required)
           <input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
             placeholder="Corporate action reconciliation"
           />
         </label>
-        <label className="text-xs text-muted md:col-span-2">
+        <label className="text-xs text-text-2 md:col-span-2">
           Evidence URL
           <input
             value={evidenceRef}
             onChange={(event) => setEvidenceRef(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
             placeholder="https://..."
           />
         </label>
-        <label className="text-xs text-muted md:col-span-2">
+        <label className="text-xs text-text-2 md:col-span-2">
           Created By
           <input
             value={createdBy}
             onChange={(event) => setCreatedBy(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-panel-2 px-2 py-2 text-xs text-text"
+            className="mt-1 w-full rounded border border-border bg-surface-2 px-2 py-2 text-xs text-text"
           />
         </label>
       </div>
 
       {adjustmentType === "SPLIT" ? (
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-2 text-xs text-text-2">
           {directionLabel(splitFrom, splitTo)} ({splitFrom}:{splitTo})
         </p>
       ) : null}
@@ -586,7 +586,7 @@ export function AdjustmentForm({
                 !executionResolved))
           }
           onClick={handlePreview}
-          className="rounded border border-border bg-panel-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
         >
           {previewing ? "Previewing..." : "Preview"}
         </button>
@@ -606,7 +606,7 @@ export function AdjustmentForm({
                 !executionResolved))
           }
           onClick={handleCreate}
-          className="rounded border border-border bg-accent/20 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border border-border bg-[color:var(--accent-dim)] px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving..." : "Create Adjustment"}
         </button>

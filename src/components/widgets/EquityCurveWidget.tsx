@@ -71,22 +71,22 @@ export function EquityCurveWidget() {
         <button
           type="button"
           onClick={() => setViewMode((current) => (current === "combined" ? "accounts" : "combined"))}
-          className="rounded border border-border bg-panel-2 px-2 py-0.5 text-[10px] text-muted"
+          className="rounded border border-border bg-surface-2 px-2 py-0.5 text-[10px] text-text-2"
         >
           {viewMode === "combined" ? "Combined" : "Per Account"}
         </button>
       }
     >
       {chartRows.length === 0 ? (
-        <p className="text-xs text-muted">No snapshot data available.</p>
+        <p className="text-xs text-text-2">No snapshot data available.</p>
       ) : (
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartRows}>
-              <XAxis dataKey="date" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-              <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}K`} />
+              <XAxis dataKey="date" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+              <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}K`} />
               <Tooltip
-                contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }}
+                contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
                 formatter={(value: number) => [value.toFixed(2), "Balance"]}
               />
               {viewMode === "combined" ? (
@@ -97,7 +97,7 @@ export function EquityCurveWidget() {
                     key={accountId}
                     type="monotone"
                     dataKey={accountId}
-                    stroke={index % 2 === 0 ? "var(--accent)" : "var(--accent-2)"}
+                    stroke={index % 2 === 0 ? "var(--accent)" : "var(--pos)"}
                     strokeWidth={2}
                     dot={false}
                   />

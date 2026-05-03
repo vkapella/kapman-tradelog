@@ -51,13 +51,13 @@ const AdjustmentsTableBody = memo(function AdjustmentsTableBody({
           <td className="px-2 py-2">{record.symbol}</td>
           <td className="px-2 py-2">
             {record.adjustmentType}
-            {splitDirection(record) ? <span className="ml-1 text-[10px] text-muted">({splitDirection(record)})</span> : null}
+            {splitDirection(record) ? <span className="ml-1 text-[10px] text-text-2">({splitDirection(record)})</span> : null}
           </td>
           <td className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</td>
-          <td className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-muted">{JSON.stringify(record.payload)}</td>
-          <td className="max-w-[260px] px-2 py-2 text-muted">{record.reason}</td>
+          <td className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-text-2">{JSON.stringify(record.payload)}</td>
+          <td className="max-w-[260px] px-2 py-2 text-text-2">{record.reason}</td>
           <td className="px-2 py-2">
-            <span className={record.status === "ACTIVE" ? "text-accent-2" : "text-muted"}>{record.status}</span>
+            <span className={record.status === "ACTIVE" ? "text-pos" : "text-text-2"}>{record.status}</span>
             {record.status === "ACTIVE" && supersededIds.has(record.id) ? <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span> : null}
           </td>
           <td className="px-2 py-2 text-right">
@@ -65,7 +65,7 @@ const AdjustmentsTableBody = memo(function AdjustmentsTableBody({
               type="button"
               disabled={record.status !== "ACTIVE" || reversingId === record.id}
               onClick={() => onReverse(record.id)}
-              className="rounded border border-border bg-panel-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-border bg-surface-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50"
             >
               {reversingId === record.id ? "Reversing..." : "Reverse"}
             </button>
@@ -231,9 +231,9 @@ export function AdjustmentList({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-panel p-3">
+    <div className="rounded-xl border border-border bg-surface p-3">
       <p className="mb-3 text-sm font-semibold text-text">Adjustment Ledger</p>
-      {totalRows === 0 ? <p className="text-xs text-muted">No adjustments yet.</p> : null}
+      {totalRows === 0 ? <p className="text-xs text-text-2">No adjustments yet.</p> : null}
       {totalRows > 0 ? (
         <div className="space-y-3">
           <DataTableToolbar
@@ -248,7 +248,7 @@ export function AdjustmentList({
           />
           <div className={showAll ? "max-h-[520px] overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}>
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-panel-2 text-muted">
+              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2">
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -269,9 +269,9 @@ export function AdjustmentList({
             </table>
           </div>
           {showAll ? (
-            <p className="text-xs text-muted">Showing all {totalRows} records</p>
+            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
           ) : (
-            <div className="flex items-center justify-between text-xs text-muted">
+            <div className="flex items-center justify-between text-xs text-text-2">
               <p>
                 Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>

@@ -71,8 +71,8 @@ export function HoldingDistributionWidget() {
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={bucketData} layout="vertical">
-            <XAxis type="number" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-            <YAxis type="category" dataKey="bucket" tick={{ fill: "var(--muted)", fontSize: 10 }} width={56} />
+            <XAxis type="number" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+            <YAxis type="category" dataKey="bucket" tick={{ fill: "var(--text-2)", fontSize: 10 }} width={56} />
             <Bar dataKey="count" fill="var(--accent)" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>

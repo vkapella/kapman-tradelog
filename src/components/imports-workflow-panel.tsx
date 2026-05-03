@@ -44,7 +44,7 @@ const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
   return (
     <tbody>
       {rows.map((row) => (
-        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+        <tr key={row.id} className="border-t border-border text-text">
           <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
           <td className="px-2 py-2">{row.filename}</td>
           <td className="px-2 py-2">{row.broker}</td>
@@ -58,7 +58,7 @@ const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
           <td className="px-2 py-2 text-right">{row.failed}</td>
           <td className="px-2 py-2 font-mono">{`${row.id.slice(0, 8)}...`}</td>
           <td className="px-2 py-2">
-            <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-blue-300 underline">
+            <a href={`/trade-records?tab=executions&import=${row.id}`} className="text-accent underline">
               View executions
             </a>
           </td>
@@ -67,7 +67,7 @@ const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
               type="button"
               onClick={() => void onRequestDeleteImport(row)}
               disabled={deletingImportId === row.id}
-              className="inline-flex items-center justify-center rounded border border-red-500/40 bg-red-500/20 p-1.5 text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded border border-[color:var(--neg)] bg-[color:var(--neg-dim)] p-1.5 text-neg disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={`Delete import ${row.filename}`}
               title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
             >
@@ -490,10 +490,10 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   );
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
+    <section className="space-y-6 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-100">Import Workflow</h2>
-        <p className="text-sm text-slate-300">Upload, detect, preview, and commit a broker statement into canonical T1 executions.</p>
+        <h2 className="text-xl font-semibold text-text">Import Workflow</h2>
+        <p className="text-sm text-text-2">Upload, detect, preview, and commit a broker statement into canonical T1 executions.</p>
       </header>
 
       {showUpload ? (
@@ -503,13 +503,13 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              className="w-full rounded-lg border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text"
             />
             <button
               type="button"
               onClick={handleUpload}
               disabled={!selectedFile || uploading}
-              className="rounded-lg border border-blue-400/40 bg-blue-500/20 px-4 py-2 text-sm text-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-4 py-2 text-sm text-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploading ? (uploadPhase === "parsing" ? "Parsing..." : "Uploading...") : "Upload Statement"}
             </button>
@@ -517,28 +517,28 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
           {(uploading || uploadProgress > 0) && (
             <div>
-              <p className="mb-1 text-xs text-slate-300">
+              <p className="mb-1 text-xs text-text-2">
                 {uploadPhase === "parsing" ? "Upload complete. Parsing preview..." : `Upload progress: ${uploadProgress}%`}
               </p>
-              <div className="h-2 rounded-full bg-slate-800">
-                <div className="h-2 rounded-full bg-blue-400" style={{ width: `${uploadProgress}%` }} />
+              <div className="h-2 rounded-full bg-surface-2">
+                <div className="h-2 rounded-full bg-accent" style={{ width: `${uploadProgress}%` }} />
               </div>
             </div>
           )}
 
           {uploadResult && (
-            <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+            <div className="space-y-4 rounded-xl border border-border bg-bg p-4">
               <div>
-                <p className="text-sm font-medium text-slate-100">Detection Result</p>
-                <p className="mt-1 text-xs text-slate-300">
+                <p className="text-sm font-medium text-text">Detection Result</p>
+                <p className="mt-1 text-xs text-text-2">
                   Adapter: {uploadResult.detection.adapterId} · Confidence: {uploadResult.detection.confidence} · Format: {" "}
                   {uploadResult.detection.formatVersion}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm font-medium text-slate-100">Parse Preview</p>
-                <div className="mt-2 overflow-auto rounded border border-slate-700">
+                <p className="text-sm font-medium text-text">Parse Preview</p>
+                <div className="mt-2 overflow-auto rounded border border-border">
                   <ImportPreviewTable adapter={uploadResult.detection.adapterId} rows={uploadResult.previewRows} />
                 </div>
               </div>
@@ -548,11 +548,11 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                   type="button"
                   onClick={handleCommit}
                   disabled={!canCommit}
-                  className="rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-4 py-2 text-sm text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-[color:var(--pos)] bg-[color:var(--pos-dim)] px-4 py-2 text-sm text-pos disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {committing ? "Committing..." : commitResult ? "Committed" : "Commit Import"}
                 </button>
-                {commitSummary && <p className="text-xs text-slate-200">{commitSummary}</p>}
+                {commitSummary && <p className="text-xs text-text">{commitSummary}</p>}
               </div>
 
               {commitResult?.warnings.length ? (
@@ -567,12 +567,12 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
         </>
       ) : null}
 
-      {error && <p className="text-sm text-red-200">{error}</p>}
+      {error && <p className="text-sm text-neg">{error}</p>}
 
       {showHistory ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-lg font-semibold text-slate-100">Import History</h3>
+            <h3 className="text-lg font-semibold text-text">Import History</h3>
           </div>
 
           <DataTableToolbar
@@ -591,11 +591,11 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
           ) : (
             <div className="space-y-2">
               <div
-                className={showAllHistory ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+                className={showAllHistory ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
                 style={showAllHistory ? { maxHeight: "calc(100vh - 280px)" } : undefined}
               >
                 <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+                  <thead className="sticky top-0 z-10 bg-surface text-text-2">
                     <tr>
                       {columns.map((column) => (
                         <DataTableHeader
@@ -617,9 +617,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               </div>
 
               {showAllHistory ? (
-                <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
+                <p className="text-xs text-text-2">Showing all {totalRows} records</p>
               ) : (
-                <div className="flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center justify-between text-xs text-text-2">
                   <p>
                     Showing page {currentPage} of {totalPages} ({totalRows} rows)
                   </p>
@@ -628,7 +628,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       type="button"
                       disabled={currentPage <= 1}
                       onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                      className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                      className="rounded border border-border px-2 py-1 disabled:opacity-50"
                     >
                       Prev
                     </button>
@@ -636,7 +636,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       type="button"
                       disabled={currentPage >= totalPages}
                       onClick={() => setHistoryPage((current) => Math.min(totalPages, current + 1))}
-                      className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                      className="rounded border border-border px-2 py-1 disabled:opacity-50"
                     >
                       Next
                     </button>
@@ -649,13 +649,13 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       ) : null}
 
       {deleteConfirmationImport ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5">
-            <h3 className="text-lg font-semibold text-slate-100">Delete committed import?</h3>
-            <dl className="mt-3 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-sm text-slate-200">
-              <dt className="text-slate-400">Filename</dt>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-bg px-4">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5">
+            <h3 className="text-lg font-semibold text-text">Delete committed import?</h3>
+            <dl className="mt-3 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-sm text-text">
+              <dt className="text-text-3">Filename</dt>
               <dd>{deleteConfirmationImport.filename}</dd>
-              <dt className="text-slate-400">Inserted count</dt>
+              <dt className="text-text-3">Inserted count</dt>
               <dd>{deleteConfirmationImport.insertedExecutions}</dd>
             </dl>
             <p className="mt-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
@@ -667,7 +667,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                 type="button"
                 onClick={() => setDeleteConfirmationImport(null)}
                 disabled={Boolean(deletingImportId)}
-                className="rounded border border-slate-600 px-3 py-2 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-border px-3 py-2 text-sm text-text disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -675,7 +675,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                 type="button"
                 onClick={() => void executeDeleteImport(deleteConfirmationImport)}
                 disabled={deletingImportId === deleteConfirmationImport.id}
-                className="rounded border border-red-500/40 bg-red-500/20 px-3 py-2 text-sm text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-[color:var(--neg)] bg-[color:var(--neg-dim)] px-3 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deletingImportId === deleteConfirmationImport.id ? "Deleting..." : "Delete Import"}
               </button>

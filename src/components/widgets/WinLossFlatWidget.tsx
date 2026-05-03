@@ -60,9 +60,9 @@ export function WinLossFlatWidget() {
   }, [rows, selectedAccounts]);
 
   const chartData = [
-    { name: "WIN", value: counts.WIN, color: "var(--accent-2)" },
-    { name: "LOSS", value: counts.LOSS, color: "var(--danger)" },
-    { name: "FLAT", value: counts.FLAT, color: "var(--muted)" },
+    { name: "WIN", value: counts.WIN, color: "var(--pos)" },
+    { name: "LOSS", value: counts.LOSS, color: "var(--neg)" },
+    { name: "FLAT", value: counts.FLAT, color: "var(--text-2)" },
   ];
 
   const winRate = counts.WIN + counts.LOSS === 0 ? null : (counts.WIN / (counts.WIN + counts.LOSS)) * 100;
@@ -78,11 +78,11 @@ export function WinLossFlatWidget() {
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }} />
+              <Tooltip contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="space-y-1 text-xs text-muted">
+        <div className="space-y-1 text-xs text-text-2">
           <p className="text-base font-semibold text-text" title="Percent of closed lots with positive outcome. Flat lots excluded.">
             Win Rate (%): {formatNullablePercent(winRate, 1)}
           </p>

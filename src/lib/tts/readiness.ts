@@ -112,15 +112,15 @@ export function getTtsStatusLabel(status: TtsRagStatus): string {
 
 export function getTtsStatusColor(status: TtsRagStatus): string {
   if (status === "green") {
-    return "var(--color-text-success)";
+    return "var(--pos)";
   }
 
   if (status === "amber") {
-    return "var(--color-text-warning)";
+    return "var(--warn)";
   }
 
   if (status === "red") {
-    return "var(--color-text-danger)";
+    return "var(--neg)";
   }
 
   return "var(--accent)";
@@ -128,16 +128,16 @@ export function getTtsStatusColor(status: TtsRagStatus): string {
 
 export function getTtsStatusTintClass(status: TtsRagStatus): string {
   if (status === "green") {
-    return "bg-[color:color-mix(in_srgb,var(--color-text-success)_18%,transparent)] text-[color:var(--color-text-success)]";
+    return "bg-[color:color-mix(in_srgb,var(--pos)_18%,transparent)] text-[color:var(--pos)]";
   }
 
   if (status === "amber") {
-    return "bg-[color:color-mix(in_srgb,var(--color-text-warning)_18%,transparent)] text-[color:var(--color-text-warning)]";
+    return "bg-[color:color-mix(in_srgb,var(--warn)_18%,transparent)] text-[color:var(--warn)]";
   }
 
   if (status === "red") {
-    return "bg-[color:color-mix(in_srgb,var(--color-text-danger)_18%,transparent)] text-[color:var(--color-text-danger)]";
+    return "bg-[color:color-mix(in_srgb,var(--neg)_18%,transparent)] text-[color:var(--neg)]";
   }
 
-  return "bg-panel-2 text-[color:var(--accent)]";
+  return "bg-surface-2 text-[color:var(--accent)]";
 }

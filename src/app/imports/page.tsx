@@ -20,7 +20,7 @@ function TabLink({ tab, activeTab, label }: { tab: ImportTab; activeTab: ImportT
       href={"/imports?tab=" + tab}
       className={[
         "rounded-lg border px-3 py-1 text-xs font-medium",
-        active ? "border-accent bg-accent/10 text-text" : "border-border bg-panel text-muted hover:text-text",
+        active ? "border-accent bg-[color:var(--accent-dim)] text-text" : "border-border bg-surface text-text-2 hover:text-text",
       ].join(" ")}
     >
       {label}

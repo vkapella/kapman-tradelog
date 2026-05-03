@@ -109,9 +109,9 @@ export function TtsReadinessWidget() {
     >
       <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3">
         {cells.map((cell) => (
-          <div key={cell.label} className="rounded-lg border border-border bg-panel-2 p-3">
+          <div key={cell.label} className="rounded-lg border border-border bg-surface-2 p-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] text-muted">{cell.label}</p>
+              <p className="text-[11px] text-text-2">{cell.label}</p>
               <span
                 aria-label={`${cell.label} status ${cell.status}`}
                 className="inline-flex h-2 w-2 rounded-full"
@@ -119,11 +119,11 @@ export function TtsReadinessWidget() {
               />
             </div>
             <p className="mt-2 text-lg font-semibold text-text">{cell.value}</p>
-            <p className="mt-1 text-[10px] text-muted">{cell.target}</p>
+            <p className="mt-1 text-[10px] text-text-2">{cell.target}</p>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[10px] text-muted">evidence/readiness signals — not legal determinations</p>
+      <p className="mt-2 text-[10px] text-text-2">evidence/readiness signals — not legal determinations</p>
     </WidgetCard>
   );
 }

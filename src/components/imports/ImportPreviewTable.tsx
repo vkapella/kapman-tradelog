@@ -25,7 +25,7 @@ function statusBadgeClass(status: FidelityExecutionPreviewRow["status"]): string
     return "border-amber-400/50 bg-amber-500/15 text-amber-200";
   }
 
-  return "border-slate-500/60 bg-slate-700/40 text-slate-200";
+  return "border-border bg-surface-3 text-text";
 }
 
 function statusLabel(status: FidelityExecutionPreviewRow["status"]): string {
@@ -64,12 +64,12 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
 
     return (
       <div>
-        <p className="px-2 py-2 text-[11px] text-slate-300">
+        <p className="px-2 py-2 text-[11px] text-text-2">
           Rows: {fidelityRows.length} · VALID {statusCounts.VALID} · WARNING {statusCounts.WARNING} · SKIPPED{" "}
           {statusCounts.SKIPPED} · CANCELLED {statusCounts.CANCELLED}
         </p>
         <table className="min-w-full text-xs">
-          <thead className="bg-slate-900 text-slate-300">
+          <thead className="bg-surface text-text-2">
             <tr>
               <th className="px-2 py-2 text-left">Run Date</th>
               <th className="px-2 py-2 text-left">Classified Action</th>
@@ -95,7 +95,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
                 <Fragment key={key}>
                   <tr
                     onClick={expandable ? () => setExpandedRows((current) => ({ ...current, [key]: !expanded })) : undefined}
-                    className={`border-t border-slate-800 text-slate-200 ${expandable ? "cursor-pointer" : ""}`}
+                    className={`border-t border-border text-text ${expandable ? "cursor-pointer" : ""}`}
                   >
                     <td className="px-2 py-2">{row.executionDate ?? "~"}</td>
                     <td className="px-2 py-2">{row.actionClassification}</td>
@@ -115,7 +115,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
                     </td>
                   </tr>
                   {expanded && row.warningMessage ? (
-                    <tr className="border-t border-slate-800 bg-amber-500/5 text-amber-100">
+                    <tr className="border-t border-border bg-amber-500/5 text-amber-100">
                       <td className="px-2 py-2" colSpan={12}>
                         {row.warningMessage}
                       </td>
@@ -132,7 +132,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
 
   return (
     <table className="min-w-full text-xs">
-      <thead className="bg-slate-900 text-slate-300">
+      <thead className="bg-surface text-text-2">
         <tr>
           <th className="px-2 py-2 text-left">Timestamp</th>
           <th className="px-2 py-2 text-left">Symbol</th>
@@ -145,7 +145,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
       </thead>
       <tbody>
         {legacyRows.map((row, index) => (
-          <tr key={`${row.eventTimestamp}-${index}`} className="border-t border-slate-800 text-slate-200">
+          <tr key={`${row.eventTimestamp}-${index}`} className="border-t border-border text-text">
             <td className="px-2 py-2">{row.eventTimestamp}</td>
             <td className="px-2 py-2">{row.symbol}</td>
             <td className="px-2 py-2">{row.side}</td>
