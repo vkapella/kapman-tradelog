@@ -33,8 +33,7 @@ export const navGroups: NavGroup[] = [
     label: "IMPORT & DATA",
     items: [
       { href: "/imports", label: "Imports & Connections", badgeKey: "importCount" },
-      { href: "/accounts", label: "Accounts" },
-      { href: "/adjustments", label: "Adjustments" },
+      { href: "/ledger-admin", label: "Ledger Admin" },
     ],
   },
 ];
@@ -69,16 +68,12 @@ export function getTopbarContextTags(pathname: string): string[] {
     return ["Live marks"];
   }
 
-  if (pathname.startsWith("/accounts")) {
-    return ["Account metadata"];
-  }
-
   if (pathname.startsWith("/analytics")) {
     return ["Derived metrics"];
   }
 
-  if (pathname.startsWith("/adjustments")) {
-    return ["Audit trail", "Overrides"];
+  if (pathname.startsWith("/ledger-admin")) {
+    return ["Account metadata", "Audit trail", "Overrides"];
   }
 
   return [];
