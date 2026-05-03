@@ -60,7 +60,7 @@ Postgres Docker volume and removes local database data.
 
 ## UI target
 
-Use [design/kapman_dashboard_mock_v6.html](design/kapman_dashboard_mock_v6.html) as the visual hierarchy target for page structure and card/table emphasis.
+Use [design/kapman_dashboard_mock_v7.html](design/kapman_dashboard_mock_v7.html) as the active UX skin target. Historical mockups are archived under `design/archived/`.
 
 ## Prerequisites
 

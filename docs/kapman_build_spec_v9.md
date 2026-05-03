@@ -2,8 +2,8 @@
 
 **Version:** 9.0
 **Date:** 2026-04-12
-**Baseline:** v7.2 as-built inventory (`docs/kapman_v7_2_as_built_inventory.md`)
-**Predecessor docs:** `docs/kapman_build_spec_v7.md`, `docs/kapman_codex_master_prompt_v7.md`, `docs/kapman_github_issues_v7.md`
+**Baseline:** archived v7.2 as-built inventory (`docs/archived/kapman_v7_2_as_built_inventory.md`)
+**Predecessor docs:** `docs/archived/kapman_build_spec_v7.md`, `docs/archived/kapman_codex_master_prompt_v7.md`, `docs/archived/kapman_github_issues_v7.md`
 
 ---
 
@@ -253,7 +253,7 @@ These are not addressed in v9.0:
 ## 6. Documentation Updates Required
 
 After v9.0 is complete:
-1. Update `docs/kapman_v7_2_as_built_inventory.md` → create `docs/kapman_v9_as_built_inventory.md`.
-2. Archive `docs/kapman_build_spec_v7.md` as historical reference.
+1. Create `docs/kapman_v9_as_built_inventory.md` using `docs/archived/kapman_v7_2_as_built_inventory.md` as historical baseline.
+2. Keep v7/v8 build specs under `docs/archived/` as historical reference.
 3. Remove `STARTING_CAPITAL` from any `.env.example` or README instructions.
 4. Add Accounts page to any user-facing documentation or onboarding guide.
