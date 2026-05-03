@@ -102,6 +102,20 @@ If either fails, fix the failure before marking the issue closed.
 gh issue close NNN --comment "Resolved in PR #<pr-number>"
 ```
 
+### Step 10 — Clean up the local checkout after merge
+
+After the PR is merged or auto-merge completes, return the local workspace to
+`main` before reporting completion:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git status -sb
+```
+
+The final status must show `main` tracking `origin/main` with no uncommitted
+changes. Do not leave the local checkout on a closed PR branch.
+
 ### Definition of done — automated checklist
 
 Work on an issue is NOT complete unless ALL of the following are confirmed
@@ -114,8 +128,9 @@ by you, not reported to the human for confirmation:
 - [ ] PR is open and auto-merge is enabled (verified via `gh pr view --json autoMergeRequest`)
 - [ ] Smoke test curl commands return expected output
 - [ ] GitHub issue is closed with PR reference
+- [ ] Local checkout is back on `main`, fast-forwarded from `origin/main`, with a clean `git status -sb`
 
-Only after all seven are confirmed should you report completion to the human.
+Only after all checklist items are confirmed should you report completion to the human.
 
 Do not push directly to `main` unless the user explicitly requests
 direct-to-main delivery.
