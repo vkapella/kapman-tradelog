@@ -19,6 +19,13 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "EVIDENCE & AUDIT",
+    items: [
+      { href: "/tts-evidence", label: "TTS Evidence" },
+      { href: "/diagnostics", label: "Diagnostics" },
+    ],
+  },
+  {
     label: "TRADE RECORDS",
     items: [{ href: "/trade-records", label: "Executions / Lots / Setups", badgeKey: "executionCount" }],
   },
@@ -28,13 +35,6 @@ export const navGroups: NavGroup[] = [
       { href: "/imports", label: "Imports & Connections", badgeKey: "importCount" },
       { href: "/accounts", label: "Accounts" },
       { href: "/adjustments", label: "Adjustments" },
-    ],
-  },
-  {
-    label: "EVIDENCE & AUDIT",
-    items: [
-      { href: "/tts-evidence", label: "TTS Evidence" },
-      { href: "/diagnostics", label: "Diagnostics" },
     ],
   },
 ];
