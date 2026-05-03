@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { formatCompactCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import {
   getOverallTtsReadinessStatus,
@@ -20,6 +21,7 @@ interface TtsPayload {
 
 export function TtsReadinessWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [metrics, setMetrics] = useState<TtsEvidenceResponse | null>(null);
 
   useEffect(() => {
@@ -28,6 +30,7 @@ export function TtsReadinessWidget() {
     async function loadMetrics() {
       const query = new URLSearchParams();
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
 
       const response = await fetch(`/api/tts/evidence?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
@@ -46,7 +49,7 @@ export function TtsReadinessWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const values = metrics ?? {
     tradesPerMonth: 0,

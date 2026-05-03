@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DiagnosticCaseFilePanel } from "@/components/diagnostic-case-file-panel";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { DiagnosticsResponse } from "@/types/api";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
@@ -17,6 +18,7 @@ interface DiagnosticsPayload {
 export function DiagnosticsPanel() {
   const searchParams = useSearchParams();
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export function DiagnosticsPanel() {
 
       const query = new URLSearchParams();
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/diagnostics?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         setError("Unable to load diagnostics.");
@@ -41,7 +44,7 @@ export function DiagnosticsPanel() {
     }
 
     void loadDiagnostics();
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const hasData = Boolean(
     data &&

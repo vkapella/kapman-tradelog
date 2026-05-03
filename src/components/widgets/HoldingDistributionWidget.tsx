@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { MatchedLotRecord } from "@/types/api";
 
@@ -13,6 +14,7 @@ interface MatchedLotsPayload {
 
 export function HoldingDistributionWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [rows, setRows] = useState<MatchedLotRecord[]>([]);
 
   useEffect(() => {
@@ -21,6 +23,7 @@ export function HoldingDistributionWidget() {
     async function loadRows() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/matched-lots?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -37,7 +40,7 @@ export function HoldingDistributionWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const bucketData = useMemo(() => {
     const buckets = {

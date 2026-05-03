@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import type { DiagnosticsResponse } from "@/types/api";
@@ -13,6 +14,7 @@ interface DiagnosticsPayload {
 
 export function DiagnosticsWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
 
   useEffect(() => {
@@ -21,6 +23,7 @@ export function DiagnosticsWidget() {
     async function loadData() {
       const query = new URLSearchParams();
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/diagnostics?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -37,7 +40,7 @@ export function DiagnosticsWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const clear = Boolean(data && data.warningsCount === 0 && data.parseCoverage === 1 && data.matchingCoverage === 1);
 

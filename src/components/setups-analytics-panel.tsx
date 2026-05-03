@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
@@ -11,6 +11,7 @@ import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
@@ -64,6 +65,7 @@ export function SetupsAnalyticsPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -100,6 +102,7 @@ export function SetupsAnalyticsPanel() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
+        applyRangeToSearchParams(query);
         const payload = await fetchAllPages<SetupSummaryRecord>("/api/setups", query);
         if (!cancelled) {
           setRows(payload.data);
@@ -121,7 +124,7 @@ export function SetupsAnalyticsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +146,7 @@ export function SetupsAnalyticsPanel() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
+        applyRangeToSearchParams(query);
         const response = await fetch(`/api/setups/${selectedSetupId}?${query.toString()}`, { cache: "no-store" });
         if (!response.ok) {
           if (!cancelled) {
@@ -173,7 +177,7 @@ export function SetupsAnalyticsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts, selectedSetupId]);
+  }, [selectedAccounts, selectedSetupId, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const columns = useMemo<DataTableColumnDefinition<SetupSummaryRecord>[]>(() => [
     {

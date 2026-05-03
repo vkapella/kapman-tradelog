@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { parsePayloadByType } from "@/lib/adjustments/types";
-import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
+import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { buildInferenceLots } from "@/lib/analytics/inference-lot-builder";
@@ -92,11 +92,60 @@ function mapMatchedLot(row: {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
+  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
   const accountScope = buildAccountScopeWhere(accountIds);
   const executionAccountScope = accountScope as Prisma.ExecutionWhereInput | undefined;
   const importAccountScope = accountScope as Prisma.ImportWhereInput | undefined;
   const matchedLotAccountScope = accountScope as Prisma.MatchedLotWhereInput | undefined;
   const adjustmentAccountScope = accountScope as Prisma.ManualAdjustmentWhereInput | undefined;
+  const executionDateWhere =
+    startDate || endDate
+      ? {
+          eventTimestamp: {
+            ...(startDate ? { gte: new Date(startDate) } : {}),
+            ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          },
+        }
+      : undefined;
+  const matchedLotDateWhere =
+    startDate || endDate
+      ? {
+          OR: [
+            {
+              closeExecution: {
+                is: {
+                  tradeDate: {
+                    ...(startDate ? { gte: new Date(startDate) } : {}),
+                    ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                  },
+                },
+              },
+            },
+            {
+              AND: [
+                { closeExecution: { is: null } },
+                {
+                  openExecution: {
+                    tradeDate: {
+                      ...(startDate ? { gte: new Date(startDate) } : {}),
+                      ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        }
+      : undefined;
+  const adjustmentDateWhere =
+    startDate || endDate
+      ? {
+          createdAt: {
+            ...(startDate ? { gte: new Date(startDate) } : {}),
+            ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          },
+        }
+      : undefined;
 
   const closeCandidateWhere: Prisma.ExecutionWhereInput = {
     OR: [
@@ -114,14 +163,12 @@ export async function GET(request: Request) {
       select: { accountId: true, warnings: true, parsedRows: true, skippedRows: true },
     }),
     prisma.execution.findMany({
-      where: {
-        AND: [{ eventType: "EXPIRATION_INFERRED" }, ...(executionAccountScope ? [executionAccountScope] : [])],
-      },
+      where: { AND: [{ eventType: "EXPIRATION_INFERRED" }, ...(executionAccountScope ? [executionAccountScope] : []), ...(executionDateWhere ? [executionDateWhere] : [])] },
       select: { id: true, accountId: true, instrumentKey: true },
       orderBy: [{ tradeDate: "desc" }, { id: "desc" }],
     }),
     prisma.matchedLot.findMany({
-      where: matchedLotAccountScope,
+      where: { AND: [matchedLotAccountScope, matchedLotDateWhere].filter(Boolean) as Prisma.MatchedLotWhereInput[] },
       include: {
         openExecution: true,
         closeExecution: true,
@@ -129,9 +176,7 @@ export async function GET(request: Request) {
       orderBy: [{ openExecution: { tradeDate: "asc" } }, { id: "asc" }],
     }),
     prisma.execution.findMany({
-      where: {
-        AND: [closeCandidateWhere, ...(executionAccountScope ? [executionAccountScope] : [])],
-      },
+      where: { AND: [closeCandidateWhere, ...(executionAccountScope ? [executionAccountScope] : []), ...(executionDateWhere ? [executionDateWhere] : [])] },
       select: {
         id: true,
         accountId: true,
@@ -145,7 +190,7 @@ export async function GET(request: Request) {
       orderBy: [{ tradeDate: "desc" }, { id: "desc" }],
     }),
     prisma.execution.findMany({
-      where: executionAccountScope,
+      where: { AND: [executionAccountScope, executionDateWhere].filter(Boolean) as Prisma.ExecutionWhereInput[] },
       select: {
         id: true,
         accountId: true,
@@ -173,6 +218,7 @@ export async function GET(request: Request) {
       where: {
         AND: [
           ...(adjustmentAccountScope ? [adjustmentAccountScope] : []),
+          ...(adjustmentDateWhere ? [adjustmentDateWhere] : []),
           {
             status: "ACTIVE",
             adjustmentType: {

@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
+import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import type { ExecutionRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const dateFrom = url.searchParams.get("date_from");
   const dateTo = url.searchParams.get("date_to");
   const accountScope = buildAccountScopeWhere(accountIds);
+  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
 
   const andClauses: Prisma.ExecutionWhereInput[] = [];
   if (accountScope) {
@@ -44,6 +45,14 @@ export async function GET(request: Request) {
       tradeDate: {
         ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
         ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      },
+    });
+  }
+  if (startDate || endDate) {
+    andClauses.push({
+      eventTimestamp: {
+        ...(startDate ? { gte: new Date(startDate) } : {}),
+        ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
       },
     });
   }

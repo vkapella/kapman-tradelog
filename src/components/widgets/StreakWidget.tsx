@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 
@@ -22,6 +23,7 @@ interface ResponsePayload {
 
 export function StreakWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<StreakPayload | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export function StreakWidget() {
     async function loadData() {
       const query = new URLSearchParams();
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/overview/streaks?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -55,7 +58,7 @@ export function StreakWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const headline = data
     ? data.currentStreakType === "WIN"

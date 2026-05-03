@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
@@ -66,6 +67,7 @@ const analyticsKpiHelpText: Record<string, InfoTooltipContent> = {
 
 export default function Page() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
   const [allSetups, setAllSetups] = useState<SetupSummaryRecord[]>([]);
   const [tableRows, setTableRows] = useState<SetupSummaryRecord[]>([]);
@@ -93,6 +95,7 @@ export default function Page() {
     async function loadSetupsForChart() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -109,7 +112,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +123,7 @@ export default function Page() {
         pageSize: String(showAll ? 1000 : 25),
       });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -137,7 +141,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [showAll, tablePage, selectedAccounts]);
+  }, [showAll, tablePage, selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +151,8 @@ export default function Page() {
       const diagnosticsQuery = new URLSearchParams();
       applyAccountIdsToSearchParams(lotsQuery, selectedAccounts);
       applyAccountIdsToSearchParams(diagnosticsQuery, selectedAccounts);
+      applyRangeToSearchParams(lotsQuery);
+      applyRangeToSearchParams(diagnosticsQuery);
 
       const [lotsResponse, diagnosticsResponse] = await Promise.all([
         fetch(`/api/matched-lots?${lotsQuery.toString()}`, { cache: "no-store" }),
@@ -173,7 +179,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const filteredAllSetups = useMemo(() => allSetups.filter((row) => selectedAccounts.includes(row.accountId)), [allSetups, selectedAccounts]);
   const filteredLots = useMemo(() => matchedLots.filter((row) => selectedAccounts.includes(row.accountId)), [matchedLots, selectedAccounts]);

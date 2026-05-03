@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type { ExecutionRecord } from "@/types/api";
 
@@ -14,6 +15,7 @@ interface ExecutionsPayload {
 
 export function RecentExecutionsWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [rows, setRows] = useState<ExecutionRecord[]>([]);
 
   useEffect(() => {
@@ -22,6 +24,7 @@ export function RecentExecutionsWidget() {
     async function loadRows() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/executions?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -38,7 +41,7 @@ export function RecentExecutionsWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const recentRows = useMemo(() => {
     return rows

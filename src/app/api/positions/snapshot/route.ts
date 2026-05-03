@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseAccountIds } from "@/lib/api/account-scope";
+import { parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
 import {
   parsePositionSnapshotPositionsJson,
@@ -46,6 +46,7 @@ function mapSnapshotRow(row: SnapshotRow): PositionSnapshotResponseData {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const snapshotId = url.searchParams.get("snapshotId");
+  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
 
   let snapshot: SnapshotRow | null;
   if (snapshotId) {
@@ -72,8 +73,17 @@ export async function GET(request: Request) {
     const resolvedAccountIds = await resolvePositionSnapshotAccountIds(requestedAccountIds);
     const accountIdsJson = serializePositionSnapshotAccountIds(resolvedAccountIds);
 
+    const dateScope =
+      startDate || endDate
+        ? {
+            snapshotAt: {
+              ...(startDate ? { gte: new Date(startDate) } : {}),
+              ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+            },
+          }
+        : undefined;
     snapshot = await prisma.positionSnapshot.findFirst({
-      where: { accountIds: accountIdsJson },
+      where: dateScope ? { AND: [{ accountIds: accountIdsJson }, dateScope] } : { accountIds: accountIdsJson },
       orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       select: {
         id: true,

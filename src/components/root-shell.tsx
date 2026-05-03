@@ -3,14 +3,18 @@
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { AccountSelector } from "@/components/account-selector";
+import { RangeSelector } from "@/components/range-selector";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { AccountFilterContextProvider } from "@/contexts/AccountFilterContext";
+import { RangeFilterProvider } from "@/contexts/RangeFilterContext";
 import { getRouteTitle, getTopbarContextTags } from "@/lib/navigation";
 
 export function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <AccountFilterContextProvider>
-      <ShellContent>{children}</ShellContent>
+      <RangeFilterProvider>
+        <ShellContent>{children}</ShellContent>
+      </RangeFilterProvider>
     </AccountFilterContextProvider>
   );
 }
@@ -60,7 +64,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               ))}
             </div>
           </div>
-          <AccountSelector />
+          <div className="flex items-center gap-2">
+            <RangeSelector />
+            <AccountSelector />
+          </div>
         </header>
 
         <main style={{ padding: 0 }}>{children}</main>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
@@ -13,6 +14,7 @@ interface SetupsPayload {
 
 export function TopSetupsWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
 
   useEffect(() => {
@@ -21,6 +23,7 @@ export function TopSetupsWidget() {
     async function loadRows() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -37,7 +40,7 @@ export function TopSetupsWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const topRows = useMemo(() => {
     return rows

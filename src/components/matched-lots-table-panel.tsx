@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
@@ -13,6 +13,7 @@ import type { DataTableColumnDefinition, SortDirection } from "@/components/data
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
@@ -86,6 +87,7 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
 export function MatchedLotsTablePanel() {
   const searchParams = useSearchParams();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [rows, setRows] = useState<MatchedLotRecord[]>([]);
@@ -140,6 +142,7 @@ export function MatchedLotsTablePanel() {
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
+        applyRangeToSearchParams(query);
         const payload = await fetchAllPages<MatchedLotRecord>("/api/matched-lots", query);
         if (!cancelled) {
           setRows(payload.data);
@@ -161,7 +164,7 @@ export function MatchedLotsTablePanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const importLabelById = useMemo(() => {
     return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));

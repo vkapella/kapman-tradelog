@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import type { LegendProps } from "recharts";
 import { Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
@@ -50,6 +51,7 @@ function ExpectancyLegend(_props: LegendProps) {
 
 export function ExpectancyScatterWidget() {
   const { selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export function ExpectancyScatterWidget() {
     async function loadRows() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
+      applyRangeToSearchParams(query);
       const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         return;
@@ -74,7 +77,7 @@ export function ExpectancyScatterWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Array<{ x: number; y: number; z: number; row: SetupSummaryRecord }>>();
