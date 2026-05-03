@@ -8,8 +8,7 @@ import { Badge } from "@/components/Badge";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -20,6 +19,8 @@ import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
+
+const MATCHED_LOTS_COLUMN_TEMPLATE = "120px 110px 150px 340px 80px 130px 110px 110px 150px 150px 120px";
 
 function displayMatchedLotSymbol(row: Pick<MatchedLotRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -38,31 +39,31 @@ const MatchedLotsTableRow = memo(function MatchedLotsTableRow({
 }) {
   return (
     <>
-      <td className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</td>
-      <td className="px-2 py-2">{displayMatchedLotSymbol(row)}</td>
-      <td className="px-2 py-2">
+      <div className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</div>
+      <div className="px-2 py-2">{displayMatchedLotSymbol(row)}</div>
+      <div className="px-2 py-2">
         <AccountLabel accountId={row.accountId} />
-      </td>
-      <td className="px-2 py-2">
+      </div>
+      <div className="px-2 py-2">
         {[row.openImportId, row.closeImportId]
           .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
           .map((value) => importLabelById.get(value) ?? shortId(value))
           .join(" / ")}
-      </td>
-      <td className="px-2 py-2 text-right">{row.quantity}</td>
-      <td className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
+      </div>
+      <div className="px-2 py-2 text-right">{row.quantity}</div>
+      <div className={`px-2 py-2 text-right ${Number(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
         {formatCurrency(safeNumber(row.realizedPnl))}
-      </td>
-      <td className="px-2 py-2 text-right">{row.holdingDays}</td>
-      <td className="px-2 py-2">
+      </div>
+      <div className="px-2 py-2 text-right">{row.holdingDays}</div>
+      <div className="px-2 py-2">
         {row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}
-      </td>
-      <td className="px-2 py-2 font-mono">
+      </div>
+      <div className="px-2 py-2 font-mono">
         <Link href={`/trade-records?tab=executions&execution=${row.openExecutionId}&account=${row.accountId}`} className="text-accent underline">
           {shortId(row.openExecutionId)}
         </Link>
-      </td>
-      <td className="px-2 py-2 font-mono">
+      </div>
+      <div className="px-2 py-2 font-mono">
         {row.closeExecutionId ? (
           <Link href={`/trade-records?tab=executions&execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-accent underline">
             {shortId(row.closeExecutionId)}
@@ -70,12 +71,12 @@ const MatchedLotsTableRow = memo(function MatchedLotsTableRow({
         ) : (
           "-"
         )}
-      </td>
-      <td className="px-2 py-2">
+      </div>
+      <div className="px-2 py-2">
         <Link href={buildDiagnosticCaseHref({ kind: "matched_lot", matchedLotId: row.id })} className="text-accent underline">
           Case file
         </Link>
-      </td>
+      </div>
     </>
   );
 });
@@ -224,33 +225,31 @@ export function MatchedLotsTablePanel() {
       ) : null}
 
       {!loading && !error && totalRows > 0 ? (
-        <ScrollableTableShell scrollContainerRef={scrollContainerRef}>
-          <table className="min-w-[1440px] table-fixed text-xs">
-            <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-              <tr>
-                {columns.map((column) => (
-                  <DataTableHeader
-                    key={column.id}
-                    column={column}
-                    currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                    currentValues={table.filters[column.id] ?? []}
-                    isOpen={openColumnId === column.id}
-                    onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                    onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                    onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                    options={table.filterOptions[column.id] ?? []}
-                  />
-                ))}
-              </tr>
-            </thead>
-            <VirtualTableBody
-              rows={table.sortedRows}
-              scrollContainerRef={scrollContainerRef}
-              getRowKey={(row) => row.id}
-              renderRow={(row) => <MatchedLotsTableRow row={row} importLabelById={importLabelById} />}
-            />
-          </table>
-        </ScrollableTableShell>
+        <VirtualGridTableShell scrollContainerRef={scrollContainerRef}>
+          <VirtualGridHeaderRow columnTemplate={MATCHED_LOTS_COLUMN_TEMPLATE}>
+            {columns.map((column) => (
+              <DataTableHeader
+                key={column.id}
+                as="div"
+                column={column}
+                currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                currentValues={table.filters[column.id] ?? []}
+                isOpen={openColumnId === column.id}
+                onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                options={table.filterOptions[column.id] ?? []}
+              />
+            ))}
+          </VirtualGridHeaderRow>
+          <VirtualGridBody
+            columnTemplate={MATCHED_LOTS_COLUMN_TEMPLATE}
+            rows={table.sortedRows}
+            scrollContainerRef={scrollContainerRef}
+            getRowKey={(row) => row.id}
+            renderRow={(row) => <MatchedLotsTableRow row={row} importLabelById={importLabelById} />}
+          />
+        </VirtualGridTableShell>
       ) : null}
     </section>
   );

@@ -5,14 +5,15 @@ import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { findSupersededExecutionPriceOverrideIds } from "@/lib/adjustments/execution-price-overrides";
 import { findSupersededExecutionQtyOverrideIds } from "@/lib/adjustments/execution-qty-overrides";
 import type { ManualAdjustmentRecord } from "@/types/api";
+
+const ADJUSTMENTS_COLUMN_TEMPLATE = "190px 160px 110px 150px 120px 300px 300px 140px 110px";
 
 function splitDirection(record: ManualAdjustmentRecord): string | null {
   if (record.adjustmentType !== "SPLIT") return null;
@@ -25,15 +26,15 @@ function splitDirection(record: ManualAdjustmentRecord): string | null {
 const AdjustmentRow = memo(function AdjustmentRow({ record, onReverse, reversingId, supersededIds }: { record: ManualAdjustmentRecord; onReverse: (id: string) => void; reversingId: string | null; supersededIds: Set<string>; }) {
   return (
     <>
-      <td className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</td>
-      <td className="px-2 py-2"><AccountLabel accountId={record.accountId} /></td>
-      <td className="px-2 py-2">{record.symbol}</td>
-      <td className="px-2 py-2">{record.adjustmentType}{splitDirection(record) ? <span className="ml-1 text-[10px] text-text-2">({splitDirection(record)})</span> : null}</td>
-      <td className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</td>
-      <td className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-text-2">{JSON.stringify(record.payload)}</td>
-      <td className="max-w-[260px] px-2 py-2 text-text-2">{record.reason}</td>
-      <td className="px-2 py-2"><span className={record.status === "ACTIVE" ? "text-pos" : "text-text-2"}>{record.status}</span>{record.status === "ACTIVE" && supersededIds.has(record.id) ? <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span> : null}</td>
-      <td className="px-2 py-2 text-right"><button type="button" disabled={record.status !== "ACTIVE" || reversingId === record.id} onClick={() => onReverse(record.id)} className="rounded border border-border bg-surface-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50">{reversingId === record.id ? "Reversing..." : "Reverse"}</button></td>
+      <div className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</div>
+      <div className="px-2 py-2"><AccountLabel accountId={record.accountId} /></div>
+      <div className="px-2 py-2">{record.symbol}</div>
+      <div className="px-2 py-2">{record.adjustmentType}{splitDirection(record) ? <span className="ml-1 text-[10px] text-text-2">({splitDirection(record)})</span> : null}</div>
+      <div className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</div>
+      <div className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-text-2">{JSON.stringify(record.payload)}</div>
+      <div className="max-w-[260px] px-2 py-2 text-text-2">{record.reason}</div>
+      <div className="px-2 py-2"><span className={record.status === "ACTIVE" ? "text-pos" : "text-text-2"}>{record.status}</span>{record.status === "ACTIVE" && supersededIds.has(record.id) ? <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span> : null}</div>
+      <div className="px-2 py-2 text-right"><button type="button" disabled={record.status !== "ACTIVE" || reversingId === record.id} onClick={() => onReverse(record.id)} className="rounded border border-border bg-surface-2 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50">{reversingId === record.id ? "Reversing..." : "Reverse"}</button></div>
     </>
   );
 });
@@ -73,33 +74,31 @@ export function AdjustmentList({ adjustments, onReverse, reversingId }: { adjust
       {table.sortedRows.length > 0 ? (
         <div className="space-y-3">
           <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
-          <ScrollableTableShell height="calc(100vh - 520px)" scrollContainerRef={scrollContainerRef}>
-            <table className="min-w-[1440px] table-fixed text-xs">
-              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                <tr>
-                  {columns.map((column) => (
-                    <DataTableHeader
-                      key={column.id}
-                      column={column}
-                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                      currentValues={table.filters[column.id] ?? []}
-                      isOpen={openColumnId === column.id}
-                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                      options={table.filterOptions[column.id] ?? []}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <VirtualTableBody
-                rows={table.sortedRows}
-                scrollContainerRef={scrollContainerRef}
-                getRowKey={(record) => record.id}
-                renderRow={(record) => <AdjustmentRow record={record} onReverse={onReverse} reversingId={reversingId} supersededIds={supersededIds} />}
-              />
-            </table>
-          </ScrollableTableShell>
+          <VirtualGridTableShell height="calc(100vh - 520px)" scrollContainerRef={scrollContainerRef}>
+            <VirtualGridHeaderRow columnTemplate={ADJUSTMENTS_COLUMN_TEMPLATE} className="bg-surface-2 text-text-2">
+              {columns.map((column) => (
+                <DataTableHeader
+                  key={column.id}
+                  as="div"
+                  column={column}
+                  currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                  currentValues={table.filters[column.id] ?? []}
+                  isOpen={openColumnId === column.id}
+                  onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                  onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                  onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                  options={table.filterOptions[column.id] ?? []}
+                />
+              ))}
+            </VirtualGridHeaderRow>
+            <VirtualGridBody
+              columnTemplate={ADJUSTMENTS_COLUMN_TEMPLATE}
+              rows={table.sortedRows}
+              scrollContainerRef={scrollContainerRef}
+              getRowKey={(record) => record.id}
+              renderRow={(record) => <AdjustmentRow record={record} onReverse={onReverse} reversingId={reversingId} supersededIds={supersededIds} />}
+            />
+          </VirtualGridTableShell>
         </div>
       ) : null}
     </div>

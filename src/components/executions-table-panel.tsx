@@ -8,8 +8,7 @@ import { Badge } from "@/components/Badge";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
+import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -21,6 +20,8 @@ import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ApiDetailResponse, ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
 interface ExecutionDetailPayload extends ApiDetailResponse<ExecutionDetailRecord> {}
+
+const EXECUTIONS_COLUMN_TEMPLATE = "190px 120px 90px 78px 64px 96px 110px 110px 190px 130px 420px 130px 130px";
 
 function displayExecutionSymbol(row: Pick<ExecutionRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -53,16 +54,16 @@ const ExecutionsTableRow = memo(function ExecutionsTableRow({
 }) {
   return (
     <>
-          <td className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</td>
-          <td className="px-2 py-2">{row.tradeDate.slice(0, 10)}</td>
-          <td className="px-2 py-2">{displayExecutionSymbol(row)}</td>
-          <td className="px-2 py-2">
+          <div className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</div>
+          <div className="px-2 py-2">{row.tradeDate.slice(0, 10)}</div>
+          <div className="px-2 py-2">{displayExecutionSymbol(row)}</div>
+          <div className="px-2 py-2">
             {row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : "-"}
-          </td>
-          <td className="px-2 py-2 text-right">{row.quantity}</td>
-          <td className="px-2 py-2 text-right">{row.price ?? "~"}</td>
-          <td className="px-2 py-2">{row.eventType}</td>
-          <td className="px-2 py-2">
+          </div>
+          <div className="px-2 py-2 text-right">{row.quantity}</div>
+          <div className="px-2 py-2 text-right">{row.price ?? "~"}</div>
+          <div className="px-2 py-2">{row.eventType}</div>
+          <div className="px-2 py-2">
             {row.openingClosingEffect === "TO_OPEN" ? (
               <Badge variant="to-open">TO_OPEN</Badge>
             ) : row.openingClosingEffect === "TO_CLOSE" ? (
@@ -70,8 +71,8 @@ const ExecutionsTableRow = memo(function ExecutionsTableRow({
             ) : (
               "UNKNOWN"
             )}
-          </td>
-          <td className="px-2 py-2">
+          </div>
+          <div className="px-2 py-2">
             {row.optionType ? (
               <span className="inline-flex items-center gap-1">
                 <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge>
@@ -82,17 +83,17 @@ const ExecutionsTableRow = memo(function ExecutionsTableRow({
             ) : (
               "-"
             )}
-          </td>
-          <td className="px-2 py-2">
+          </div>
+          <div className="px-2 py-2">
             <AccountLabel accountId={row.accountId} />
-          </td>
-          <td className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</td>
-          <td className="px-2 py-2 font-mono">
+          </div>
+          <div className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</div>
+          <div className="px-2 py-2 font-mono">
             <button type="button" onClick={() => onSelectExecution(row.id)} className="text-accent underline">
               {shortId(row.id)}
             </button>
-          </td>
-          <td className="px-2 py-2">
+          </div>
+          <div className="px-2 py-2">
             {canInvestigateExecution(row) ? (
               <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-accent underline">
                 Case file
@@ -100,7 +101,7 @@ const ExecutionsTableRow = memo(function ExecutionsTableRow({
             ) : (
               "-"
             )}
-          </td>
+          </div>
     </>
   );
 });
@@ -449,33 +450,31 @@ export function ExecutionsTablePanel() {
 
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
-          <ScrollableTableShell scrollContainerRef={scrollContainerRef}>
-            <table className="min-w-[1440px] table-fixed text-xs">
-              <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
-                <tr>
-                  {columns.map((column) => (
-                    <DataTableHeader
-                      key={column.id}
-                      column={column}
-                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                      currentValues={table.filters[column.id] ?? []}
-                      isOpen={openColumnId === column.id}
-                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                      options={table.filterOptions[column.id] ?? []}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <VirtualTableBody
-                rows={table.sortedRows}
-                scrollContainerRef={scrollContainerRef}
-                getRowKey={(row) => row.id}
-                renderRow={(row) => <ExecutionsTableRow row={row} importLabelById={importLabelById} onSelectExecution={setSelectedExecutionId} />}
-              />
-            </table>
-          </ScrollableTableShell>
+          <VirtualGridTableShell scrollContainerRef={scrollContainerRef}>
+            <VirtualGridHeaderRow columnTemplate={EXECUTIONS_COLUMN_TEMPLATE}>
+              {columns.map((column) => (
+                <DataTableHeader
+                  key={column.id}
+                  as="div"
+                  column={column}
+                  currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                  currentValues={table.filters[column.id] ?? []}
+                  isOpen={openColumnId === column.id}
+                  onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                  onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                  onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                  options={table.filterOptions[column.id] ?? []}
+                />
+              ))}
+            </VirtualGridHeaderRow>
+            <VirtualGridBody
+              columnTemplate={EXECUTIONS_COLUMN_TEMPLATE}
+              rows={table.sortedRows}
+              scrollContainerRef={scrollContainerRef}
+              getRowKey={(row) => row.id}
+              renderRow={(row) => <ExecutionsTableRow row={row} importLabelById={importLabelById} onSelectExecution={setSelectedExecutionId} />}
+            />
+          </VirtualGridTableShell>
         </div>
       ) : null}
 

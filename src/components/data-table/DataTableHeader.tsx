@@ -5,6 +5,8 @@ import { ColumnFilterPanel } from "@/components/data-table/ColumnFilterPanel";
 import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
 
 interface DataTableHeaderProps<Row> {
+  as?: "th" | "div";
+  className?: string;
   column: DataTableColumnDefinition<Row>;
   currentSortDirection: SortDirection | null;
   currentValues: string[];
@@ -28,6 +30,8 @@ function alignmentClassName<Row>(align: DataTableColumnDefinition<Row>["align"])
 }
 
 function DataTableHeaderInner<Row>({
+  as = "th",
+  className,
   column,
   currentSortDirection,
   currentValues,
@@ -39,9 +43,10 @@ function DataTableHeaderInner<Row>({
 }: DataTableHeaderProps<Row>) {
   const isActive = currentValues.length > 0 || Boolean(currentSortDirection);
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const Component = as;
 
   return (
-    <th className="relative px-2 py-2" title={column.title}>
+    <Component className={["relative px-2 py-2", className].filter(Boolean).join(" ")} title={column.title} role={as === "div" ? "columnheader" : undefined}>
       <div className={["flex items-center gap-2", alignmentClassName<Row>(column.align)].join(" ")}>
         <span className="font-medium">{column.label}</span>
         <button
@@ -68,7 +73,7 @@ function DataTableHeaderInner<Row>({
           options={options}
         />
       ) : null}
-    </th>
+    </Component>
   );
 }
 
