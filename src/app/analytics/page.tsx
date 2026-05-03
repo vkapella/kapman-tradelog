@@ -1,8 +1,10 @@
 "use client";
 
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
+import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
+import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -10,142 +12,50 @@ import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
 
-const SHOW_ALL_KEY = "kapman_table_setups_showAll";
-
 type SortColumn = "tag" | "underlyingSymbol" | "realizedPnl" | "winRate" | "expectancy" | "averageHoldDays";
 type SortDirection = "asc" | "desc";
 
-interface SetupsPayload {
-  data: SetupSummaryRecord[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
-interface MatchedLotsPayload {
-  data: MatchedLotRecord[];
-}
-
-interface DiagnosticsPayload {
-  data: DiagnosticsResponse;
-}
+interface SetupsPayload { data: SetupSummaryRecord[]; }
+interface MatchedLotsPayload { data: MatchedLotRecord[]; }
+interface DiagnosticsPayload { data: DiagnosticsResponse; }
 
 const analyticsKpiHelpText: Record<string, InfoTooltipContent> = {
-  totalPnl: {
-    formula: "Sum of realized P&L across setup groups in scope.",
-    source: "/api/setups",
-    interpretation: "Shows aggregate realized performance for the current analytics scope.",
-  },
-  winRate: {
-    formula: "WIN count / (WIN + LOSS count), excluding FLAT lots.",
-    source: "/api/matched-lots",
-    interpretation: "Shows the share of closed lots that finished profitable.",
-  },
-  avgHold: {
-    formula: "Average holdingDays across matched lots in scope.",
-    source: "/api/matched-lots",
-    interpretation: "Shows the typical holding period of closed activity.",
-  },
-  pairAmbiguities: {
-    formula: "Count of ambiguous setup-pairing diagnostics.",
-    source: "/api/diagnostics",
-    interpretation: "Higher counts indicate more setup inference ambiguity that needs review.",
-  },
-  shortCallPaired: {
-    formula: "Count of short-call pairings detected by setup inference diagnostics.",
-    source: "/api/diagnostics",
-    interpretation: "Shows how often the inference engine paired short calls into covered-call style cases.",
-  },
-  synthExpires: {
-    formula: "Count of synthetic expiration closes surfaced in diagnostics.",
-    source: "/api/diagnostics",
-    interpretation: "Highlights how many closes were inferred rather than sourced directly from broker rows.",
-  },
+  totalPnl: { formula: "Sum of realized P&L across setup groups in scope.", source: "/api/setups", interpretation: "Shows aggregate realized performance for the current analytics scope." },
+  winRate: { formula: "WIN count / (WIN + LOSS count), excluding FLAT lots.", source: "/api/matched-lots", interpretation: "Shows the share of closed lots that finished profitable." },
+  avgHold: { formula: "Average holdingDays across matched lots in scope.", source: "/api/matched-lots", interpretation: "Shows the typical holding period of closed activity." },
+  pairAmbiguities: { formula: "Count of ambiguous setup-pairing diagnostics.", source: "/api/diagnostics", interpretation: "Higher counts indicate more setup inference ambiguity that needs review." },
+  shortCallPaired: { formula: "Count of short-call pairings detected by setup inference diagnostics.", source: "/api/diagnostics", interpretation: "Shows how often the inference engine paired short calls into covered-call style cases." },
+  synthExpires: { formula: "Count of synthetic expiration closes surfaced in diagnostics.", source: "/api/diagnostics", interpretation: "Highlights how many closes were inferred rather than sourced directly from broker rows." },
 };
 
 export default function Page() {
   const { selectedAccounts } = useAccountFilterContext();
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [allSetups, setAllSetups] = useState<SetupSummaryRecord[]>([]);
-  const [tableRows, setTableRows] = useState<SetupSummaryRecord[]>([]);
-  const [tableMeta, setTableMeta] = useState({ total: 0, page: 1, pageSize: 25 });
-  const [tablePage, setTablePage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
-
   const [matchedLots, setMatchedLots] = useState<MatchedLotRecord[]>([]);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
-
   const [sortColumn, setSortColumn] = useState<SortColumn>("realizedPnl");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
-    try {
-      setShowAll(window.localStorage.getItem(SHOW_ALL_KEY) === "1");
-    } catch {
-      setShowAll(false);
-    }
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
-
-    async function loadSetupsForChart() {
+    async function loadSetups() {
       const query = new URLSearchParams({ page: "1", pageSize: "1000" });
       applyAccountIdsToSearchParams(query, selectedAccounts);
       applyRangeToSearchParams(query);
       const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-
+      if (!response.ok) return;
       const payload = (await response.json()) as SetupsPayload;
-      if (!cancelled) {
-        setAllSetups(payload.data);
-      }
+      if (!cancelled) setAllSetups(payload.data);
     }
-
-    void loadSetupsForChart();
-
-    return () => {
-      cancelled = true;
-    };
+    void loadSetups();
+    return () => { cancelled = true; };
   }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
-
-    async function loadTableRows() {
-      const query = new URLSearchParams({
-        page: String(showAll ? 1 : tablePage),
-        pageSize: String(showAll ? 1000 : 25),
-      });
-      applyAccountIdsToSearchParams(query, selectedAccounts);
-      applyRangeToSearchParams(query);
-      const response = await fetch(`/api/setups?${query.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as SetupsPayload;
-      if (!cancelled) {
-        setTableRows(payload.data);
-        setTableMeta(payload.meta);
-      }
-    }
-
-    void loadTableRows();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showAll, tablePage, selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
-
-  useEffect(() => {
-    let cancelled = false;
-
     async function loadMatchedLotsAndDiagnostics() {
       const lotsQuery = new URLSearchParams({ page: "1", pageSize: "1000" });
       const diagnosticsQuery = new URLSearchParams();
@@ -153,32 +63,21 @@ export default function Page() {
       applyAccountIdsToSearchParams(diagnosticsQuery, selectedAccounts);
       applyRangeToSearchParams(lotsQuery);
       applyRangeToSearchParams(diagnosticsQuery);
-
       const [lotsResponse, diagnosticsResponse] = await Promise.all([
         fetch(`/api/matched-lots?${lotsQuery.toString()}`, { cache: "no-store" }),
         fetch(`/api/diagnostics?${diagnosticsQuery.toString()}`, { cache: "no-store" }),
       ]);
-
       if (lotsResponse.ok) {
         const lotsPayload = (await lotsResponse.json()) as MatchedLotsPayload;
-        if (!cancelled) {
-          setMatchedLots(lotsPayload.data);
-        }
+        if (!cancelled) setMatchedLots(lotsPayload.data);
       }
-
       if (diagnosticsResponse.ok) {
         const diagnosticsPayload = (await diagnosticsResponse.json()) as DiagnosticsPayload;
-        if (!cancelled) {
-          setDiagnostics(diagnosticsPayload.data);
-        }
+        if (!cancelled) setDiagnostics(diagnosticsPayload.data);
       }
     }
-
     void loadMatchedLotsAndDiagnostics();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const filteredAllSetups = useMemo(() => allSetups.filter((row) => selectedAccounts.includes(row.accountId)), [allSetups, selectedAccounts]);
@@ -189,7 +88,6 @@ export default function Page() {
     const wins = filteredLots.filter((row) => row.outcome === "WIN").length;
     const losses = filteredLots.filter((row) => row.outcome === "LOSS").length;
     const avgHold = filteredLots.length === 0 ? 0 : filteredLots.reduce((sum, row) => sum + row.holdingDays, 0) / filteredLots.length;
-
     return {
       totalPnl,
       winRate: wins + losses === 0 ? null : (wins / (wins + losses)) * 100,
@@ -202,12 +100,10 @@ export default function Page() {
 
   const pnlByTagData = useMemo(() => {
     const grouped = new Map<string, number>();
-
     for (const row of filteredAllSetups) {
       const tag = row.overrideTag ?? row.tag;
       grouped.set(tag, (grouped.get(tag) ?? 0) + safeNumber(row.realizedPnl));
     }
-
     return Array.from(grouped.entries()).map(([tag, pnl]) => ({ tag, pnl }));
   }, [filteredAllSetups]);
 
@@ -215,53 +111,27 @@ export default function Page() {
     const wins = filteredLots.filter((row) => row.outcome === "WIN").length;
     const losses = filteredLots.filter((row) => row.outcome === "LOSS").length;
     const flat = filteredLots.filter((row) => row.outcome !== "WIN" && row.outcome !== "LOSS").length;
-
-    return [
-      { name: "WIN", value: wins, color: "var(--pos)" },
-      { name: "LOSS", value: losses, color: "var(--neg)" },
-      { name: "FLAT", value: flat, color: "var(--text-2)" },
-    ];
+    return [{ name: "WIN", value: wins, color: "var(--pos)" }, { name: "LOSS", value: losses, color: "var(--neg)" }, { name: "FLAT", value: flat, color: "var(--text-2)" }];
   }, [filteredLots]);
 
-  const filteredTableRows = useMemo(() => {
-    const rows = tableRows.filter((row) => selectedAccounts.includes(row.accountId));
-
-    return [...rows].sort((left, right) => {
+  const sortedTableRows = useMemo(() => {
+    const numericColumns = new Set<SortColumn>(["realizedPnl", "winRate", "expectancy", "averageHoldDays"]);
+    return [...filteredAllSetups].sort((left, right) => {
       const leftValue = left[sortColumn] ?? "";
       const rightValue = right[sortColumn] ?? "";
-
-      const numericColumns = new Set<SortColumn>(["realizedPnl", "winRate", "expectancy", "averageHoldDays"]);
-      const result = numericColumns.has(sortColumn)
-        ? safeNumber(leftValue as string) - safeNumber(rightValue as string)
-        : String(leftValue).localeCompare(String(rightValue));
-
+      const result = numericColumns.has(sortColumn) ? safeNumber(leftValue as string) - safeNumber(rightValue as string) : String(leftValue).localeCompare(String(rightValue));
       return sortDirection === "asc" ? result : result * -1;
     });
-  }, [selectedAccounts, sortColumn, sortDirection, tableRows]);
+  }, [filteredAllSetups, sortColumn, sortDirection]);
 
   function toggleSort(column: SortColumn) {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
     }
-
     setSortColumn(column);
     setSortDirection(column === "realizedPnl" ? "desc" : "asc");
   }
-
-  function toggleShowAll() {
-    const next = !showAll;
-    setShowAll(next);
-    setTablePage(1);
-    try {
-      window.localStorage.setItem(SHOW_ALL_KEY, next ? "1" : "0");
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }
-
-  const canGoBack = tableMeta.page > 1;
-  const canGoForward = tableMeta.page * tableMeta.pageSize < tableMeta.total;
 
   return (
     <section className="space-y-5">
@@ -277,112 +147,45 @@ export default function Page() {
       <div className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-2 text-sm font-semibold text-text">P&L by Setup Tag</h2>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pnlByTagData}>
-                <XAxis dataKey="tag" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
-                <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} />
-                <Tooltip contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }} />
-                <Bar dataKey="pnl" fill="var(--accent)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={pnlByTagData}><XAxis dataKey="tag" tick={{ fill: "var(--text-2)", fontSize: 10 }} /><YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} /><Tooltip contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }} /><Bar dataKey="pnl" fill="var(--accent)" /></BarChart></ResponsiveContainer></div>
         </article>
-
         <article className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-2 text-sm font-semibold text-text">Win / Loss / Flat</h2>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={outcomeData} dataKey="value" innerRadius={46} outerRadius={72}>
-                  {outcomeData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <div className="h-56"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={outcomeData} dataKey="value" innerRadius={46} outerRadius={72}>{outcomeData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}</Pie></PieChart></ResponsiveContainer></div>
         </article>
       </div>
 
       <article className="rounded-xl border border-border bg-surface p-4">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-text">Setup Analytics Table</h2>
-          <button type="button" onClick={toggleShowAll} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text">
-            {showAll ? "Show pages" : `Show all ${tableMeta.total}`}
-          </button>
-        </div>
-
-        <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
-          <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold text-text">Setup Analytics Table</h2><span className="text-xs text-text-2">{sortedTableRows.length} rows</span></div>
+        <ScrollableTableShell height="calc(100vh - 480px)" scrollContainerRef={scrollContainerRef}>
+          <table className="min-w-[1440px] table-fixed text-xs">
+            <thead className="sticky top-0 z-10 bg-surface-2 text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
               <tr>
-                <th className="px-2 py-2 text-left">
-                  <button type="button" onClick={() => toggleSort("tag")}>Tag</button>
-                </th>
-                <th className="px-2 py-2 text-left">
-                  <button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button>
-                </th>
-                <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&L ($)</button>
-                </th>
-                <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">
-                    Win Rate (%)
-                  </button>
-                </th>
-                <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">
-                    Expectancy ($ / lot)
-                  </button>
-                </th>
-                <th className="px-2 py-2 text-right">
-                  <button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button>
-                </th>
+                <th className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("tag")}>Tag</button></th>
+                <th className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></th>
+                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></th>
+                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</button></th>
+                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</button></th>
+                <th className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button></th>
               </tr>
             </thead>
-            <tbody>
-              {filteredTableRows.map((row) => (
-                <tr key={row.id} className="border-t border-border text-text">
+            <VirtualTableBody
+              rows={sortedTableRows}
+              scrollContainerRef={scrollContainerRef}
+              getRowKey={(row) => row.id}
+              renderRow={(row) => (
+                <>
                   <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
                   <td className="px-2 py-2">{row.underlyingSymbol}</td>
                   <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</td>
                   <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
                   <td className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</td>
                   <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
+                </>
+              )}
+            />
           </table>
-        </div>
-
-        {showAll ? (
-          <p className="mt-2 text-xs text-text-2">Showing all {tableMeta.total} records</p>
-        ) : (
-          <div className="mt-2 flex items-center justify-between text-xs text-text-2">
-            <p>
-              Showing page {tableMeta.page} of {Math.max(1, Math.ceil(tableMeta.total / tableMeta.pageSize))} ({tableMeta.total} rows)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setTablePage((current) => Math.max(1, current - 1))}
-                disabled={!canGoBack}
-                className="rounded border border-border px-2 py-1 disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                onClick={() => setTablePage((current) => current + 1)}
-                disabled={!canGoForward}
-                className="rounded border border-border px-2 py-1 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        </ScrollableTableShell>
       </article>
     </section>
   );

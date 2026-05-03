@@ -6,8 +6,6 @@ interface DataTableToolbarProps {
   activeFilterCount: number;
   children?: ReactNode;
   onClearAllFilters: () => void;
-  onToggleShowAll: () => void;
-  showAll: boolean;
   totalRows: number;
 }
 
@@ -15,8 +13,6 @@ export function DataTableToolbar({
   activeFilterCount,
   children,
   onClearAllFilters,
-  onToggleShowAll,
-  showAll,
   totalRows,
 }: DataTableToolbarProps) {
   return (
@@ -33,9 +29,7 @@ export function DataTableToolbar({
       </div>
       <div className="flex items-center gap-2">
         {children}
-        <button type="button" onClick={onToggleShowAll} className="rounded border border-border bg-surface px-3 py-1.5 text-xs text-text">
-          {showAll ? "Show pages" : `Show all ${totalRows}`}
-        </button>
+        <span className="text-xs text-text-2">{totalRows} rows</span>
       </div>
     </div>
   );

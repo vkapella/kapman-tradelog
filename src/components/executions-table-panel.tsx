@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useContext, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
+import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -19,8 +21,6 @@ import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ApiDetailResponse, ExecutionDetailRecord, ExecutionRecord, ImportRecord } from "@/types/api";
 
 interface ExecutionDetailPayload extends ApiDetailResponse<ExecutionDetailRecord> {}
-
-const SHOW_ALL_STORAGE_KEY = "kapman_table_executions_showAll";
 
 function displayExecutionSymbol(row: Pick<ExecutionRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -42,19 +42,17 @@ function shortId(value: string): string {
   return `${value.slice(0, 8)}...`;
 }
 
-const ExecutionsTableBody = memo(function ExecutionsTableBody({
-  rows,
+const ExecutionsTableRow = memo(function ExecutionsTableRow({
+  row,
   importLabelById,
   onSelectExecution,
 }: {
-  rows: ExecutionRecord[];
+  row: ExecutionRecord;
   importLabelById: Map<string, string>;
   onSelectExecution: (executionId: string) => void;
 }) {
   return (
-    <tbody>
-      {rows.map((row) => (
-        <tr key={row.id} className="border-t border-border text-text">
+    <>
           <td className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</td>
           <td className="px-2 py-2">{row.tradeDate.slice(0, 10)}</td>
           <td className="px-2 py-2">{displayExecutionSymbol(row)}</td>
@@ -103,9 +101,7 @@ const ExecutionsTableBody = memo(function ExecutionsTableBody({
               "-"
             )}
           </td>
-        </tr>
-      ))}
-    </tbody>
+    </>
   );
 });
 
@@ -118,22 +114,13 @@ export function ExecutionsTablePanel() {
   const [rows, setRows] = useState<ExecutionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ExecutionDetailRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
-
-  useEffect(() => {
-    try {
-      setShowAll(window.localStorage.getItem(SHOW_ALL_STORAGE_KEY) === "1");
-    } catch {
-      setShowAll(false);
-    }
-  }, []);
 
   useEffect(() => {
     const executionParam = searchParams.get("execution");
@@ -407,29 +394,8 @@ export function ExecutionsTablePanel() {
     }
   }, [searchParams, isTableHydrated, setTableColumnFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [selectedAccounts, table.filters, table.sort]);
-
   const totalRows = table.sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
-  const currentPage = Math.min(page, totalPages);
-  const pagedRows = useMemo(
-    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
-    [currentPage, showAll, table.sortedRows],
-  );
-  const hasRows = pagedRows.length > 0;
-
-  function toggleShowAll() {
-    const next = !showAll;
-    setShowAll(next);
-    setPage(1);
-    try {
-      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }
+  const hasRows = table.sortedRows.length > 0;
 
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
     setTableColumnFilter(columnId, values);
@@ -438,7 +404,6 @@ export function ExecutionsTablePanel() {
     } else if (table.sort.columnId === columnId) {
       table.setSort({ columnId: null, direction: null });
     }
-    setPage(1);
   }
 
   async function copyInstrumentKey() {
@@ -465,10 +430,7 @@ export function ExecutionsTablePanel() {
         activeFilterCount={table.activeFilterCount}
         onClearAllFilters={() => {
           table.clearAllFilters();
-          setPage(1);
         }}
-        onToggleShowAll={toggleShowAll}
-        showAll={showAll}
         totalRows={totalRows}
       />
 
@@ -487,12 +449,9 @@ export function ExecutionsTablePanel() {
 
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
-          <div
-            className={showAll ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
-            style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
-          >
-            <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-surface text-text-2">
+          <ScrollableTableShell scrollContainerRef={scrollContainerRef}>
+            <table className="min-w-[1440px] table-fixed text-xs">
+              <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -509,37 +468,14 @@ export function ExecutionsTablePanel() {
                   ))}
                 </tr>
               </thead>
-              <ExecutionsTableBody rows={pagedRows} importLabelById={importLabelById} onSelectExecution={setSelectedExecutionId} />
+              <VirtualTableBody
+                rows={table.sortedRows}
+                scrollContainerRef={scrollContainerRef}
+                getRowKey={(row) => row.id}
+                renderRow={(row) => <ExecutionsTableRow row={row} importLabelById={importLabelById} onSelectExecution={setSelectedExecutionId} />}
+              />
             </table>
-          </div>
-
-          {showAll ? (
-            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
-          ) : (
-            <div className="flex items-center justify-between text-xs text-text-2">
-              <p>
-                Showing page {currentPage} of {totalPages} ({totalRows} rows)
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          </ScrollableTableShell>
         </div>
       ) : null}
 

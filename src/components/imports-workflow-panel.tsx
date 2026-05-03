@@ -6,6 +6,8 @@ import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
+import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
@@ -30,21 +32,17 @@ interface ImportsWorkflowPanelProps {
   mode?: "all" | "upload" | "history";
 }
 
-const SHOW_ALL_STORAGE_KEY = "kapman_table_imports_showAll";
-
-const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
-  rows,
+const ImportsHistoryTableRow = memo(function ImportsHistoryTableRow({
+  row,
   deletingImportId,
   onRequestDeleteImport,
 }: {
-  rows: ImportRecord[];
+  row: ImportRecord;
   deletingImportId: string | null;
   onRequestDeleteImport: (row: ImportRecord) => Promise<void>;
 }) {
   return (
-    <tbody>
-      {rows.map((row) => (
-        <tr key={row.id} className="border-t border-border text-text">
+    <>
           <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
           <td className="px-2 py-2">{row.filename}</td>
           <td className="px-2 py-2">{row.broker}</td>
@@ -76,9 +74,7 @@ const ImportsHistoryTableBody = memo(function ImportsHistoryTableBody({
               </svg>
             </button>
           </td>
-        </tr>
-      ))}
-    </tbody>
+    </>
   );
 });
 
@@ -96,13 +92,12 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [commitResult, setCommitResult] = useState<CommitImportResponse | null>(null);
   const [committing, setCommitting] = useState(false);
   const [history, setHistory] = useState<ImportRecord[]>([]);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [showAllHistory, setShowAllHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingImportId, setDeletingImportId] = useState<string | null>(null);
   const [deleteConfirmationImport, setDeleteConfirmationImport] = useState<ImportRecord | null>(null);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -141,14 +136,6 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       }
     }
   }, [selectedAccounts, showHistory]);
-
-  useEffect(() => {
-    try {
-      setShowAllHistory(window.localStorage.getItem(SHOW_ALL_STORAGE_KEY) === "1");
-    } catch {
-      setShowAllHistory(false);
-    }
-  }, []);
 
   useEffect(() => {
     void loadHistory();
@@ -456,21 +443,6 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     }
   }, [searchParams, isTableHydrated, setTableColumnFilter]);
 
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [selectedAccounts, table.filters, table.sort]);
-
-  function toggleShowAllHistory() {
-    const next = !showAllHistory;
-    setShowAllHistory(next);
-    setHistoryPage(1);
-    try {
-      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }
-
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
     setTableColumnFilter(columnId, values);
     if (direction) {
@@ -478,16 +450,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     } else if (table.sort.columnId === columnId) {
       table.setSort({ columnId: null, direction: null });
     }
-    setHistoryPage(1);
   }
 
   const totalRows = table.sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
-  const currentPage = Math.min(historyPage, totalPages);
-  const pagedRows = useMemo(
-    () => (showAllHistory ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
-    [currentPage, showAllHistory, table.sortedRows],
-  );
 
   return (
     <section className="space-y-6 rounded-2xl border border-border bg-surface p-6">
@@ -579,10 +544,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
             activeFilterCount={table.activeFilterCount}
             onClearAllFilters={() => {
               table.clearAllFilters();
-              setHistoryPage(1);
             }}
-            onToggleShowAll={toggleShowAllHistory}
-            showAll={showAllHistory}
             totalRows={totalRows}
           />
 
@@ -590,12 +552,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
             <LoadingSkeleton lines={4} />
           ) : (
             <div className="space-y-2">
-              <div
-                className={showAllHistory ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
-                style={showAllHistory ? { maxHeight: "calc(100vh - 280px)" } : undefined}
-              >
-                <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 z-10 bg-surface text-text-2">
+              <ScrollableTableShell scrollContainerRef={scrollContainerRef}>
+                <table className="min-w-[1440px] table-fixed text-xs">
+                  <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
                     <tr>
                       {columns.map((column) => (
                         <DataTableHeader
@@ -612,37 +571,14 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                       ))}
                     </tr>
                   </thead>
-                  <ImportsHistoryTableBody rows={pagedRows} deletingImportId={deletingImportId} onRequestDeleteImport={requestDeleteImport} />
+                  <VirtualTableBody
+                    rows={table.sortedRows}
+                    scrollContainerRef={scrollContainerRef}
+                    getRowKey={(row) => row.id}
+                    renderRow={(row) => <ImportsHistoryTableRow row={row} deletingImportId={deletingImportId} onRequestDeleteImport={requestDeleteImport} />}
+                  />
                 </table>
-              </div>
-
-              {showAllHistory ? (
-                <p className="text-xs text-text-2">Showing all {totalRows} records</p>
-              ) : (
-                <div className="flex items-center justify-between text-xs text-text-2">
-                  <p>
-                    Showing page {currentPage} of {totalPages} ({totalRows} rows)
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={currentPage <= 1}
-                      onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                      className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                    >
-                      Prev
-                    </button>
-                    <button
-                      type="button"
-                      disabled={currentPage >= totalPages}
-                      onClick={() => setHistoryPage((current) => Math.min(totalPages, current + 1))}
-                      className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              </ScrollableTableShell>
             </div>
           )}
         </div>

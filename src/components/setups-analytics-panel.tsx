@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useContext, useEffect, useMemo, useState } from "react";
+import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { ScrollableTableShell } from "@/components/data-table/ScrollableTableShell";
+import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -20,43 +22,19 @@ import type { ApiDetailResponse, SetupDetailResponse, SetupSummaryRecord } from 
 
 interface SetupDetailPayload extends ApiDetailResponse<SetupDetailResponse> {}
 
-const SHOW_ALL_STORAGE_KEY = "kapman_table_setups_showAll";
-
-const SetupsTableBody = memo(function SetupsTableBody({
-  rows,
-  pathname,
-}: {
-  rows: SetupSummaryRecord[];
-  pathname: string;
-}) {
+const SetupsTableRow = memo(function SetupsTableRow({ row, pathname }: { row: SetupSummaryRecord; pathname: string }) {
   return (
-    <tbody>
-      {rows.map((row) => (
-        <tr key={row.id} className="border-t border-border text-text">
-          <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
-          <td className="px-2 py-2">{row.underlyingSymbol}</td>
-          <td className="px-2 py-2">
-            <AccountLabel accountId={row.accountId} />
-          </td>
-          <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
-            {formatCurrency(safeNumber(row.realizedPnl))}
-          </td>
-          <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
-          <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
-          <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
-          <td className="px-2 py-2">
-            <Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">
-              View detail
-            </Link>
-          </td>
-          <td className="px-2 py-2">
-            <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">
-              Case file
-            </Link>
-          </td>
-        </tr>
-      ))}
-    </tbody>
+    <>
+      <td className="px-2 py-2">{row.overrideTag ?? row.tag}</td>
+      <td className="px-2 py-2">{row.underlyingSymbol}</td>
+      <td className="px-2 py-2"><AccountLabel accountId={row.accountId} /></td>
+      <td className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</td>
+      <td className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</td>
+      <td className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</td>
+      <td className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</td>
+      <td className="px-2 py-2"><Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">View detail</Link></td>
+      <td className="px-2 py-2"><Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">Case file</Link></td>
+    </>
   );
 });
 
@@ -68,8 +46,6 @@ export function SetupsAnalyticsPanel() {
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
-  const [page, setPage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSetupId, setSelectedSetupId] = useState<string | null>(null);
@@ -77,14 +53,8 @@ export function SetupsAnalyticsPanel() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      setShowAll(window.localStorage.getItem(SHOW_ALL_STORAGE_KEY) === "1");
-    } catch {
-      setShowAll(false);
-    }
-  }, []);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const drawerLotsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedSetupId(searchParams.get("setup"));
@@ -92,13 +62,11 @@ export function SetupsAnalyticsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadSetups() {
       if (!cancelled) {
         setLoading(true);
         setError(null);
       }
-
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
@@ -118,9 +86,7 @@ export function SetupsAnalyticsPanel() {
         }
       }
     }
-
     void loadSetups();
-
     return () => {
       cancelled = true;
     };
@@ -128,7 +94,6 @@ export function SetupsAnalyticsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadSetupDetail() {
       if (!selectedSetupId) {
         if (!cancelled) {
@@ -137,12 +102,10 @@ export function SetupsAnalyticsPanel() {
         }
         return;
       }
-
       if (!cancelled) {
         setDetailLoading(true);
         setDetailError(null);
       }
-
       try {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
@@ -155,7 +118,6 @@ export function SetupsAnalyticsPanel() {
           }
           return;
         }
-
         const payload = (await response.json()) as SetupDetailPayload;
         if (!cancelled) {
           setDetail(payload.data);
@@ -171,182 +133,61 @@ export function SetupsAnalyticsPanel() {
         }
       }
     }
-
     void loadSetupDetail();
-
     return () => {
       cancelled = true;
     };
   }, [selectedAccounts, selectedSetupId, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const columns = useMemo<DataTableColumnDefinition<SetupSummaryRecord>[]>(() => [
-    {
-      id: "tag",
-      label: "Tag",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.overrideTag ?? row.tag,
-      sortMode: "string",
-      getSortValue: (row) => row.overrideTag ?? row.tag,
-    },
-    {
-      id: "underlyingSymbol",
-      label: "Underlying",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.underlyingSymbol,
-      sortMode: "string",
-      getSortValue: (row) => row.underlyingSymbol,
-    },
-    {
-      id: "accountId",
-      label: "Account",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.accountId,
-      getFilterOptionLabel: (value) => getAccountDisplayText(value),
-      sortMode: "string",
-      getSortValue: (row) => getAccountDisplayText(row.accountId),
-      panelWidthClassName: "w-80",
-    },
-    {
-      id: "realizedPnl",
-      label: "Realized P&L ($)",
-      align: "right",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.realizedPnl ?? "0",
-      sortMode: "number",
-      getSortValue: (row) => safeNumber(row.realizedPnl),
-    },
-    {
-      id: "winRate",
-      label: "Win Rate (%)",
-      align: "right",
-      title: "Percent of closed lots with positive outcome. Flat lots excluded.",
-      filterMode: "discrete",
-      getFilterValues: (row) => (row.winRate === null ? "-" : String(Math.round(safeNumber(row.winRate) * 1000) / 10)),
-      sortMode: "number",
-      getSortValue: (row) => (row.winRate === null ? null : safeNumber(row.winRate)),
-    },
-    {
-      id: "expectancy",
-      label: "Expectancy ($ / lot)",
-      align: "right",
-      title: "Average realized P&L per matched lot in this setup.",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.expectancy ?? "0",
-      sortMode: "number",
-      getSortValue: (row) => safeNumber(row.expectancy),
-    },
-    {
-      id: "averageHoldDays",
-      label: "Avg Hold",
-      align: "right",
-      filterMode: "discrete",
-      getFilterValues: (row) => row.averageHoldDays ?? "0",
-      sortMode: "number",
-      getSortValue: (row) => safeNumber(row.averageHoldDays),
-    },
-    {
-      id: "detail",
-      label: "Detail",
-      filterMode: "discrete",
-      getFilterValues: () => "View detail",
-      sortMode: "string",
-      getSortValue: () => "View detail",
-    },
-    {
-      id: "investigate",
-      label: "Investigate",
-      filterMode: "discrete",
-      getFilterValues: () => "Case file",
-      sortMode: "string",
-      getSortValue: () => "Case file",
-    },
+    { id: "tag", label: "Tag", filterMode: "discrete", getFilterValues: (row) => row.overrideTag ?? row.tag, sortMode: "string", getSortValue: (row) => row.overrideTag ?? row.tag },
+    { id: "underlyingSymbol", label: "Underlying", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
+    { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },
+    { id: "realizedPnl", label: "Realized P&L ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.realizedPnl ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.realizedPnl) },
+    { id: "winRate", label: "Win Rate (%)", align: "right", title: "Percent of closed lots with positive outcome. Flat lots excluded.", filterMode: "discrete", getFilterValues: (row) => (row.winRate === null ? "-" : String(Math.round(safeNumber(row.winRate) * 1000) / 10)), sortMode: "number", getSortValue: (row) => (row.winRate === null ? null : safeNumber(row.winRate)) },
+    { id: "expectancy", label: "Expectancy ($ / lot)", align: "right", title: "Average realized P&L per matched lot in this setup.", filterMode: "discrete", getFilterValues: (row) => row.expectancy ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.expectancy) },
+    { id: "averageHoldDays", label: "Avg Hold", align: "right", filterMode: "discrete", getFilterValues: (row) => row.averageHoldDays ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.averageHoldDays) },
+    { id: "detail", label: "Detail", filterMode: "discrete", getFilterValues: () => "View detail", sortMode: "string", getSortValue: () => "View detail" },
+    { id: "investigate", label: "Investigate", filterMode: "discrete", getFilterValues: () => "Case file", sortMode: "string", getSortValue: () => "Case file" },
   ], [getAccountDisplayText]);
 
-  const table = useDataTableState({
-    tableName: "setups",
-    rows,
-    columns,
-    initialSort: { columnId: "realizedPnl", direction: "desc" },
-  });
-
-  const isTableHydrated = table.isHydrated;
-  const setTableColumnFilter = table.setColumnFilter;
+  const table = useDataTableState({ tableName: "setups", rows, columns, initialSort: { columnId: "realizedPnl", direction: "desc" } });
 
   useEffect(() => {
-    if (!isTableHydrated) {
+    if (!table.isHydrated) {
       return;
     }
-
     const accountParam = searchParams.get("account");
     const tagParam = searchParams.get("tag");
-
     if (accountParam) {
-      setTableColumnFilter("accountId", [accountParam]);
+      table.setColumnFilter("accountId", [accountParam]);
     }
     if (tagParam) {
-      setTableColumnFilter("tag", [tagParam]);
+      table.setColumnFilter("tag", [tagParam]);
     }
-  }, [searchParams, isTableHydrated, setTableColumnFilter]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [selectedAccounts, table.filters, table.sort]);
+  }, [searchParams, table]);
 
   const summary = useMemo(() => {
     if (table.sortedRows.length === 0) {
-      return {
-        totalPnl: 0,
-        averageWinRate: null as number | null,
-        averageExpectancy: 0,
-        averageHoldDays: 0,
-      };
+      return { totalPnl: 0, averageWinRate: null as number | null, averageExpectancy: 0, averageHoldDays: 0 };
     }
-
     const totalPnl = table.sortedRows.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);
-    const winRates = table.sortedRows
-      .map((row) => (row.winRate === null ? null : safeNumber(row.winRate)))
-      .filter((value): value is number => value !== null);
+    const winRates = table.sortedRows.map((row) => (row.winRate === null ? null : safeNumber(row.winRate))).filter((value): value is number => value !== null);
     const averageWinRateRatio = winRates.length > 0 ? winRates.reduce((sum, value) => sum + value, 0) / winRates.length : null;
     const expectancies = table.sortedRows.map((row) => safeNumber(row.expectancy));
     const averageExpectancy = expectancies.length > 0 ? expectancies.reduce((sum, value) => sum + value, 0) / expectancies.length : 0;
     const holdDays = table.sortedRows.map((row) => safeNumber(row.averageHoldDays));
     const averageHoldDays = holdDays.length > 0 ? holdDays.reduce((sum, value) => sum + value, 0) / holdDays.length : 0;
-
-    return {
-      totalPnl,
-      averageWinRate: averageWinRateRatio === null ? null : averageWinRateRatio * 100,
-      averageExpectancy,
-      averageHoldDays,
-    };
+    return { totalPnl, averageWinRate: averageWinRateRatio === null ? null : averageWinRateRatio * 100, averageExpectancy, averageHoldDays };
   }, [table.sortedRows]);
 
-  const totalRows = table.sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / 25));
-  const currentPage = Math.min(page, totalPages);
-  const pagedRows = useMemo(
-    () => (showAll ? table.sortedRows : table.sortedRows.slice((currentPage - 1) * 25, currentPage * 25)),
-    [currentPage, showAll, table.sortedRows],
-  );
-
-  function toggleShowAll() {
-    const next = !showAll;
-    setShowAll(next);
-    setPage(1);
-    try {
-      window.localStorage.setItem(SHOW_ALL_STORAGE_KEY, next ? "1" : "0");
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }
-
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
-    setTableColumnFilter(columnId, values);
+    table.setColumnFilter(columnId, values);
     if (direction) {
       table.setSort({ columnId, direction });
     } else if (table.sort.columnId === columnId) {
       table.setSort({ columnId: null, direction: null });
     }
-    setPage(1);
   }
 
   return (
@@ -357,184 +198,98 @@ export function SetupsAnalyticsPanel() {
       </header>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-border bg-bg p-3">
-          <p className="text-xs text-text-3">Performance Summary ($)</p>
-          <p className={`text-lg font-semibold ${summary.totalPnl >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(summary.totalPnl)}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-bg p-3">
-          <p className="text-xs text-text-3" title="Percent of closed lots with positive outcome. Flat lots excluded.">
-            Win Rate (%)
-          </p>
-          <p className="text-lg font-semibold text-text">{formatNullablePercent(summary.averageWinRate, 1)}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-bg p-3">
-          <p className="text-xs text-text-3" title="Average realized P&L per matched lot in this setup.">
-            Expectancy ($ / lot)
-          </p>
-          <p className="text-lg font-semibold text-text">{formatCurrency(summary.averageExpectancy)} / lot</p>
-        </div>
-        <div className="rounded-lg border border-border bg-bg p-3">
-          <p className="text-xs text-text-3">Average Hold (Days)</p>
-          <p className="text-lg font-semibold text-text">{summary.averageHoldDays.toFixed(2)}</p>
-        </div>
+        <div className="rounded-lg border border-border bg-bg p-3"><p className="text-xs text-text-3">Performance Summary ($)</p><p className={`text-lg font-semibold ${summary.totalPnl >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(summary.totalPnl)}</p></div>
+        <div className="rounded-lg border border-border bg-bg p-3"><p className="text-xs text-text-3" title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</p><p className="text-lg font-semibold text-text">{formatNullablePercent(summary.averageWinRate, 1)}</p></div>
+        <div className="rounded-lg border border-border bg-bg p-3"><p className="text-xs text-text-3" title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</p><p className="text-lg font-semibold text-text">{formatCurrency(summary.averageExpectancy)} / lot</p></div>
+        <div className="rounded-lg border border-border bg-bg p-3"><p className="text-xs text-text-3">Average Hold (Days)</p><p className="text-lg font-semibold text-text">{summary.averageHoldDays.toFixed(2)}</p></div>
       </div>
 
-      <DataTableToolbar
-        activeFilterCount={table.activeFilterCount}
-        onClearAllFilters={() => {
-          table.clearAllFilters();
-          setPage(1);
-        }}
-        onToggleShowAll={toggleShowAll}
-        showAll={showAll}
-        totalRows={totalRows}
-      />
+      <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-neg">{error}</p> : null}
 
-      {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-xl border border-border bg-bg p-6">
-          <h3 className="text-lg font-medium text-text">No setup groups found</h3>
-          <p className="mt-2 text-sm text-text-2">Commit an import so setup inference can generate T3 groups from matched lots.</p>
-          <Link href="/imports" className="mt-3 inline-block text-sm text-accent underline">
-            Go to Imports & Connections
-          </Link>
-        </div>
-      ) : null}
-
-      {!loading && !error && totalRows > 0 ? (
-        <div className="space-y-3">
-          <div
-            className={showAll ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
-            style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
-          >
-            <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-surface text-text-2">
-                <tr>
-                  {columns.map((column) => (
-                    <DataTableHeader
-                      key={column.id}
-                      column={column}
-                      currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                      currentValues={table.filters[column.id] ?? []}
-                      isOpen={openColumnId === column.id}
-                      onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                      onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                      onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                      options={table.filterOptions[column.id] ?? []}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <SetupsTableBody rows={pagedRows} pathname={pathname} />
-            </table>
-          </div>
-
-          {showAll ? (
-            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
-          ) : (
-            <div className="flex items-center justify-between text-xs text-text-2">
-              <p>
-                Showing page {currentPage} of {totalPages} ({totalRows} rows)
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+      {!loading && !error && table.sortedRows.length > 0 ? (
+        <ScrollableTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
+          <table className="min-w-[1440px] table-fixed text-xs">
+            <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
+              <tr>
+                {columns.map((column) => (
+                  <DataTableHeader
+                    key={column.id}
+                    column={column}
+                    currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
+                    currentValues={table.filters[column.id] ?? []}
+                    isOpen={openColumnId === column.id}
+                    onApply={(values, direction) => applyColumnState(column.id, values, direction)}
+                    onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
+                    onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
+                    options={table.filterOptions[column.id] ?? []}
+                  />
+                ))}
+              </tr>
+            </thead>
+            <VirtualTableBody
+              rows={table.sortedRows}
+              scrollContainerRef={scrollContainerRef}
+              getRowKey={(row) => row.id}
+              renderRow={(row) => <SetupsTableRow row={row} pathname={pathname} />}
+            />
+          </table>
+        </ScrollableTableShell>
       ) : null}
 
       {selectedSetupId ? (
         <section id="setup-detail" className="space-y-3 rounded-xl border border-border bg-bg p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-text">Setup Detail Drill-through</h3>
-            <button type="button" onClick={() => router.push(pathname, { scroll: false })} className="text-xs text-text-2 underline">
-              Close
-            </button>
+            <button type="button" onClick={() => router.push(pathname, { scroll: false })} className="text-xs text-text-2 underline">Close</button>
           </div>
           {detailLoading ? <LoadingSkeleton lines={4} /> : null}
           {!detailLoading && detailError ? <p className="text-xs text-neg">{detailError}</p> : null}
           {!detailLoading && detail ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs text-text-2">
-                <p>
-                  {detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}
-                </p>
-                <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: detail.setup.id })} className="text-accent underline">
-                  Open diagnostics case file
-                </Link>
+                <p>{detail.setup.overrideTag ?? detail.setup.tag} · {detail.setup.underlyingSymbol} · setup id {detail.setup.id}</p>
+                <Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: detail.setup.id })} className="text-accent underline">Open diagnostics case file</Link>
               </div>
               <div className="rounded border border-border bg-bg p-3">
                 <h4 className="text-xs font-semibold text-text">Inference Notes</h4>
-                {detail.inference.reasons.length === 0 ? (
-                  <p className="mt-2 text-xs text-text-3">No inference notes available.</p>
-                ) : (
-                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-2">
-                    {detail.inference.reasons.map((reason, index) => (
-                      <li key={`${reason}-${index}`}>{reason}</li>
-                    ))}
-                  </ul>
+                {detail.inference.reasons.length === 0 ? <p className="mt-2 text-xs text-text-3">No inference notes available.</p> : (
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-2">{detail.inference.reasons.map((reason, index) => <li key={`${reason}-${index}`}>{reason}</li>)}</ul>
                 )}
               </div>
-              <div className="overflow-auto rounded border border-border">
-                <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 z-10 bg-surface text-text-2">
+              <ScrollableTableShell height={320} scrollContainerRef={drawerLotsScrollRef}>
+                <table className="min-w-[980px] table-fixed text-xs">
+                  <thead className="sticky top-0 z-10 bg-surface text-text-2" style={{ position: "sticky", top: 0, zIndex: 2 }}>
                     <tr>
                       <th className="px-2 py-2 text-left">Symbol</th>
                       <th className="px-2 py-2 text-right">Qty</th>
-                      <th className="px-2 py-2 text-right">Realized P&L ($)</th>
+                      <th className="px-2 py-2 text-right">Realized P&amp;L ($)</th>
                       <th className="px-2 py-2 text-right">Hold Days</th>
                       <th className="px-2 py-2 text-left">Outcome</th>
                       <th className="px-2 py-2 text-left">Open Execution</th>
                       <th className="px-2 py-2 text-left">Close Execution</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {detail.lots.map((lot) => (
-                      <tr key={lot.id} className="border-t border-border text-text">
+                  <VirtualTableBody
+                    rows={detail.lots}
+                    scrollContainerRef={drawerLotsScrollRef}
+                    getRowKey={(lot) => lot.id}
+                    renderRow={(lot) => (
+                      <>
                         <td className="px-2 py-2">{lot.symbol}</td>
                         <td className="px-2 py-2 text-right">{lot.quantity}</td>
-                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>
-                          {formatCurrency(safeNumber(lot.realizedPnl))}
-                        </td>
+                        <td className={`px-2 py-2 text-right ${safeNumber(lot.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(lot.realizedPnl))}</td>
                         <td className="px-2 py-2 text-right">{lot.holdingDays}</td>
                         <td className="px-2 py-2">{lot.outcome}</td>
-                        <td className="px-2 py-2">
-                          <Link href={`/trade-records?tab=executions&execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">
-                            {lot.openExecutionId.slice(0, 8)}...
-                          </Link>
-                        </td>
-                        <td className="px-2 py-2">
-                          {lot.closeExecutionId ? (
-                            <Link href={`/trade-records?tab=executions&execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">
-                              {lot.closeExecutionId.slice(0, 8)}...
-                            </Link>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                        <td className="px-2 py-2"><Link href={`/trade-records?tab=executions&execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.openExecutionId.slice(0, 8)}...</Link></td>
+                        <td className="px-2 py-2">{lot.closeExecutionId ? <Link href={`/trade-records?tab=executions&execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">{lot.closeExecutionId.slice(0, 8)}...</Link> : "-"}</td>
+                      </>
+                    )}
+                  />
                 </table>
-              </div>
+              </ScrollableTableShell>
             </div>
           ) : null}
         </section>
