@@ -87,7 +87,7 @@ const ExecutionsTableBody = memo(function ExecutionsTableBody({
           <td className="px-2 py-2">
             <AccountLabel accountId={row.accountId} />
           </td>
-          <td className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</td>
+          <td className="px-2 py-2 font-mono text-xs">{importLabelById.get(row.importId) ?? shortId(row.importId)}</td>
           <td className="px-2 py-2 font-mono">
             <button type="button" onClick={() => onSelectExecution(row.id)} className="text-accent underline">
               {shortId(row.id)}
