@@ -10,15 +10,20 @@ const config: Config = {
     extend: {
       colors: {
         bg: "var(--bg)",
-        panel: "var(--panel)",
-        "panel-2": "var(--panel-2)",
-        muted: "var(--muted)",
-        text: "var(--text)",
-        accent: "var(--accent)",
-        "accent-2": "var(--accent-2)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        "surface-3": "var(--surface-3)",
         border: "var(--border)",
+        text: "var(--text)",
+        "text-2": "var(--text-2)",
+        "text-3": "var(--text-3)",
+        accent: "var(--accent)",
+        pos: "var(--pos)",
+        neg: "var(--neg)",
+        warn: "var(--warn)",
       },
       borderColor: {
+        DEFAULT: "var(--border)",
         border: "var(--border)",
       },
       backgroundImage: {

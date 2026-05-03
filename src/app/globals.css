@@ -3,21 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --bg: #090f1e;
-  --panel: #121933;
-  --panel-2: #182145;
-  --muted: #9ca9c9;
-  --text: #eef3ff;
-  --accent: #67a3ff;
-  --accent-2: #7ef0c6;
-  --border: rgba(255, 255, 255, 0.1);
-  --sidebar-bg: #0a1020;
-  --danger: #fca5a5;
-  --warning: #fbbf24;
-  --violet: #a78bfa;
-  --color-text-success: var(--accent-2);
-  --color-text-warning: var(--warning);
-  --color-text-danger: var(--danger);
+  --bg:             #0b0d12;
+  --surface:        #111318;
+  --surface-2:      #181b23;
+  --surface-3:      #1f2330;
+  --border:         #252b3a;
+  --border-subtle:  #1a1f2c;
+  --text:           #dde2ef;
+  --text-2:         #858fa5;
+  --text-3:         #4d5668;
+  --accent:         oklch(0.72 0.15 200);
+  --accent-dim:     oklch(0.72 0.15 200 / 0.13);
+  --accent-border:  oklch(0.72 0.15 200 / 0.30);
+  --pos:            oklch(0.72 0.17 145);
+  --pos-dim:        oklch(0.72 0.17 145 / 0.12);
+  --neg:            oklch(0.65 0.20 25);
+  --neg-dim:        oklch(0.65 0.20 25 / 0.12);
+  --warn:           oklch(0.78 0.14 75);
+  --warn-dim:       oklch(0.78 0.14 75 / 0.12);
+  --mono:           "Geist Mono", ui-monospace, monospace;
+  --sans:           "Geist", system-ui, sans-serif;
+  --sidebar-w:      220px;
+  --topbar-h:       46px;
+  --r:              7px;
+  --r-sm:           4px;
+  --row-h:          34px;
 }
 
 * {
@@ -26,6 +36,13 @@
 
 body {
   margin: 0;
+  background: var(--bg);
   color: var(--text);
-  background: radial-gradient(circle at 0% 0%, #152245 0%, #090f1e 42%, #050913 100%);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

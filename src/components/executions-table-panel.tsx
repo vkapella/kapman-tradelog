@@ -53,7 +53,7 @@ const ExecutionsTableBody = memo(function ExecutionsTableBody({
   return (
     <tbody>
       {rows.map((row) => (
-        <tr key={row.id} className="border-t border-slate-800 text-slate-200">
+        <tr key={row.id} className="border-t border-border text-text">
           <td className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</td>
           <td className="px-2 py-2">{row.tradeDate.slice(0, 10)}</td>
           <td className="px-2 py-2">{displayExecutionSymbol(row)}</td>
@@ -89,13 +89,13 @@ const ExecutionsTableBody = memo(function ExecutionsTableBody({
           </td>
           <td className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</td>
           <td className="px-2 py-2 font-mono">
-            <button type="button" onClick={() => onSelectExecution(row.id)} className="text-blue-300 underline">
+            <button type="button" onClick={() => onSelectExecution(row.id)} className="text-accent underline">
               {shortId(row.id)}
             </button>
           </td>
           <td className="px-2 py-2">
             {canInvestigateExecution(row) ? (
-              <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-blue-300 underline">
+              <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-accent underline">
                 Case file
               </Link>
             ) : (
@@ -451,10 +451,10 @@ export function ExecutionsTablePanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-100">Execution Audit Table (T1)</h2>
-        <p className="text-sm text-slate-300">Filter and inspect normalized execution events with import/account context for auditability.</p>
+        <h2 className="text-xl font-semibold text-text">Execution Audit Table (T1)</h2>
+        <p className="text-sm text-text-2">Filter and inspect normalized execution events with import/account context for auditability.</p>
       </header>
 
       <DataTableToolbar
@@ -469,13 +469,13 @@ export function ExecutionsTablePanel() {
       />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
-          <h3 className="text-lg font-medium text-slate-100">No executions found</h3>
-          <p className="mt-2 text-sm text-slate-300">Adjust filters or commit an import to generate canonical execution rows.</p>
-          <Link href="/imports" className="mt-3 inline-block text-sm text-blue-300 underline">
+        <div className="rounded-xl border border-border bg-bg p-6">
+          <h3 className="text-lg font-medium text-text">No executions found</h3>
+          <p className="mt-2 text-sm text-text-2">Adjust filters or commit an import to generate canonical execution rows.</p>
+          <Link href="/imports" className="mt-3 inline-block text-sm text-accent underline">
             Go to Imports & Connections
           </Link>
         </div>
@@ -484,11 +484,11 @@ export function ExecutionsTablePanel() {
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
           <div
-            className={showAll ? "overflow-y-auto rounded border border-slate-700" : "overflow-auto rounded border border-slate-700"}
+            className={showAll ? "overflow-y-auto rounded border border-border" : "overflow-auto rounded border border-border"}
             style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}
           >
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-slate-900 text-slate-300">
+              <thead className="sticky top-0 z-10 bg-surface text-text-2">
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -510,9 +510,9 @@ export function ExecutionsTablePanel() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-slate-300">Showing all {totalRows} records</p>
+            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
           ) : (
-            <div className="flex items-center justify-between text-xs text-slate-300">
+            <div className="flex items-center justify-between text-xs text-text-2">
               <p>
                 Showing page {currentPage} of {totalPages} ({totalRows} rows)
               </p>
@@ -521,7 +521,7 @@ export function ExecutionsTablePanel() {
                   type="button"
                   disabled={currentPage <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Prev
                 </button>
@@ -529,7 +529,7 @@ export function ExecutionsTablePanel() {
                   type="button"
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  className="rounded border border-slate-600 px-2 py-1 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-1 disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -540,98 +540,98 @@ export function ExecutionsTablePanel() {
       ) : null}
 
       {selectedExecutionId ? (
-        <section className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+        <section className="space-y-3 rounded-xl border border-border bg-bg p-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-100">Execution Detail Drill-through</h3>
-            <button type="button" onClick={() => setSelectedExecutionId(null)} className="text-xs text-slate-300 underline">
+            <h3 className="text-base font-semibold text-text">Execution Detail Drill-through</h3>
+            <button type="button" onClick={() => setSelectedExecutionId(null)} className="text-xs text-text-2 underline">
               Close
             </button>
           </div>
 
           {detailLoading ? <LoadingSkeleton lines={5} /> : null}
-          {!detailLoading && detailError ? <p className="text-xs text-red-200">{detailError}</p> : null}
+          {!detailLoading && detailError ? <p className="text-xs text-neg">{detailError}</p> : null}
 
           {!detailLoading && detail ? (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <p className="text-xs text-slate-400">Execution ID</p>
-                  <p className="break-all font-mono text-xs text-slate-100">{detail.id}</p>
+                  <p className="text-xs text-text-3">Execution ID</p>
+                  <p className="break-all font-mono text-xs text-text">{detail.id}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Import ID</p>
-                  <p className="break-all font-mono text-xs text-slate-100">{detail.importId}</p>
-                  <Link href={`/imports?tab=history&import=${encodeURIComponent(detail.importId)}`} className="text-xs text-blue-300 underline">
+                  <p className="text-xs text-text-3">Import ID</p>
+                  <p className="break-all font-mono text-xs text-text">{detail.importId}</p>
+                  <Link href={`/imports?tab=history&import=${encodeURIComponent(detail.importId)}`} className="text-xs text-accent underline">
                     Open parent import record
                   </Link>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Account</p>
-                  <p className="break-all font-mono text-xs text-slate-100">{detail.accountId}</p>
+                  <p className="text-xs text-text-3">Account</p>
+                  <p className="break-all font-mono text-xs text-text">{detail.accountId}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Trade Date</p>
-                  <p className="text-xs text-slate-100">{detail.tradeDate.slice(0, 10)}</p>
+                  <p className="text-xs text-text-3">Trade Date</p>
+                  <p className="text-xs text-text">{detail.tradeDate.slice(0, 10)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Symbol</p>
-                  <p className="text-xs text-slate-100">{displayExecutionSymbol(detail)}</p>
+                  <p className="text-xs text-text-3">Symbol</p>
+                  <p className="text-xs text-text">{displayExecutionSymbol(detail)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Side</p>
-                  <p className="text-xs text-slate-100">{detail.side ?? "-"}</p>
+                  <p className="text-xs text-text-3">Side</p>
+                  <p className="text-xs text-text">{detail.side ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Qty</p>
-                  <p className="text-xs text-slate-100">{detail.quantity}</p>
+                  <p className="text-xs text-text-3">Qty</p>
+                  <p className="text-xs text-text">{detail.quantity}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Unit Price</p>
-                  <p className="text-xs text-slate-100">{detail.price ?? "~"}</p>
+                  <p className="text-xs text-text-3">Unit Price</p>
+                  <p className="text-xs text-text">{detail.price ?? "~"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Event</p>
-                  <p className="text-xs text-slate-100">{detail.eventType}</p>
+                  <p className="text-xs text-text-3">Event</p>
+                  <p className="text-xs text-text">{detail.eventType}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Effect</p>
-                  <p className="text-xs text-slate-100">{detail.openingClosingEffect ?? "UNKNOWN"}</p>
+                  <p className="text-xs text-text-3">Effect</p>
+                  <p className="text-xs text-text">{detail.openingClosingEffect ?? "UNKNOWN"}</p>
                   {canInvestigateExecution(detail) ? (
-                    <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: detail.id })} className="text-xs text-blue-300 underline">
+                    <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: detail.id })} className="text-xs text-accent underline">
                       Open diagnostics case file
                     </Link>
                   ) : null}
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Option</p>
-                  <p className="text-xs text-slate-100">{renderOptionValue(detail)}</p>
+                  <p className="text-xs text-text-3">Option</p>
+                  <p className="text-xs text-text">{renderOptionValue(detail)}</p>
                 </div>
               </div>
 
-              <div className="space-y-2 rounded border border-slate-700 bg-slate-950/50 p-3">
-                <p className="text-xs text-slate-400">Instrument Key</p>
+              <div className="space-y-2 rounded border border-border bg-bg p-3">
+                <p className="text-xs text-text-3">Instrument Key</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     readOnly
                     value={detail.instrumentKey ?? ""}
-                    className="min-w-[18rem] flex-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100"
+                    className="min-w-[18rem] flex-1 rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text"
                   />
                   <button
                     type="button"
                     onClick={copyInstrumentKey}
                     disabled={!detail.instrumentKey}
-                    className="rounded border border-slate-600 bg-slate-900 px-3 py-1 text-xs text-slate-200 disabled:opacity-50"
+                    className="rounded border border-border bg-surface px-3 py-1 text-xs text-text disabled:opacity-50"
                   >
                     Copy
                   </button>
                 </div>
-                {copyStatus === "copied" ? <p className="text-xs text-emerald-300">Instrument key copied.</p> : null}
-                {copyStatus === "failed" ? <p className="text-xs text-red-200">Clipboard write failed. Copy manually.</p> : null}
+                {copyStatus === "copied" ? <p className="text-xs text-pos">Instrument key copied.</p> : null}
+                {copyStatus === "failed" ? <p className="text-xs text-neg">Clipboard write failed. Copy manually.</p> : null}
               </div>
 
-              <details className="rounded border border-slate-700 bg-slate-950/50 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-100">Raw Row JSON</summary>
-                <pre className="mt-2 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200">
+              <details className="rounded border border-border bg-bg p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-text">Raw Row JSON</summary>
+                <pre className="mt-2 overflow-auto rounded border border-border bg-bg p-3 text-xs text-text">
                   {JSON.stringify(detail.rawRowJson ?? null, null, 2)}
                 </pre>
               </details>

@@ -65,17 +65,17 @@ export function SetupTagRollupWidget() {
       <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <XAxis dataKey="tag" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-            <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} />
+            <XAxis dataKey="tag" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+            <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} />
             <Tooltip
-              contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }}
+              contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
               formatter={(value: number) => [formatCurrency(value), "P&L"]}
             />
             <Bar dataKey="pnl" fill="var(--accent)" />
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted">
+      <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-text-2">
         {chartData.map((entry) => (
           <span key={entry.tag}>{entry.tag + " (" + entry.count + ")"}</span>
         ))}

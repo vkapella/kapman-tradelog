@@ -64,17 +64,17 @@ export function AdapterRegistryPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-700 bg-slate-900/40 p-5">
-      <h2 className="text-lg font-semibold text-slate-100">Adapter Registry</h2>
-      <p className="mt-1 text-sm text-slate-300">Available broker adapters and declared coverage.</p>
+    <section className="rounded-2xl border border-border bg-surface p-5">
+      <h2 className="text-lg font-semibold text-text">Adapter Registry</h2>
+      <p className="mt-1 text-sm text-text-2">Available broker adapters and declared coverage.</p>
       <ul className="mt-4 space-y-3">
         {adapters.map((adapter) => (
-          <li key={adapter.id} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3">
+          <li key={adapter.id} className="rounded-xl border border-border bg-bg p-3">
             <div className="flex items-center justify-between gap-4">
-              <p className="font-medium text-slate-100">{adapter.displayName}</p>
-              <span className="text-xs uppercase tracking-wide text-slate-300">{adapter.status}</span>
+              <p className="font-medium text-text">{adapter.displayName}</p>
+              <span className="text-xs uppercase tracking-wide text-text-2">{adapter.status}</span>
             </div>
-            <p className="mt-2 text-xs text-slate-300">{adapter.coverage.notes}</p>
+            <p className="mt-2 text-xs text-text-2">{adapter.coverage.notes}</p>
           </li>
         ))}
       </ul>

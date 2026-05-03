@@ -83,20 +83,20 @@ export function OverviewDashboardPanel() {
   }, [data]);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/40 p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-100">Overview Summary</h2>
-        <p className="text-sm text-slate-300">Headline P&L and activity metrics, import quality checks, and equity-curve-ready snapshot series.</p>
+        <h2 className="text-xl font-semibold text-text">Overview Summary</h2>
+        <p className="text-sm text-text-2">Headline P&L and activity metrics, import quality checks, and equity-curve-ready snapshot series.</p>
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && !hasData ? (
-        <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-6">
-          <h3 className="text-lg font-medium text-slate-100">No overview metrics yet</h3>
-          <p className="mt-2 text-sm text-slate-300">Import and commit statements to generate execution, matched-lot, setup, and snapshot metrics.</p>
-          <Link href="/imports" className="mt-3 inline-block text-sm text-blue-300 underline">
+        <div className="rounded-xl border border-border bg-bg p-6">
+          <h3 className="text-lg font-medium text-text">No overview metrics yet</h3>
+          <p className="mt-2 text-sm text-text-2">Import and commit statements to generate execution, matched-lot, setup, and snapshot metrics.</p>
+          <Link href="/imports" className="mt-3 inline-block text-sm text-accent underline">
             Go to Imports & Connections
           </Link>
         </div>
@@ -113,9 +113,9 @@ export function OverviewDashboardPanel() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
-              <h3 className="text-sm font-semibold text-slate-100">Import Quality Summary</h3>
-              <dl className="mt-3 space-y-2 text-xs text-slate-300">
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <h3 className="text-sm font-semibold text-text">Import Quality Summary</h3>
+              <dl className="mt-3 space-y-2 text-xs text-text-2">
                 <div className="flex justify-between">
                   <dt>Total imports</dt>
                   <dd>{data.importQuality.totalImports}</dd>
@@ -143,12 +143,12 @@ export function OverviewDashboardPanel() {
               </dl>
             </div>
 
-            <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-4">
-              <h3 className="text-sm font-semibold text-slate-100">Snapshot Series Preview</h3>
-              <p className="mt-1 text-xs text-slate-400">Latest 12 points for equity-curve rendering inputs.</p>
-              <div className="mt-3 max-h-56 overflow-auto rounded border border-slate-700">
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <h3 className="text-sm font-semibold text-text">Snapshot Series Preview</h3>
+              <p className="mt-1 text-xs text-text-3">Latest 12 points for equity-curve rendering inputs.</p>
+              <div className="mt-3 max-h-56 overflow-auto rounded border border-border">
                 <table className="min-w-full text-xs">
-                  <thead className="bg-slate-900 text-slate-300">
+                  <thead className="bg-surface text-text-2">
                     <tr>
                       <th className="px-2 py-2 text-left">Date</th>
                       <th className="px-2 py-2 text-left">Account</th>
@@ -157,7 +157,7 @@ export function OverviewDashboardPanel() {
                   </thead>
                   <tbody>
                     {snapshotPreview.map((snapshot) => (
-                      <tr key={`${snapshot.accountId}-${snapshot.snapshotDate}`} className="border-t border-slate-800 text-slate-200">
+                      <tr key={`${snapshot.accountId}-${snapshot.snapshotDate}`} className="border-t border-border text-text">
                         <td className="px-2 py-2">{snapshot.snapshotDate.slice(0, 10)}</td>
                         <td className="px-2 py-2">
                           <AccountLabel accountId={snapshot.accountId} />

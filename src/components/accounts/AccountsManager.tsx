@@ -144,20 +144,20 @@ export function AccountsManager() {
 
   return (
     <section className="space-y-4">
-      <header className="rounded-xl border border-border bg-panel p-4">
+      <header className="rounded-xl border border-border bg-surface p-4">
         <p className="text-sm font-semibold text-text">Accounts</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-text-2">
           Manage display labels, broker names, and per-account starting capital used by reconciliation and account-balance views.
         </p>
       </header>
 
-      {loading ? <p className="text-xs text-muted">Loading accounts...</p> : null}
+      {loading ? <p className="text-xs text-text-2">Loading accounts...</p> : null}
       {error ? <p className="rounded border border-red-400/60 bg-red-400/10 px-3 py-2 text-xs text-red-200">{error}</p> : null}
 
       {!loading && !hasRows ? (
-        <div className="rounded-xl border border-border bg-panel p-5 text-sm text-text">
+        <div className="rounded-xl border border-border bg-surface p-5 text-sm text-text">
           <p>No accounts are available yet.</p>
-          <p className="mt-2 text-xs text-muted">Next action: import a broker statement to seed account records.</p>
+          <p className="mt-2 text-xs text-text-2">Next action: import a broker statement to seed account records.</p>
           <Link href="/imports" className="mt-3 inline-block text-xs text-accent underline">
             Go to Imports
           </Link>
@@ -165,9 +165,9 @@ export function AccountsManager() {
       ) : null}
 
       {!loading && hasRows ? (
-        <div className="overflow-auto rounded-xl border border-border bg-panel">
+        <div className="overflow-auto rounded-xl border border-border bg-surface">
           <table className="min-w-full text-sm">
-            <thead className="bg-panel-2 text-left text-[11px] uppercase tracking-[0.08em] text-muted">
+            <thead className="bg-surface-2 text-left text-[11px] uppercase tracking-[0.08em] text-text-2">
               <tr>
                 <th className="px-3 py-3">Display Label</th>
                 <th className="px-3 py-3">Broker Account</th>
@@ -192,7 +192,7 @@ export function AccountsManager() {
                         type="text"
                         value={draft.displayLabel}
                         onChange={(event) => updateDraft(row.id, "displayLabel", event.target.value)}
-                        className="w-full rounded border border-border bg-panel-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
                       />
                     </td>
                     <td className="px-3 py-3 align-top font-mono text-xs">{row.accountId}</td>
@@ -201,7 +201,7 @@ export function AccountsManager() {
                         type="text"
                         value={draft.brokerName}
                         onChange={(event) => updateDraft(row.id, "brokerName", event.target.value)}
-                        className="w-full rounded border border-border bg-panel-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
                       />
                     </td>
                     <td className="px-3 py-3 align-top">
@@ -211,23 +211,23 @@ export function AccountsManager() {
                         step="0.01"
                         value={draft.startingCapital}
                         onChange={(event) => updateDraft(row.id, "startingCapital", event.target.value)}
-                        className="w-full rounded border border-border bg-panel-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
                       />
                       {promptForStartingCapital ? (
                         <p className="mt-1 text-[11px] text-amber-200">Prompt: set a Fidelity starting capital before relying on total-return views.</p>
                       ) : null}
                     </td>
-                    <td className="px-3 py-3 align-top text-xs text-muted">{formatCreatedAt(row.createdAt)}</td>
+                    <td className="px-3 py-3 align-top text-xs text-text-2">{formatCreatedAt(row.createdAt)}</td>
                     <td className="px-3 py-3 align-top text-right">
                       <button
                         type="button"
                         onClick={() => saveRow(row)}
                         disabled={!isDirty || isSaving}
-                        className="rounded border border-border bg-panel-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isSaving ? "Saving..." : "Save"}
                       </button>
-                      {wasSaved ? <p className="mt-1 text-[11px] text-accent-2">Saved</p> : null}
+                      {wasSaved ? <p className="mt-1 text-[11px] text-pos">Saved</p> : null}
                     </td>
                   </tr>
                 );

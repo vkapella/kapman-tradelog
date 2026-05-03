@@ -172,29 +172,29 @@ export function ColumnFilterPanel<Row>({
         maxWidth: "calc(100vw - 24px)",
       }}
       className={[
-        "fixed z-50 min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-slate-700 bg-slate-950 p-3 text-xs text-slate-200 shadow-2xl",
+        "fixed z-50 min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-border bg-bg p-3 text-xs text-text shadow-2xl",
         column.panelWidthClassName ?? "w-72",
       ].join(" ")}
     >
       {column.sortMode ? (
-        <div className="space-y-2 border-b border-slate-800 pb-3">
-          <p className="font-semibold text-slate-100">Sort</p>
+        <div className="space-y-2 border-b border-border pb-3">
+          <p className="font-semibold text-text">Sort</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setDraftSortDirection("asc")}
-              className={draftSortDirection === "asc" ? "rounded border border-blue-400/50 bg-blue-500/20 px-2 py-1 text-blue-100" : "rounded border border-slate-700 px-2 py-1 text-slate-200"}
+              className={draftSortDirection === "asc" ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
             >
               Asc
             </button>
             <button
               type="button"
               onClick={() => setDraftSortDirection("desc")}
-              className={draftSortDirection === "desc" ? "rounded border border-blue-400/50 bg-blue-500/20 px-2 py-1 text-blue-100" : "rounded border border-slate-700 px-2 py-1 text-slate-200"}
+              className={draftSortDirection === "desc" ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
             >
               Desc
             </button>
-            <button type="button" onClick={() => setDraftSortDirection(null)} className="rounded border border-slate-700 px-2 py-1 text-slate-300">
+            <button type="button" onClick={() => setDraftSortDirection(null)} className="rounded border border-border px-2 py-1 text-text-2">
               Clear
             </button>
           </div>
@@ -205,12 +205,12 @@ export function ColumnFilterPanel<Row>({
         <div className={column.sortMode ? "space-y-3 pt-3" : "space-y-3"}>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-semibold text-slate-100">Filter values</p>
+              <p className="font-semibold text-text">Filter values</p>
               <div className="flex items-center gap-2 text-[11px]">
-                <button type="button" onClick={() => setDraftValues(options.map((option) => option.value))} className="text-blue-300 underline">
+                <button type="button" onClick={() => setDraftValues(options.map((option) => option.value))} className="text-accent underline">
                   Select all
                 </button>
-                <button type="button" onClick={() => setDraftValues([])} className="text-slate-300 underline">
+                <button type="button" onClick={() => setDraftValues([])} className="text-text-2 underline">
                   Clear all
                 </button>
               </div>
@@ -220,33 +220,33 @@ export function ColumnFilterPanel<Row>({
               value={draftSearch}
               onChange={(event) => setDraftSearch(event.target.value)}
               placeholder={`Search ${column.label.toLowerCase()}...`}
-              className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+              className="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs text-text"
             />
           </div>
 
           <div
             style={{ maxHeight: panelPosition.listMaxHeight }}
-            className="space-y-1 overflow-y-auto rounded border border-slate-800 bg-slate-900/50 p-2"
+            className="space-y-1 overflow-y-auto rounded border border-border bg-surface p-2"
           >
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
-                <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-800/80">
+                <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-surface-2">
                   <input type="checkbox" checked={draftValues.includes(option.value)} onChange={() => toggleValue(option.value)} />
                   <span>{option.label}</span>
                 </label>
               ))
             ) : (
-              <p className="px-1 py-2 text-slate-400">No matching values.</p>
+              <p className="px-1 py-2 text-text-3">No matching values.</p>
             )}
           </div>
         </div>
       ) : null}
 
-      <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
-        <button type="button" onClick={onClose} className="rounded border border-slate-700 px-2 py-1 text-slate-300">
+      <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3">
+        <button type="button" onClick={onClose} className="rounded border border-border px-2 py-1 text-text-2">
           Close
         </button>
-        <button type="button" onClick={apply} className="rounded border border-blue-400/50 bg-blue-500/20 px-2 py-1 text-blue-100">
+        <button type="button" onClick={apply} className="rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent">
           Apply
         </button>
       </div>

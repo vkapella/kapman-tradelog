@@ -211,9 +211,9 @@ export default function Page() {
     const flat = filteredLots.filter((row) => row.outcome !== "WIN" && row.outcome !== "LOSS").length;
 
     return [
-      { name: "WIN", value: wins, color: "var(--accent-2)" },
-      { name: "LOSS", value: losses, color: "var(--danger)" },
-      { name: "FLAT", value: flat, color: "var(--muted)" },
+      { name: "WIN", value: wins, color: "var(--pos)" },
+      { name: "LOSS", value: losses, color: "var(--neg)" },
+      { name: "FLAT", value: flat, color: "var(--text-2)" },
     ];
   }, [filteredLots]);
 
@@ -269,21 +269,21 @@ export default function Page() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-xl border border-border bg-panel p-4">
+        <article className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-2 text-sm font-semibold text-text">P&L by Setup Tag</h2>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={pnlByTagData}>
-                <XAxis dataKey="tag" tick={{ fill: "var(--muted)", fontSize: 10 }} />
-                <YAxis tick={{ fill: "var(--muted)", fontSize: 10 }} />
-                <Tooltip contentStyle={{ background: "var(--panel-2)", borderColor: "var(--border)", color: "var(--text)" }} />
+                <XAxis dataKey="tag" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+                <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+                <Tooltip contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }} />
                 <Bar dataKey="pnl" fill="var(--accent)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="rounded-xl border border-border bg-panel p-4">
+        <article className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-2 text-sm font-semibold text-text">Win / Loss / Flat</h2>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -299,17 +299,17 @@ export default function Page() {
         </article>
       </div>
 
-      <article className="rounded-xl border border-border bg-panel p-4">
+      <article className="rounded-xl border border-border bg-surface p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-text">Setup Analytics Table</h2>
-          <button type="button" onClick={toggleShowAll} className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text">
+          <button type="button" onClick={toggleShowAll} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text">
             {showAll ? "Show pages" : `Show all ${tableMeta.total}`}
           </button>
         </div>
 
         <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
           <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-panel-2 text-muted">
+              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2">
               <tr>
                 <th className="px-2 py-2 text-left">
                   <button type="button" onClick={() => toggleSort("tag")}>Tag</button>
@@ -351,9 +351,9 @@ export default function Page() {
         </div>
 
         {showAll ? (
-          <p className="mt-2 text-xs text-muted">Showing all {tableMeta.total} records</p>
+          <p className="mt-2 text-xs text-text-2">Showing all {tableMeta.total} records</p>
         ) : (
-          <div className="mt-2 flex items-center justify-between text-xs text-muted">
+          <div className="mt-2 flex items-center justify-between text-xs text-text-2">
             <p>
               Showing page {tableMeta.page} of {Math.max(1, Math.ceil(tableMeta.total / tableMeta.pageSize))} ({tableMeta.total} rows)
             </p>

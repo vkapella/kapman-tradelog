@@ -19,11 +19,11 @@ function formatCurrency(value: number): string {
 
 export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewResponse | null }) {
   return (
-    <div className="rounded-xl border border-border bg-panel p-3">
+    <div className="rounded-xl border border-border bg-surface p-3">
       <p className="mb-3 text-sm font-semibold text-text">Preview</p>
-      {!preview ? <p className="text-xs text-muted">Run preview to see before/after impact.</p> : null}
+      {!preview ? <p className="text-xs text-text-2">Run preview to see before/after impact.</p> : null}
       {preview ? (
-        <div className="space-y-2 text-xs text-muted">
+        <div className="space-y-2 text-xs text-text-2">
           <p>
             Symbol: <span className="font-mono text-text">{preview.symbol}</span>
           </p>
@@ -37,7 +37,7 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
             Affected executions: <span className="text-text">{preview.affectedExecutionCount}</span>
           </p>
           {preview.warnings.length > 0 ? (
-            <div className="space-y-1 rounded border border-border bg-panel-2 p-2">
+            <div className="space-y-1 rounded border border-border bg-surface-2 p-2">
               {preview.warnings.map((warning) => (
                 <p key={warning} className="text-[11px] text-amber-300">
                   {warning}
@@ -49,7 +49,7 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
           {preview.adjustmentType === "EXECUTION_QTY_OVERRIDE" && preview.executionQtyOverridePreview ? (
             <div className="rounded border border-border">
               <table className="min-w-full text-xs">
-                <thead className="bg-panel-2 text-muted">
+                <thead className="bg-surface-2 text-text-2">
                   <tr>
                     <th className="px-2 py-2 text-left">Metric</th>
                     <th className="px-2 py-2 text-right">Before</th>
@@ -93,7 +93,7 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
           ) : preview.adjustmentType === "EXECUTION_PRICE_OVERRIDE" && preview.executionPriceOverridePreview ? (
             <div className="rounded border border-border">
               <table className="min-w-full text-xs">
-                <thead className="bg-panel-2 text-muted">
+                <thead className="bg-surface-2 text-text-2">
                   <tr>
                     <th className="px-2 py-2 text-left">Metric</th>
                     <th className="px-2 py-2 text-right">Before</th>
@@ -137,7 +137,7 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
           ) : (
             <div className="rounded border border-border">
               <table className="min-w-full text-xs">
-                <thead className="bg-panel-2 text-muted">
+                <thead className="bg-surface-2 text-text-2">
                   <tr>
                     <th className="px-2 py-2 text-left">Metric</th>
                     <th className="px-2 py-2 text-right">Before</th>

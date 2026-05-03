@@ -59,14 +59,14 @@ export function ImportHealthWidget() {
 
   return (
     <WidgetCard title="Import Health">
-      <div className="space-y-1 text-xs text-muted">
+      <div className="space-y-1 text-xs text-text-2">
         <p>Total imports: {summary.totalImports}</p>
         <p>Committed: {summary.committedImports}</p>
         <p>Failed: {summary.failedImports}</p>
         <p>Parsed rows: {summary.parsedRows}</p>
         <p>Skipped rows: {summary.skippedRows}</p>
       </div>
-      <p className={healthy ? "mt-2 text-xs text-accent-2" : "mt-2 text-xs text-amber-300"}>{healthy ? "Healthy" : "Needs review"}</p>
+      <p className={healthy ? "mt-2 text-xs text-pos" : "mt-2 text-xs text-amber-300"}>{healthy ? "Healthy" : "Needs review"}</p>
       <Link href="/imports" className="mt-2 inline-block text-xs text-accent underline">
         View imports →
       </Link>

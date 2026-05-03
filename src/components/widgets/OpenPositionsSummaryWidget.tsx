@@ -49,11 +49,11 @@ export function OpenPositionsSummaryWidget() {
 
   return (
     <WidgetCard title="Open Positions Summary">
-      <div className="space-y-1 text-xs text-muted">
+      <div className="space-y-1 text-xs text-text-2">
         <p>Open positions: {filtered.length}</p>
         <p>Cost basis: {formatCurrency(totalCostBasis)}</p>
         <p>Mark value: {markValue === null ? "—" : formatCurrency(markValue)}</p>
-        <p className={unrealized !== null && unrealized >= 0 ? "text-accent-2" : "text-red-300"}>
+        <p className={unrealized !== null && unrealized >= 0 ? "text-pos" : "text-red-300"}>
           Unrealized: {unrealized === null ? "—" : formatCurrency(unrealized)}
         </p>
         <p>Last quoted: {formatQuoteTimestamp(snapshot.lastRefreshedAt)}</p>

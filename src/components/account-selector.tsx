@@ -35,15 +35,15 @@ export function AccountSelector() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="rounded-lg border border-border bg-panel px-3 py-2 text-xs font-medium text-text"
+        className="rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text"
       >
         {label}
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-border bg-panel-2 p-3 shadow-2xl">
+        <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[11px] uppercase tracking-wide text-muted">Account Filter</p>
+            <p className="text-[11px] uppercase tracking-wide text-text-2">Account Filter</p>
             <button
               type="button"
               onClick={() => setSelectedAccounts(availableAccounts)}
@@ -55,14 +55,14 @@ export function AccountSelector() {
           </div>
 
           <div className="max-h-56 space-y-2 overflow-auto pr-1">
-            {availableAccounts.length === 0 ? <p className="text-xs text-muted">No accounts available</p> : null}
+            {availableAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts available</p> : null}
             {availableAccounts.map((accountId) => (
               <label key={accountId} className="flex cursor-pointer items-center gap-2 text-xs text-text">
                 <input
                   type="checkbox"
                   checked={selectedAccounts.includes(accountId)}
                   onChange={() => toggleAccount(accountId)}
-                  className="h-3 w-3 rounded border-border bg-panel"
+                  className="h-3 w-3 rounded border-border bg-surface"
                 />
                 <AccountLabel accountId={accountId} className="truncate" />
               </label>

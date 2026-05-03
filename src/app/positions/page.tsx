@@ -87,7 +87,7 @@ const PositionsTableBody = memo(function PositionsTableBody({
           <td
             className={[
               "px-2 py-2 text-right",
-              row.dte === null ? "text-muted" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text",
+              row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text",
             ].join(" ")}
           >
             {row.dte ?? "—"}
@@ -95,7 +95,7 @@ const PositionsTableBody = memo(function PositionsTableBody({
           <td className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</td>
           <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</td>
           <td className="px-2 py-2 text-right font-mono">
-            {markLoading ? <span className="text-muted">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
+            {markLoading ? <span className="text-text-2">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}
           </td>
           <td className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</td>
           <td className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
@@ -104,7 +104,7 @@ const PositionsTableBody = memo(function PositionsTableBody({
           <td className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>
             {row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}
           </td>
-          <td className="px-2 py-2 text-muted">
+          <td className="px-2 py-2 text-text-2">
             <AccountLabel accountId={row.accountId} />
           </td>
         </tr>
@@ -331,18 +331,18 @@ export default function Page() {
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-panel p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
-          <span className="rounded-full bg-panel-2 px-2 py-0.5 text-[11px] text-muted">{totalRows} positions</span>
-          <span className="text-xs text-muted">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-2">{totalRows} positions</span>
+          <span className="text-xs text-text-2">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
         </div>
         <button
           type="button"
           onClick={() => void handleRefreshQuotes()}
           disabled={snapshot.isLoading}
-          className="rounded border border-border bg-panel-2 px-2 py-1 text-xs text-text disabled:opacity-50"
+          className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50"
         >
           {snapshot.isLoading ? "Refreshing..." : "Refresh Quotes"}
         </button>
@@ -351,7 +351,7 @@ export default function Page() {
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
       {!loading && !error && totalRows === 0 ? (
-        <div className="rounded-lg border border-border bg-panel-2 p-4 text-sm text-muted">
+        <div className="rounded-lg border border-border bg-surface-2 p-4 text-sm text-text-2">
           {hasPersistedSnapshot ? "No open positions for the selected accounts." : "No position data — click Refresh Quotes to load."}
         </div>
       ) : null}
@@ -359,19 +359,19 @@ export default function Page() {
       {!loading && !error && totalRows > 0 ? (
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-3">
-            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Total Cost Basis</p>
+            <article className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-text-2">Total Cost Basis</p>
               <p className="mt-1 text-sm font-semibold text-text">{formatCurrency(totals.totalCostBasis)}</p>
             </article>
-            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Total Market Value</p>
+            <article className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-text-2">Total Market Value</p>
               <p className="mt-1 text-sm font-semibold text-text">
                 {totals.totalMarketValue === null ? "—" : formatCurrency(totals.totalMarketValue)}
               </p>
-              {totals.hasMissingMarketValue ? <p className="text-[11px] text-muted">Waiting on cached marks</p> : null}
+              {totals.hasMissingMarketValue ? <p className="text-[11px] text-text-2">Waiting on cached marks</p> : null}
             </article>
-            <article className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted">Total Unrealized P&L</p>
+            <article className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-text-2">Total Unrealized P&L</p>
               <p className={totals.totalUnrealized === null ? "mt-1 text-sm font-semibold text-text" : totals.totalUnrealized >= 0 ? "mt-1 text-sm font-semibold text-green-300" : "mt-1 text-sm font-semibold text-red-300"}>
                 {totals.totalUnrealized === null ? "—" : formatSignedCurrency(totals.totalUnrealized)}
               </p>
@@ -392,7 +392,7 @@ export default function Page() {
 
           <div className={showAll ? "overflow-y-auto" : "overflow-auto"} style={showAll ? { maxHeight: "calc(100vh - 280px)" } : undefined}>
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 z-10 bg-panel-2 text-muted">
+              <thead className="sticky top-0 z-10 bg-surface-2 text-text-2">
                 <tr>
                   {columns.map((column) => (
                     <DataTableHeader
@@ -414,9 +414,9 @@ export default function Page() {
           </div>
 
           {showAll ? (
-            <p className="text-xs text-muted">Showing all {totalRows} records</p>
+            <p className="text-xs text-text-2">Showing all {totalRows} records</p>
           ) : (
-            <div className="flex items-center justify-between text-xs text-muted">
+            <div className="flex items-center justify-between text-xs text-text-2">
               <p>
                 Page {currentPage} of {totalPages}
               </p>

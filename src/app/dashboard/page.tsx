@@ -186,7 +186,7 @@ function DashboardTile({
             ref={setActivatorNodeRef}
             type="button"
             aria-label="Drag tile"
-            className="absolute left-2 top-2 z-30 flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text active:cursor-grabbing"
+            className="absolute left-2 top-2 z-30 flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
@@ -196,7 +196,7 @@ function DashboardTile({
             type="button"
             onPointerDown={stopDashboardControlPropagation}
             onClick={(event) => handleRemoveWidgetClick(event, { editMode, remove })}
-            className="absolute right-2 top-2 z-30 rounded border border-border bg-panel px-2 py-0.5 text-xs text-muted"
+            className="absolute right-2 top-2 z-30 rounded border border-border bg-surface px-2 py-0.5 text-xs text-text-2"
           >
             ×
           </button>
@@ -205,7 +205,7 @@ function DashboardTile({
               type="button"
               aria-label="Resize widget"
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-panel text-[10px] text-muted hover:text-text"
+              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text"
             >
               <>
                 <span className="sr-only">Resize</span>
@@ -360,11 +360,11 @@ export default function Page() {
     <section className="space-y-5">
       <div className="flex items-center justify-end gap-2">
         {editMode ? (
-          <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-panel-2 px-3 py-1 text-xs text-text">
+          <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
             Done
           </button>
         ) : (
-          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-panel-2 px-3 py-1 text-xs text-text">
+          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
             Customize
           </button>
         )}
@@ -403,7 +403,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => setKpiPickerOpen(true)}
-                className="rounded-xl border border-dashed border-border bg-panel-2 p-6 text-left text-sm text-muted"
+                className="rounded-xl border border-dashed border-border bg-surface-2 p-6 text-left text-sm text-text-2"
               >
                 + Add KPI
               </button>
@@ -444,7 +444,7 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="rounded-xl border border-dashed border-border bg-panel-2 p-6 text-left text-sm text-muted"
+              className="rounded-xl border border-dashed border-border bg-surface-2 p-6 text-left text-sm text-text-2"
             >
               + Add widget
             </button>

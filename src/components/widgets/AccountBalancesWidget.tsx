@@ -106,25 +106,25 @@ function AccountBalanceRow({ accountId, metrics }: { accountId: string; metrics:
   const staleCash = cashAsOf && marksAsOf ? toDateKey(cashAsOf) !== toDateKey(marksAsOf) : false;
 
   return (
-    <div className={["rounded-lg border bg-panel-2 p-3", staleCash ? "border-amber-400/70" : "border-border"].join(" ")}>
+    <div className={["rounded-lg border bg-surface-2 p-3", staleCash ? "border-amber-400/70" : "border-border"].join(" ")}>
       <div className="flex items-center justify-between">
         <p className="text-xs text-text">
           <AccountLabel accountId={accountId} />
         </p>
-        <p className="text-[11px] text-muted">{loading ? "Updating..." : marksAsOf ? formatTime(marksAsOf) : "Snapshot unavailable"}</p>
+        <p className="text-[11px] text-text-2">{loading ? "Updating..." : marksAsOf ? formatTime(marksAsOf) : "Snapshot unavailable"}</p>
       </div>
-      <p className="mt-1 text-xs text-muted">Cash: {formatCurrency(cash)}</p>
-      <p className="text-[11px] text-muted">Cash as of: {cashAsOf ? cashAsOf.toISOString().slice(0, 10) : "unknown"}</p>
-      <p className="text-[11px] text-muted">Marks as of: {formatTime(marksAsOf)}</p>
+      <p className="mt-1 text-xs text-text-2">Cash: {formatCurrency(cash)}</p>
+      <p className="text-[11px] text-text-2">Cash as of: {cashAsOf ? cashAsOf.toISOString().slice(0, 10) : "unknown"}</p>
+      <p className="text-[11px] text-text-2">Marks as of: {formatTime(marksAsOf)}</p>
       {staleCash ? (
         <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
           Cash snapshot date differs from marks date.
         </p>
       ) : null}
       <p className="text-sm font-semibold text-text">{nlv === null ? "NLV unavailable" : "NLV: " + formatCurrency(nlv)}</p>
-      {brokerNlv !== null ? <p className="text-[10px] text-muted">Using broker NLV snapshot when available.</p> : null}
-      <p className="text-[10px] text-muted">Scale base: {formatCurrency(base)}</p>
-      <div className="mt-2 h-2 rounded bg-panel">
+      {brokerNlv !== null ? <p className="text-[10px] text-text-2">Using broker NLV snapshot when available.</p> : null}
+      <p className="text-[10px] text-text-2">Scale base: {formatCurrency(base)}</p>
+      <div className="mt-2 h-2 rounded bg-surface">
         <div className="h-2 rounded bg-accent" style={{ width: `${progress}%` }} />
       </div>
     </div>
@@ -216,7 +216,7 @@ export function AccountBalancesWidget() {
       type="button"
       onClick={() => void triggerCompute()}
       disabled={computing}
-      className="rounded border border-border bg-panel-2 px-2 py-0.5 text-[10px] text-muted disabled:opacity-50"
+      className="rounded border border-border bg-surface-2 px-2 py-0.5 text-[10px] text-text-2 disabled:opacity-50"
     >
       {computing ? "Computing..." : "Refresh"}
     </button>
@@ -225,11 +225,11 @@ export function AccountBalancesWidget() {
   return (
     <WidgetCard title="Account Balances + NLV" action={action}>
       <div className="space-y-2">
-        {selectedAccounts.length === 0 ? <p className="text-xs text-muted">No accounts selected.</p> : null}
+        {selectedAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts selected.</p> : null}
         {snapshotError ? <p className="text-xs text-red-300">{snapshotError}</p> : null}
         {summaryError ? <p className="text-xs text-red-300">{summaryError}</p> : null}
         {!snapshot && !snapshotLoading && !snapshotError ? (
-          <p className="text-xs text-muted">No snapshot available. Refresh to compute account balances.</p>
+          <p className="text-xs text-text-2">No snapshot available. Refresh to compute account balances.</p>
         ) : null}
         {selectedAccounts.map((accountId) => (
           <AccountBalanceRow key={accountId} accountId={accountId} metrics={metricsByAccount[accountId]} />

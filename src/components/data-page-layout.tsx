@@ -11,7 +11,7 @@ export function DataPageLayout({ title, subtitle, nextAction }: DataPageLayoutPr
     <section className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-white">{title}</h1>
-        <p className="max-w-3xl text-sm text-slate-300">{subtitle}</p>
+        <p className="max-w-3xl text-sm text-text-2">{subtitle}</p>
       </header>
       <DataPagePanel heading={subtitle} nextAction={nextAction} />
     </section>

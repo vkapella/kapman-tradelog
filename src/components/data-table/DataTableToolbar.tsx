@@ -24,8 +24,8 @@ export function DataTableToolbar({
       <div className="flex items-center gap-2">
         {activeFilterCount > 0 ? (
           <>
-            <span className="rounded-full bg-blue-500/20 px-2 py-1 text-xs text-blue-100">{activeFilterCount} active filter{activeFilterCount === 1 ? "" : "s"}</span>
-            <button type="button" onClick={onClearAllFilters} className="rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
+            <span className="rounded-full bg-[color:var(--accent-dim)] px-2 py-1 text-xs text-accent">{activeFilterCount} active filter{activeFilterCount === 1 ? "" : "s"}</span>
+            <button type="button" onClick={onClearAllFilters} className="rounded border border-border bg-surface px-3 py-1.5 text-xs text-text">
               Clear all filters
             </button>
           </>
@@ -33,7 +33,7 @@ export function DataTableToolbar({
       </div>
       <div className="flex items-center gap-2">
         {children}
-        <button type="button" onClick={onToggleShowAll} className="rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200">
+        <button type="button" onClick={onToggleShowAll} className="rounded border border-border bg-surface px-3 py-1.5 text-xs text-text">
           {showAll ? "Show pages" : `Show all ${totalRows}`}
         </button>
       </div>

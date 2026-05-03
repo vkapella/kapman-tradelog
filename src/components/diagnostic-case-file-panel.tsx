@@ -107,13 +107,13 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
   }
 
   return (
-    <section id="case-file" className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-950/60 p-4">
+    <section id="case-file" className="space-y-3 rounded-xl border border-border bg-bg p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-slate-100">Case File</h3>
-          <p className="text-xs text-slate-400">Stage-linked drill-through across T1, T2, and T3.</p>
+          <h3 className="text-base font-semibold text-text">Case File</h3>
+          <p className="text-xs text-text-3">Stage-linked drill-through across T1, T2, and T3.</p>
         </div>
-        <Link href={closeHref} className="text-xs text-slate-300 underline">
+        <Link href={closeHref} className="text-xs text-text-2 underline">
           Close
         </Link>
       </div>
@@ -123,55 +123,55 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
 
       {!loading && !error && data ? (
         <div className="space-y-4">
-          <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-            <p className="text-xs text-slate-400">{data.target.diagnosticCode}</p>
-            <h4 className="text-sm font-semibold text-slate-100">{data.target.title}</h4>
-            <p className="mt-1 text-xs text-slate-300">{data.target.summary}</p>
+          <div className="rounded border border-border bg-bg p-3">
+            <p className="text-xs text-text-3">{data.target.diagnosticCode}</p>
+            <h4 className="text-sm font-semibold text-text">{data.target.title}</h4>
+            <p className="mt-1 text-xs text-text-2">{data.target.summary}</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-              <h4 className="text-xs font-semibold text-slate-100">Evidence</h4>
+            <div className="rounded border border-border bg-bg p-3">
+              <h4 className="text-xs font-semibold text-text">Evidence</h4>
               {data.evidence.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No structured evidence available.</p>
+                <p className="mt-2 text-xs text-text-3">No structured evidence available.</p>
               ) : (
                 <dl className="mt-2 space-y-2 text-xs">
                   {data.evidence.map((item) => (
                     <div key={`${item.label}-${item.value}`}>
-                      <dt className="text-slate-400">{item.label}</dt>
-                      <dd className="break-all font-mono text-slate-100">{item.value}</dd>
+                      <dt className="text-text-3">{item.label}</dt>
+                      <dd className="break-all font-mono text-text">{item.value}</dd>
                     </div>
                   ))}
                 </dl>
               )}
             </div>
 
-            <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-              <h4 className="text-xs font-semibold text-slate-100">Stage Focus</h4>
+            <div className="rounded border border-border bg-bg p-3">
+              <h4 className="text-xs font-semibold text-text">Stage Focus</h4>
               <dl className="mt-2 space-y-2 text-xs">
                 <div>
-                  <dt className="text-slate-400">Focus execution</dt>
-                  <dd className="break-all font-mono text-slate-100">{data.focusExecutionId ?? "NA"}</dd>
+                  <dt className="text-text-3">Focus execution</dt>
+                  <dd className="break-all font-mono text-text">{data.focusExecutionId ?? "NA"}</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-400">Focus matched lot</dt>
-                  <dd className="break-all font-mono text-slate-100">{data.focusMatchedLotId ?? "NA"}</dd>
+                  <dt className="text-text-3">Focus matched lot</dt>
+                  <dd className="break-all font-mono text-text">{data.focusMatchedLotId ?? "NA"}</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-400">Focus setup</dt>
-                  <dd className="break-all font-mono text-slate-100">{data.focusSetupId ?? "NA"}</dd>
+                  <dt className="text-text-3">Focus setup</dt>
+                  <dd className="break-all font-mono text-text">{data.focusSetupId ?? "NA"}</dd>
                 </div>
               </dl>
             </div>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-              <h4 className="text-xs font-semibold text-slate-100">T1 Executions</h4>
+            <div className="rounded border border-border bg-bg p-3">
+              <h4 className="text-xs font-semibold text-text">T1 Executions</h4>
               {data.executions.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No T1 executions linked.</p>
+                <p className="mt-2 text-xs text-text-3">No T1 executions linked.</p>
               ) : (
-                <ul className="mt-2 space-y-2 text-xs text-slate-200">
+                <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.executions.map((execution) => (
                     <li key={execution.id}>
                       <Link href={`/executions?execution=${execution.id}`} className="text-blue-300 underline">
@@ -184,12 +184,12 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
               )}
             </div>
 
-            <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-              <h4 className="text-xs font-semibold text-slate-100">T2 Matched Lots</h4>
+            <div className="rounded border border-border bg-bg p-3">
+              <h4 className="text-xs font-semibold text-text">T2 Matched Lots</h4>
               {data.matchedLots.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No T2 lots linked.</p>
+                <p className="mt-2 text-xs text-text-3">No T2 lots linked.</p>
               ) : (
-                <ul className="mt-2 space-y-2 text-xs text-slate-200">
+                <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.matchedLots.map((lot) => (
                     <li key={lot.id}>
                       <Link href="/matched-lots" className="text-blue-300 underline">
@@ -202,12 +202,12 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
               )}
             </div>
 
-            <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-              <h4 className="text-xs font-semibold text-slate-100">T3 Setups</h4>
+            <div className="rounded border border-border bg-bg p-3">
+              <h4 className="text-xs font-semibold text-text">T3 Setups</h4>
               {data.setups.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No T3 setups linked.</p>
+                <p className="mt-2 text-xs text-text-3">No T3 setups linked.</p>
               ) : (
-                <ul className="mt-2 space-y-2 text-xs text-slate-200">
+                <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.setups.map((setup) => (
                     <li key={setup.id}>
                       <Link href={`/setups?setup=${setup.id}`} className="text-blue-300 underline">
@@ -221,12 +221,12 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
             </div>
           </div>
 
-          <div className="rounded border border-slate-700 bg-slate-950/50 p-3">
-            <h4 className="text-xs font-semibold text-slate-100">Inference Notes</h4>
+          <div className="rounded border border-border bg-bg p-3">
+            <h4 className="text-xs font-semibold text-text">Inference Notes</h4>
             {data.inferenceReasons.length === 0 ? (
-              <p className="mt-2 text-xs text-slate-400">No additional inference notes available.</p>
+              <p className="mt-2 text-xs text-text-3">No additional inference notes available.</p>
             ) : (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-300">
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-2">
                 {data.inferenceReasons.map((reason, index) => (
                   <li key={`${reason}-${index}`}>{reason}</li>
                 ))}
