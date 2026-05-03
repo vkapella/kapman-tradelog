@@ -3,7 +3,7 @@
 **Release:** v9.0 — UX, Usability & Data Integrity Upgrade
 **Date:** 2026-04-12
 **Build spec:** `docs/kapman_build_spec_v9.md`
-**Baseline:** v7.2 as-built inventory (`docs/kapman_v7_2_as_built_inventory.md`)
+**Baseline:** archived v7.2 as-built inventory (`docs/archived/kapman_v7_2_as_built_inventory.md`)
 **Total issues:** 25 (18 core + 7 suggested polish)
 
 ---
@@ -932,5 +932,5 @@ If work is interrupted mid-release:
 1. Search GitHub issues for the sprint tag (e.g., `[v9.0-S2]`) to find remaining work.
 2. Check the dependency graph above — do not start a blocked issue before its blocker is merged.
 3. Within a sprint, independent issues can be worked in any order.
-4. The v7.2 as-built inventory remains the baseline reference for "what exists today."
+4. The archived v7.2 as-built inventory remains the historical baseline reference for the v9.0 issue set.
 5. This issues document and the v9.0 build spec together are the complete specification.

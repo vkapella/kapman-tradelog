@@ -1,0 +1,1963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KapMan Tradelog — Reskin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:             #0b0d12;
+  --surface:        #111318;
+  --surface-2:      #181b23;
+  --surface-3:      #1f2330;
+  --border:         #252b3a;
+  --border-subtle:  #1a1f2c;
+  --text:           #dde2ef;
+  --text-2:         #858fa5;
+  --text-3:         #4d5668;
+  --accent:         oklch(0.72 0.15 200);
+  --accent-dim:     oklch(0.72 0.15 200 / 0.13);
+  --accent-border:  oklch(0.72 0.15 200 / 0.30);
+  --pos:            oklch(0.72 0.17 145);
+  --pos-dim:        oklch(0.72 0.17 145 / 0.12);
+  --neg:            oklch(0.65 0.20 25);
+  --neg-dim:        oklch(0.65 0.20 25 / 0.12);
+  --warn:           oklch(0.78 0.14 75);
+  --warn-dim:       oklch(0.78 0.14 75 / 0.12);
+  --mono:           "Geist Mono", monospace;
+  --sans:           "Geist", system-ui, sans-serif;
+  --sidebar-w:      220px;
+  --topbar-h:       46px;
+  --r:              7px;
+  --r-sm:           4px;
+  --row-h:          34px;
+  --cell-px:        10px;
+  --cell-py:        7px;
+  --hdr-py:         7px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+#root { height: 100vh; width: 100vw; display: flex; }
+
+/* Filter popover */
+.col-filter-pop {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 200;
+  min-width: 180px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  padding: 8px;
+}
+.col-filter-pop input[type=text] {
+  width: 100%;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--sans);
+  margin-bottom: 6px;
+}
+.col-filter-pop label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 2px;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.col-filter-pop label:hover { background: var(--surface-3); }
+.col-filter-pop .pop-footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-noncommentable=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+function TweakColor({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <input type="color" className="twk-swatch" value={value}
+             onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ─── TWEAK DEFAULTS ───────────────────────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "cyan",
+  "density": "normal",
+  "variation": "A"
+}/*EDITMODE-END*/;
+
+const ACCENTS = {
+  cyan:   { main:"oklch(0.72 0.15 200)", dim:"oklch(0.72 0.15 200 / 0.13)", border:"oklch(0.72 0.15 200 / 0.30)" },
+  blue:   { main:"oklch(0.65 0.20 255)", dim:"oklch(0.65 0.20 255 / 0.13)", border:"oklch(0.65 0.20 255 / 0.30)" },
+  violet: { main:"oklch(0.68 0.20 290)", dim:"oklch(0.68 0.20 290 / 0.13)", border:"oklch(0.68 0.20 290 / 0.30)" },
+  amber:  { main:"oklch(0.78 0.14 75)",  dim:"oklch(0.78 0.14 75  / 0.13)", border:"oklch(0.78 0.14 75  / 0.30)" },
+  green:  { main:"oklch(0.72 0.17 145)", dim:"oklch(0.72 0.17 145 / 0.13)", border:"oklch(0.72 0.17 145 / 0.30)" },
+};
+
+/* ─── ACCOUNT LABEL HELPER ─────────────────────────────────────── */
+// Mirrors toExternalAccountId() — maps internal DB ids to human labels
+const ACCOUNT_MAP = {
+  "schwab-7891":   "Schwab — Main",
+  "fidelity-3344": "IRA — Roth",
+  "tt-9922":       "Tastytrade",
+};
+const ACCOUNT_IDS = Object.keys(ACCOUNT_MAP);
+function acctLabel(id) { return ACCOUNT_MAP[id] || id; }
+
+/* ─── ACCOUNT CONTEXT ──────────────────────────────────────────── */
+const AccountCtx = React.createContext({ activeAcct: "all", setActiveAcct: () => {} });
+function useAccount() { return React.useContext(AccountCtx); }
+
+/* ─── DATE RANGE CONTEXT ───────────────────────────────────────── */
+const RANGE_PRESETS = [
+  { id:"all",    label:"All time" },
+  { id:"ytd",    label:"YTD" },
+  { id:"1yr",    label:"1 yr" },
+  { id:"3yr",    label:"3 yr" },
+  { id:"30d",    label:"30 day" },
+  { id:"7d",     label:"7 day" },
+  { id:"custom", label:"Custom…" },
+];
+
+function resolveRange(rangeId, customFrom, customTo) {
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  function daysAgo(n) {
+    const d = new Date(now); d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0,10);
+  }
+  switch(rangeId) {
+    case "all":    return { from: null, to: null };
+    case "ytd":    return { from: `${now.getFullYear()}-01-01`, to: today };
+    case "1yr":    return { from: daysAgo(365),  to: today };
+    case "3yr":    return { from: daysAgo(1095), to: today };
+    case "30d":    return { from: daysAgo(30),   to: today };
+    case "7d":     return { from: daysAgo(7),    to: today };
+    case "custom": return { from: customFrom || null, to: customTo || null };
+    default:       return { from: null, to: null };
+  }
+}
+
+function dateInRange(dateStr, from, to) {
+  if (!dateStr) return true;
+  // dateStr may be "YYYY-MM-DD" or "YYYY-MM-DD HH:mm" — take first 10 chars
+  const d = dateStr.slice(0,10);
+  if (from && d < from) return false;
+  if (to   && d > to)   return false;
+  return true;
+}
+
+const DateRangeCtx = React.createContext({
+  rangeId: "all", setRangeId: ()=>{},
+  customFrom: "", setCustomFrom: ()=>{},
+  customTo: "",   setCustomTo: ()=>{},
+  resolved: { from:null, to:null },
+});
+function useDateRange() { return React.useContext(DateRangeCtx); }
+
+/* ─── ACCOUNT SELECTOR ─────────────────────────────────────────── */
+function AccountSelector() {
+  const { activeAcct, setActiveAcct } = useAccount();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const label = activeAcct === "all" ? "All Accounts" : acctLabel(activeAcct);
+  const isFiltered = activeAcct !== "all";
+
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display:"flex", alignItems:"center", gap:6,
+        background: isFiltered ? "var(--accent-dim)" : "var(--surface-2)",
+        border: isFiltered ? "1px solid var(--accent-border)" : "1px solid var(--border)",
+        borderRadius:"var(--r-sm)", padding:"4px 9px 4px 8px",
+        color: isFiltered ? "var(--accent)" : "var(--text-2)",
+        fontSize:11.5, fontWeight:500, cursor:"pointer",
+        transition:"all 0.1s",
+      }}>
+        {/* account icon */}
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <circle cx="6" cy="4" r="2.2"/>
+          <path d="M1.5 10.5c0-2.2 2-4 4.5-4s4.5 1.8 4.5 4" strokeLinecap="round"/>
+        </svg>
+        {label}
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ opacity:0.5 }}>
+          <path d="M1 2.5h6L4 6z"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:300,
+          background:"var(--surface-2)", border:"1px solid var(--border)",
+          borderRadius:"var(--r)", boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
+          minWidth:190, padding:4, overflow:"hidden",
+        }}>
+          {/* All accounts option */}
+          <button onClick={() => { setActiveAcct("all"); setOpen(false); }} style={{
+            width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"7px 10px", background: activeAcct==="all" ? "var(--accent-dim)" : "transparent",
+            border:"none", borderRadius:5, color: activeAcct==="all" ? "var(--accent)" : "var(--text)",
+            fontSize:12, fontWeight: activeAcct==="all" ? 500 : 400, cursor:"pointer", textAlign:"left",
+          }}>
+            <span>All Accounts</span>
+            {activeAcct==="all" && <span style={{ fontSize:10 }}>✓</span>}
+          </button>
+          <div style={{ height:1, background:"var(--border-subtle)", margin:"3px 6px" }} />
+          {ACCOUNT_IDS.map(id => (
+            <button key={id} onClick={() => { setActiveAcct(id); setOpen(false); }} style={{
+              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"7px 10px", background: activeAcct===id ? "var(--accent-dim)" : "transparent",
+              border:"none", borderRadius:5, color: activeAcct===id ? "var(--accent)" : "var(--text)",
+              fontSize:12, fontWeight: activeAcct===id ? 500 : 400, cursor:"pointer", textAlign:"left",
+            }}>
+              <div>
+                <div>{acctLabel(id)}</div>
+                <div style={{ fontSize:10, color:"var(--text-3)", fontFamily:"var(--mono)" }}>{id}</div>
+              </div>
+              {activeAcct===id && <span style={{ fontSize:10 }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── RANGE SELECTOR ───────────────────────────────────────────── */
+function RangeSelector() {
+  const { rangeId, setRangeId, customFrom, setCustomFrom, customTo, setCustomTo, resolved } = useDateRange();
+  const [open, setOpen] = useState(false);
+  const [pendingFrom, setPendingFrom] = useState(customFrom);
+  const [pendingTo,   setPendingTo]   = useState(customTo);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const isFiltered = rangeId !== "all";
+  const currentLabel = RANGE_PRESETS.find(p => p.id === rangeId)?.label || "All time";
+
+  // display label in button: for custom show resolved dates if set
+  let btnLabel = currentLabel;
+  if (rangeId === "custom" && resolved.from && resolved.to) {
+    btnLabel = `${resolved.from} → ${resolved.to}`;
+  } else if (rangeId === "custom" && (resolved.from || resolved.to)) {
+    btnLabel = `${resolved.from || "…"} → ${resolved.to || "…"}`;
+  }
+
+  function selectPreset(id) {
+    setRangeId(id);
+    if (id !== "custom") setOpen(false);
+  }
+
+  function applyCustom() {
+    setCustomFrom(pendingFrom);
+    setCustomTo(pendingTo);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display:"flex", alignItems:"center", gap:6,
+        background: isFiltered ? "var(--accent-dim)" : "var(--surface-2)",
+        border: isFiltered ? "1px solid var(--accent-border)" : "1px solid var(--border)",
+        borderRadius:"var(--r-sm)", padding:"4px 9px 4px 8px",
+        color: isFiltered ? "var(--accent)" : "var(--text-2)",
+        fontSize:11.5, fontWeight:500, cursor:"pointer",
+        transition:"all 0.1s", maxWidth:200, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+      }}>
+        {/* calendar icon */}
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <rect x="1" y="2" width="10" height="9" rx="1.5"/>
+          <path d="M1 5h10M4 1v2M8 1v2" strokeLinecap="round"/>
+        </svg>
+        <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{btnLabel}</span>
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ opacity:0.5, flexShrink:0 }}>
+          <path d="M1 2.5h6L4 6z"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:300,
+          background:"var(--surface-2)", border:"1px solid var(--border)",
+          borderRadius:"var(--r)", boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
+          minWidth:200, padding:4, overflow:"hidden",
+        }}>
+          {/* Preset pills */}
+          {RANGE_PRESETS.filter(p => p.id !== "custom").map(p => (
+            <button key={p.id} onClick={() => selectPreset(p.id)} style={{
+              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"7px 10px",
+              background: rangeId === p.id ? "var(--accent-dim)" : "transparent",
+              border:"none", borderRadius:5,
+              color: rangeId === p.id ? "var(--accent)" : "var(--text)",
+              fontSize:12, fontWeight: rangeId === p.id ? 500 : 400, cursor:"pointer", textAlign:"left",
+            }}>
+              <span>{p.label}</span>
+              {rangeId === p.id && <span style={{ fontSize:10 }}>✓</span>}
+            </button>
+          ))}
+
+          {/* Custom range */}
+          <div style={{ height:1, background:"var(--border-subtle)", margin:"3px 6px" }} />
+          <button onClick={() => selectPreset("custom")} style={{
+            width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"7px 10px",
+            background: rangeId === "custom" ? "var(--accent-dim)" : "transparent",
+            border:"none", borderRadius:5,
+            color: rangeId === "custom" ? "var(--accent)" : "var(--text)",
+            fontSize:12, fontWeight: rangeId === "custom" ? 500 : 400, cursor:"pointer", textAlign:"left",
+          }}>
+            <span>Custom range…</span>
+            {rangeId === "custom" && <span style={{ fontSize:10 }}>✓</span>}
+          </button>
+
+          {rangeId === "custom" && (
+            <div style={{ padding:"8px 10px 10px", borderTop:"1px solid var(--border-subtle)", marginTop:2 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                <label style={{ fontSize:11, color:"var(--text-3)", display:"flex", flexDirection:"column", gap:3 }}>
+                  From
+                  <input type="date" value={pendingFrom} onChange={e => setPendingFrom(e.target.value)}
+                    style={{ background:"var(--surface-3)", border:"1px solid var(--border)", borderRadius:"var(--r-sm)", padding:"4px 7px", color:"var(--text)", fontSize:11.5, fontFamily:"var(--mono)", colorScheme:"dark" }} />
+                </label>
+                <label style={{ fontSize:11, color:"var(--text-3)", display:"flex", flexDirection:"column", gap:3 }}>
+                  To
+                  <input type="date" value={pendingTo} onChange={e => setPendingTo(e.target.value)}
+                    style={{ background:"var(--surface-3)", border:"1px solid var(--border)", borderRadius:"var(--r-sm)", padding:"4px 7px", color:"var(--text)", fontSize:11.5, fontFamily:"var(--mono)", colorScheme:"dark" }} />
+                </label>
+                <div style={{ display:"flex", gap:6, marginTop:2 }}>
+                  <Btn variant="accent" size="xs" onClick={applyCustom}>Apply</Btn>
+                  <Btn variant="ghost" size="xs" onClick={() => { setPendingFrom(""); setPendingTo(""); setCustomFrom(""); setCustomTo(""); setRangeId("all"); setOpen(false); }}>Clear</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── NAV ──────────────────────────────────────────────────────── */
+const NAV = [
+  { group:"WORKSPACE", items:[
+    { id:"dashboard",   label:"Dashboard" },
+    { id:"analytics",   label:"Analytics" },
+    { id:"positions",   label:"Open Positions" },
+  ]},
+  { group:"EVIDENCE & AUDIT", items:[
+    { id:"tts",         label:"TTS Evidence" },
+    { id:"diagnostics", label:"Diagnostics" },
+  ]},
+  { group:"TRADE RECORDS", items:[
+    { id:"trade",       label:"Executions / Lots / Setups", badge:247 },
+  ]},
+  { group:"IMPORT & DATA", items:[
+    { id:"imports",     label:"Imports & Connections", badge:3 },
+    { id:"ledger",      label:"Ledger Admin" },
+  ]},
+];
+
+const CONTEXT_TAGS = {
+  dashboard:   ["KPI strip","Widget grid"],
+  analytics:   ["Derived metrics"],
+  positions:   ["Live marks"],
+  trade:       ["T1","T2","T3"],
+  imports:     ["Upload","History","Adapters"],
+  ledger:      ["Account metadata","Audit trail","Overrides"],
+  tts:         [],
+  diagnostics: [],
+};
+
+/* ─── PRIMITIVES ───────────────────────────────────────────────── */
+function Badge({ children, variant="neutral", mono=false }) {
+  const v = {
+    neutral: { bg:"var(--surface-3)",   fg:"var(--text-2)",  bd:"var(--border)" },
+    pos:     { bg:"var(--pos-dim)",      fg:"var(--pos)",     bd:"var(--pos-dim)" },
+    neg:     { bg:"var(--neg-dim)",      fg:"var(--neg)",     bd:"var(--neg-dim)" },
+    warn:    { bg:"var(--warn-dim)",     fg:"var(--warn)",    bd:"var(--warn-dim)" },
+    accent:  { bg:"var(--accent-dim)",   fg:"var(--accent)",  bd:"var(--accent-border)" },
+    buy:     { bg:"oklch(0.72 0.15 200/0.1)", fg:"oklch(0.72 0.15 200)", bd:"oklch(0.72 0.15 200/0.25)" },
+    sell:    { bg:"var(--neg-dim)",      fg:"var(--neg)",     bd:"var(--neg-dim)" },
+  }[variant] || { bg:"var(--surface-3)", fg:"var(--text-2)", bd:"var(--border)" };
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center",
+      padding:"1px 6px", borderRadius:"4px",
+      fontSize:10.5, fontWeight:500, letterSpacing:"0.03em",
+      fontFamily: mono ? "var(--mono)" : "var(--sans)",
+      background:v.bg, color:v.fg, border:`1px solid ${v.bd}`,
+      whiteSpace:"nowrap",
+    }}>{children}</span>
+  );
+}
+
+function KpiCard({ label, value, sub, variant="neutral", helpText }) {
+  const fg = { neutral:"var(--text)", pos:"var(--pos)", neg:"var(--neg)", accent:"var(--accent)" }[variant] || "var(--text)";
+  return (
+    <div title={helpText} style={{
+      background:"var(--surface)", border:"1px solid var(--border)",
+      borderRadius:"var(--r)", padding:"13px 15px",
+      display:"flex", flexDirection:"column", gap:3,
+      cursor: helpText ? "help" : "default",
+    }}>
+      <span style={{ fontSize:10, color:"var(--text-3)", fontWeight:600, letterSpacing:"0.07em", textTransform:"uppercase" }}>{label}</span>
+      <span style={{ fontSize:21, fontWeight:600, color:fg, fontFamily:"var(--mono)", letterSpacing:"-0.025em", lineHeight:1.1 }}>{value}</span>
+      {sub && <span style={{ fontSize:10, color:"var(--text-3)" }}>{sub}</span>}
+    </div>
+  );
+}
+
+function Panel({ children, style }) {
+  return (
+    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"var(--r)", ...style }}>
+      {children}
+    </div>
+  );
+}
+
+function PanelHeader({ title, actions }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid var(--border)" }}>
+      <span style={{ fontSize:11.5, fontWeight:600, color:"var(--text)", letterSpacing:"0.01em" }}>{title}</span>
+      {actions && <div style={{ display:"flex", gap:6, alignItems:"center" }}>{actions}</div>}
+    </div>
+  );
+}
+
+function Btn({ children, variant="ghost", size="sm", onClick, disabled, title, style:sx }) {
+  const vs = {
+    ghost:   { background:"transparent",       color:"var(--text-2)", border:"1px solid transparent" },
+    outline: { background:"var(--surface-2)",   color:"var(--text)",   border:"1px solid var(--border)" },
+    accent:  { background:"var(--accent-dim)",  color:"var(--accent)", border:"1px solid var(--accent-border)" },
+    danger:  { background:"var(--neg-dim)",     color:"var(--neg)",    border:"1px solid var(--neg-dim)" },
+  }[variant] || {};
+  const sz = { sm:{ padding:"4px 10px", fontSize:11.5 }, xs:{ padding:"2px 7px", fontSize:11 } }[size] || {};
+  return (
+    <button onClick={onClick} disabled={disabled} title={title} style={{
+      ...vs, ...sz, ...sx,
+      borderRadius:"var(--r-sm)", fontFamily:"var(--sans)", fontWeight:500,
+      cursor:disabled ? "not-allowed":"pointer", opacity:disabled ? 0.4:1,
+      display:"inline-flex", alignItems:"center", gap:4,
+      transition:"background 0.1s, color 0.1s",
+    }}>{children}</button>
+  );
+}
+
+function TabBar({ tabs, active, onSelect }) {
+  return (
+    <div style={{ display:"flex", borderBottom:"1px solid var(--border)", background:"var(--surface)", padding:"0 18px", flexShrink:0 }}>
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => onSelect(t.id)} style={{
+          padding:"9px 14px", fontSize:12, fontWeight: active===t.id ? 600 : 400,
+          color: active===t.id ? "var(--text)" : "var(--text-3)",
+          background:"transparent", border:"none", cursor:"pointer",
+          borderBottom: active===t.id ? "2px solid var(--accent)" : "2px solid transparent",
+          display:"flex", alignItems:"center", gap:6,
+          transition:"color 0.1s",
+        }}>
+          {t.label}
+          {t.count != null && <Badge variant={active===t.id ? "accent":"neutral"}>{t.count}</Badge>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── COLUMN-FILTER POPOVER ────────────────────────────────────── */
+function ColFilterPop({ options, active, onApply, onClose }) {
+  const [search, setSearch] = useState("");
+  const [sel, setSel] = useState(new Set(active));
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const allSelected = filtered.length > 0 && filtered.every(o => sel.has(o));
+  function toggle(v) { setSel(s => { const n=new Set(s); n.has(v)?n.delete(v):n.add(v); return n; }); }
+  function toggleAll() {
+    if (allSelected) setSel(s => { const n=new Set(s); filtered.forEach(o=>n.delete(o)); return n; });
+    else setSel(s => { const n=new Set(s); filtered.forEach(o=>n.add(o)); return n; });
+  }
+
+  return (
+    <div ref={ref} className="col-filter-pop">
+      <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
+      {filtered.length > 1 && (
+        <label style={{ borderBottom:"1px solid var(--border-subtle)", marginBottom:4, paddingBottom:4 }}>
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ accentColor:"var(--accent)" }} />
+          <span style={{ color:"var(--text-3)", fontStyle:"italic" }}>Select all</span>
+        </label>
+      )}
+      <div style={{ maxHeight:160, overflowY:"auto" }}>
+        {filtered.map(o => (
+          <label key={o}>
+            <input type="checkbox" checked={sel.has(o)} onChange={() => toggle(o)} style={{ accentColor:"var(--accent)" }} />
+            <span>{o}</span>
+          </label>
+        ))}
+        {filtered.length === 0 && <span style={{ fontSize:11, color:"var(--text-3)", padding:"4px 2px", display:"block" }}>No matches</span>}
+      </div>
+      <div className="pop-footer">
+        <Btn variant="accent" size="xs" onClick={() => { onApply([...sel]); onClose(); }}>Apply</Btn>
+        <Btn variant="ghost" size="xs" onClick={() => { setSel(new Set()); onApply([]); onClose(); }}>Clear</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ─── DATA TABLE with sticky headers + column filters ──────────── */
+// Each row may have a `_raw` object with plain-string values used for filtering
+// while the display value (row[col.id]) can be JSX. If _raw is absent, falls
+// back to the cell value itself (works fine for string-only rows).
+function DataTable({ columns, rows, stickyTop=0, maxH }) {
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
+  const [filters, setFilters] = useState({});
+  const [openPop, setOpenPop] = useState(null);
+
+  function toggleSort(id) {
+    if (sortCol===id) setSortDir(d => d==="asc"?"desc":"asc");
+    else { setSortCol(id); setSortDir("desc"); }
+    setOpenPop(null);
+  }
+
+  // Helper: get the raw (plain string) value for a row+col, used for filter matching
+  function rawVal(row, colId) {
+    if (row._raw && row._raw[colId] != null) return String(row._raw[colId]);
+    const v = row[colId];
+    if (typeof v === "string") return v;
+    if (typeof v === "number") return String(v);
+    return null;
+  }
+
+  // Gather unique string options per filterable column (from raw values)
+  const optMap = useMemo(() => {
+    const m = {};
+    columns.filter(c=>c.filter).forEach(c => {
+      const vals = [...new Set(rows.map(r => rawVal(r, c.id)).filter(Boolean))].sort();
+      m[c.id] = vals;
+    });
+    return m;
+  }, [columns, rows]);
+
+  // Apply column filters
+  const filteredRows = useMemo(() => {
+    const activeFilters = Object.entries(filters).filter(([,v]) => v?.length > 0);
+    if (activeFilters.length === 0) return rows;
+    return rows.filter(row =>
+      activeFilters.every(([colId, allowed]) => {
+        const v = rawVal(row, colId);
+        return v != null && allowed.includes(v);
+      })
+    );
+  }, [rows, filters]);
+
+  const activeFilterKeys = Object.keys(filters).filter(k => filters[k]?.length > 0);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", flex:1 }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", borderBottom:"1px solid var(--border)", background:"var(--surface)", flexShrink:0 }}>
+        {activeFilterKeys.length > 0 && (
+          <Badge variant="accent">{activeFilterKeys.length} filter{activeFilterKeys.length>1?"s":""} active</Badge>
+        )}
+        {activeFilterKeys.map(k => (
+          <span key={k} style={{
+            display:"inline-flex", alignItems:"center", gap:4,
+            background:"var(--accent-dim)", border:"1px solid var(--accent-border)",
+            borderRadius:4, padding:"1px 6px 1px 7px", fontSize:10.5, color:"var(--accent)",
+          }}>
+            {columns.find(c=>c.id===k)?.label || k}
+            <button onClick={() => setFilters(f => ({...f, [k]:[]}))} style={{
+              background:"none", border:"none", color:"var(--accent)", cursor:"pointer",
+              fontSize:11, lineHeight:1, padding:"0 1px", opacity:0.7,
+            }}>✕</button>
+          </span>
+        ))}
+        {activeFilterKeys.length > 0 && (
+          <Btn variant="ghost" size="xs" onClick={() => setFilters({})}>Clear all</Btn>
+        )}
+        <span style={{ flex:1 }} />
+        <span style={{ color:"var(--text-3)", fontSize:11 }}>
+          {filteredRows.length < rows.length
+            ? <><span style={{color:"var(--accent)"}}>{filteredRows.length}</span> of {rows.length} rows</>
+            : <>{rows.length} rows</>
+          }
+        </span>
+      </div>
+      {/* Table */}
+      <div style={{ overflowX:"auto", overflowY: maxH ? "auto" : undefined, maxHeight: maxH }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+          <thead>
+            <tr>
+              {columns.map(col => (
+                <th key={col.id} style={{
+                  padding:`var(--hdr-py) var(--cell-px)`,
+                  textAlign: col.right ? "right" : "left",
+                  color: filters[col.id]?.length > 0 ? "var(--accent)" : "var(--text-3)",
+                  fontWeight:600, fontSize:10.5,
+                  letterSpacing:"0.05em", textTransform:"uppercase",
+                  borderBottom:"1px solid var(--border)",
+                  background:"var(--surface)",
+                  position:"sticky", top:stickyTop, zIndex:10,
+                  whiteSpace:"nowrap",
+                  userSelect:"none",
+                }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent: col.right?"flex-end":"flex-start", position:"relative" }}>
+                    {/* sort trigger */}
+                    <span onClick={col.sortable ? () => toggleSort(col.id) : undefined}
+                      style={{ cursor: col.sortable?"pointer":"default", display:"flex", alignItems:"center", gap:3 }}>
+                      {col.label}
+                      {col.sortable && (
+                        <span style={{ opacity: sortCol===col.id?1:0.25, fontSize:9 }}>
+                          {sortCol===col.id && sortDir==="asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </span>
+                    {/* column filter button — Excel-style funnel */}
+                    {col.filter && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenPop(openPop===col.id ? null : col.id); }}
+                        title="Filter column"
+                        style={{
+                          background: filters[col.id]?.length>0 ? "var(--accent-dim)" : "transparent",
+                          border: filters[col.id]?.length>0 ? "1px solid var(--accent-border)" : "1px solid transparent",
+                          borderRadius:3, cursor:"pointer", padding:"1px 4px", lineHeight:1,
+                          color: filters[col.id]?.length>0 ? "var(--accent)" : "var(--text-3)",
+                          fontSize:10, display:"inline-flex", alignItems:"center",
+                        }}
+                      >
+                        {/* funnel SVG icon */}
+                        <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor">
+                          <path d="M1 1h8L6 5v3.5l-2-1V5L1 1z"/>
+                        </svg>
+                        {filters[col.id]?.length>0 && (
+                          <span style={{ fontSize:8.5, marginLeft:2, fontFamily:"var(--mono)" }}>
+                            {filters[col.id].length}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                    {openPop===col.id && (
+                      <ColFilterPop
+                        options={optMap[col.id] || []}
+                        active={filters[col.id] || []}
+                        onApply={vals => setFilters(f => ({...f, [col.id]: vals}))}
+                        onClose={() => setOpenPop(null)}
+                      />
+                    )}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} style={{ padding:"32px 14px", textAlign:"center", color:"var(--text-3)", fontSize:12 }}>
+                  No rows match the current filters.
+                </td>
+              </tr>
+            ) : filteredRows.map((row, i) => (
+              <tr key={i} style={{ borderBottom:"1px solid var(--border-subtle)", height:"var(--row-h)" }}
+                onMouseEnter={e => e.currentTarget.style.background="var(--surface-2)"}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                {columns.map(col => (
+                  <td key={col.id} style={{
+                    padding:`var(--cell-py) var(--cell-px)`,
+                    textAlign: col.right?"right":"left",
+                    color:"var(--text)", whiteSpace:"nowrap",
+                    fontFamily: col.mono?"var(--mono)":"var(--sans)",
+                    fontSize: col.mono ? 11 : 12,
+                  }}>{row[col.id]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Pagination({ page, total, pageSize }) {
+  const pages = Math.max(1, Math.ceil(total/pageSize));
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 12px", borderTop:"1px solid var(--border)", fontSize:11, color:"var(--text-3)", flexShrink:0 }}>
+      <span>Page {page} of {pages} &nbsp;·&nbsp; {total} rows</span>
+      <div style={{ display:"flex", gap:5 }}>
+        <Btn variant="outline" size="xs" disabled={page<=1}>Prev</Btn>
+        <Btn variant="outline" size="xs" disabled={page>=pages}>Next</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SCREEN: DASHBOARD ────────────────────────────────────────── */
+function DashboardScreen() {
+  const kpis = [
+    { label:"Realized P&L",      value:"+$12,847", variant:"pos",     help:"Sum of all closed lot P&L (netPnl)" },
+    { label:"Execution Count",   value:"1,204",    variant:"accent",  help:"Total canonical execution rows" },
+    { label:"Matched Lot Count", value:"487",      variant:"accent",  help:"FIFO-matched open→close pairs" },
+    { label:"Setup Count",       value:"63",       variant:"accent",  help:"Inferred setup groups" },
+    { label:"Avg Hold Days",     value:"14.2d",    variant:"accent",  help:"Mean holdingDays across matched lots" },
+    { label:"Snapshot Count",    value:"29",       variant:"neutral", help:"Portfolio snapshots taken" },
+  ];
+  const widgets = [
+    { id:"equity-curve",    label:"Equity Curve",           span:2, h:200 },
+    { id:"account-balances",label:"Account Balances",       span:1, h:160 },
+    { id:"win-loss-flat",   label:"Win / Loss / Flat",      span:1, h:160 },
+    { id:"holding-dist",    label:"Holding Distribution",   span:1, h:160 },
+    { id:"top-setups",      label:"Top Setups",             span:1, h:160 },
+    { id:"import-health",   label:"Import Health",          span:1, h:160 },
+  ];
+  return (
+    <div style={{ padding:18, display:"flex", flexDirection:"column", gap:18 }}>
+      <div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+          <span style={{ fontSize:10.5, fontWeight:600, color:"var(--text-3)", letterSpacing:"0.07em", textTransform:"uppercase" }}>Key Metrics</span>
+          <Btn variant="outline" size="xs">Customize</Btn>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:7 }}>
+          {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} variant={k.variant} helpText={k.help} />)}
+        </div>
+      </div>
+      <div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+          <span style={{ fontSize:10.5, fontWeight:600, color:"var(--text-3)", letterSpacing:"0.07em", textTransform:"uppercase" }}>Widgets</span>
+          <Btn variant="outline" size="xs">+ Add widget</Btn>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:9 }}>
+          {widgets.map(w => (
+            <div key={w.id} style={{ gridColumn:`span ${w.span}`, background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"var(--r)", minHeight:w.h, display:"flex", flexDirection:"column" }}>
+              <PanelHeader title={w.label} actions={
+                <div style={{ display:"flex", gap:3 }}>
+                  <Btn variant="ghost" size="xs" title="Resize">⊞</Btn>
+                  <Btn variant="ghost" size="xs" title="Remove">×</Btn>
+                </div>
+              } />
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <WidgetContent id={w.id} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WidgetContent({ id }) {
+  if (id==="equity-curve") {
+    const pts=[10,40,30,55,45,70,60,80,72,90,85,100,88,105,115,108,120];
+    const W=340,H=95, xs=pts.map((_,i)=>(i/(pts.length-1))*W);
+    const mx=Math.max(...pts),mn=Math.min(...pts);
+    const ys=pts.map(v=>H-((v-mn)/(mx-mn))*(H-12)-6);
+    const d=xs.map((x,i)=>`${i===0?"M":"L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
+    return (
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--pos)" stopOpacity="0.22"/>
+          <stop offset="100%" stopColor="var(--pos)" stopOpacity="0"/>
+        </linearGradient></defs>
+        <path d={`${d} L${W},${H} L0,${H} Z`} fill="url(#eg)"/>
+        <path d={d} fill="none" stroke="var(--pos)" strokeWidth="1.5"/>
+      </svg>
+    );
+  }
+  if (id==="win-loss-flat") return (
+    <svg width={100} height={100} viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="36" fill="none" stroke="var(--surface-3)" strokeWidth="16"/>
+      <circle cx="50" cy="50" r="36" fill="none" stroke="var(--pos)" strokeWidth="16" strokeDasharray="142 226" strokeDashoffset="56"/>
+      <circle cx="50" cy="50" r="36" fill="none" stroke="var(--neg)" strokeWidth="16" strokeDasharray="60 226" strokeDashoffset="-86"/>
+      <text x="50" y="54" textAnchor="middle" fontSize="11" fill="var(--text)" fontFamily="var(--mono)" fontWeight="600">62%</text>
+    </svg>
+  );
+  if (id==="holding-dist") {
+    const bars=[12,28,45,38,20,9,5]; const mx=Math.max(...bars);
+    return (
+      <svg width={116} height={75} viewBox="0 0 116 75">
+        {bars.map((b,i)=>(
+          <rect key={i} x={i*17+2} y={75-(b/mx)*62} width={14} height={(b/mx)*62}
+            fill={i<2?"var(--pos)":i<5?"var(--warn)":"var(--neg)"} rx="2" opacity="0.8"/>
+        ))}
+      </svg>
+    );
+  }
+  if (id==="top-setups") return (
+    <div style={{ width:"100%", padding:"0 14px" }}>
+      {[["CC-SPY","+$4,210"],["CSP-QQQ","+$2,880"],["Straddle-NVDA","+$1,340"]].map(([tag,val])=>(
+        <div key={tag} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid var(--border-subtle)", fontSize:11 }}>
+          <span style={{ color:"var(--text-2)", fontFamily:"var(--mono)" }}>{tag}</span>
+          <span style={{ color:"var(--pos)", fontFamily:"var(--mono)" }}>{val}</span>
+        </div>
+      ))}
+    </div>
+  );
+  if (id==="account-balances") return (
+    <div style={{ width:"100%", padding:"0 14px" }}>
+      {[["schwab-7891","$128,400","+$12,847"],["fidelity-3344","$44,200","+$2,104"]].map(([id,bal,pnl])=>(
+        <div key={id} style={{ padding:"5px 0", borderBottom:"1px solid var(--border-subtle)" }}>
+          <div style={{ fontSize:11, color:"var(--text-2)" }}>{acctLabel(id)}</div>
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:2 }}>
+            <span style={{ fontFamily:"var(--mono)", fontSize:12 }}>{bal}</span>
+            <span style={{ fontFamily:"var(--mono)", fontSize:11, color:"var(--pos)" }}>{pnl}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  if (id==="import-health") return (
+    <div style={{ padding:"0 14px", width:"100%" }}>
+      {[["Last import","Today 9:14am","accent"],["Parse cov.","98.2%","pos"],["Warnings","3","warn"]].map(([k,v,col])=>(
+        <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid var(--border-subtle)", fontSize:11 }}>
+          <span style={{ color:"var(--text-3)" }}>{k}</span>
+          <span style={{ color:`var(--${col})`, fontFamily:"var(--mono)" }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+  return null;
+}
+
+/* ─── SCREEN: TRADE RECORDS ────────────────────────────────────── */
+function TradeRecordsScreen() {
+  const { activeAcct } = useAccount();
+  const { resolved } = useDateRange();
+  const [tab, setTab] = useState("t1");
+
+  const t1Cols = [
+    { id:"ts",     label:"Event Time",  sortable:true,  filter:false, mono:true },
+    { id:"date",   label:"Trade Date",  sortable:true,  filter:true },
+    { id:"sym",    label:"Symbol",      sortable:true,  filter:true, mono:true },
+    { id:"side",   label:"Side",        sortable:true,  filter:true },
+    { id:"qty",    label:"Qty",         sortable:true,  filter:false, right:true, mono:true },
+    { id:"price",  label:"Unit Price",  sortable:true,  filter:false, right:true, mono:true },
+    { id:"event",  label:"Event",       sortable:true,  filter:true },
+    { id:"effect", label:"Effect",      sortable:true,  filter:true },
+    { id:"option", label:"Option",      sortable:false, filter:false, mono:true },
+    { id:"acct",   label:"Account",     sortable:true,  filter:true },
+    { id:"execid", label:"Execution ID",sortable:false, filter:false, mono:true },
+    { id:"inv",    label:"Investigate", sortable:false,  filter:false },
+  ];
+  const t1RowsAll = [
+    { _raw:{date:"2024-12-15",sym:"SPY", side:"BUY",  event:"TRADE",  effect:"TO_OPEN",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  ts:"2024-12-15 09:31",date:"2024-12-15",sym:"SPY", side:<Badge variant="buy">BUY</Badge>,  qty:"+10",  price:"$589.42",    event:"TRADE",  effect:<Badge variant="accent">TO_OPEN</Badge>,   option:"—",                                       acct:acctLabel("schwab-7891"),  execid:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_abc123…</span>, inv:"—" },
+    { _raw:{date:"2024-12-14",sym:"QQQ", side:"SELL", event:"TRADE",  effect:"TO_CLOSE", acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  ts:"2024-12-14 14:55",date:"2024-12-14",sym:"QQQ", side:<Badge variant="sell">SELL</Badge>, qty:"−5",   price:"$494.18",    event:"TRADE",  effect:<Badge variant="neutral">TO_CLOSE</Badge>, option:"—",                                       acct:acctLabel("schwab-7891"),  execid:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_def456…</span>, inv:"—" },
+    { _raw:{date:"2024-12-13",sym:"NVDA",side:"SELL", event:"TRADE",  effect:"TO_OPEN",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  ts:"2024-12-13 10:02",date:"2024-12-13",sym:"NVDA",side:<Badge variant="sell">SELL</Badge>, qty:"−1",   price:"$2.15 ×100", event:"TRADE",  effect:<Badge variant="accent">TO_OPEN</Badge>,   option:<span style={{fontFamily:"var(--mono)",fontSize:11}}>PUT 125 2025-01-17</span>, acct:acctLabel("schwab-7891"),  execid:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_ghi789…</span>, inv:<Btn variant="ghost" size="xs">Case file</Btn> },
+    { _raw:{date:"2024-12-12",sym:"SPY", side:"BUY",  event:"EXPIRE", effect:"TO_CLOSE", acct:acctLabel("fidelity-3344"),acctId:"fidelity-3344"}, ts:"2024-12-12 15:44",date:"2024-12-12",sym:"SPY", side:<Badge variant="buy">BUY</Badge>,  qty:"+2",   price:"$5.30 ×100", event:"EXPIRE", effect:<Badge variant="neutral">TO_CLOSE</Badge>, option:<span style={{fontFamily:"var(--mono)",fontSize:11}}>CALL 592 2024-12-20</span>, acct:acctLabel("fidelity-3344"),execid:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_jkl012…</span>, inv:<Btn variant="ghost" size="xs">Case file</Btn> },
+    { _raw:{date:"2024-12-11",sym:"AAPL",side:"BUY",  event:"TRADE",  effect:"TO_OPEN",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  ts:"2024-12-11 11:15",date:"2024-12-11",sym:"AAPL",side:<Badge variant="buy">BUY</Badge>,  qty:"+25",  price:"$244.60",    event:"TRADE",  effect:<Badge variant="accent">TO_OPEN</Badge>,   option:"—",                                       acct:acctLabel("schwab-7891"),  execid:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_mno345…</span>, inv:"—" },
+  ];
+  const t1Rows = t1RowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct) && dateInRange(r._raw.date, resolved.from, resolved.to));
+
+  const t2Cols = [
+    { id:"closeDate",label:"Close Date",    sortable:true,  filter:true },
+    { id:"sym",      label:"Symbol",        sortable:true,  filter:true, mono:true },
+    { id:"acct",     label:"Account",       sortable:true,  filter:true },
+    { id:"qty",      label:"Qty",           sortable:true,  filter:false, right:true, mono:true },
+    { id:"pnl",      label:"Realized P&L",  sortable:true,  filter:false, right:true, mono:true },
+    { id:"hold",     label:"Hold Days",     sortable:true,  filter:false, right:true, mono:true },
+    { id:"outcome",  label:"Outcome",       sortable:true,  filter:true },
+    { id:"openExec", label:"Open Exec",     sortable:false, filter:false, mono:true },
+    { id:"closeExec",label:"Close Exec",    sortable:false, filter:false, mono:true },
+    { id:"inv",      label:"Investigate",   sortable:false, filter:false },
+  ];
+  const t2RowsAll = [
+    { _raw:{closeDate:"2024-12-14",sym:"QQQ", outcome:"WIN",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  closeDate:"2024-12-14",sym:"QQQ", acct:acctLabel("schwab-7891"),  qty:"5",  pnl:<span style={{color:"var(--pos)"}}>+$1,240</span>, hold:"18", outcome:<Badge variant="pos">WIN</Badge>,     openExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_abc…</span>, closeExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_def…</span>, inv:"—" },
+    { _raw:{closeDate:"2024-12-10",sym:"NVDA",outcome:"LOSS", acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  closeDate:"2024-12-10",sym:"NVDA",acct:acctLabel("schwab-7891"),  qty:"1",  pnl:<span style={{color:"var(--neg)"}}>−$320</span>,    hold:"7",  outcome:<Badge variant="neg">LOSS</Badge>,    openExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_ghi…</span>, closeExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_xyz…</span>, inv:<Btn variant="ghost" size="xs">Case file</Btn> },
+    { _raw:{closeDate:"2024-12-08",sym:"SPY", outcome:"WIN",  acct:acctLabel("fidelity-3344"),acctId:"fidelity-3344"}, closeDate:"2024-12-08",sym:"SPY", acct:acctLabel("fidelity-3344"),qty:"10", pnl:<span style={{color:"var(--pos)"}}>+$890</span>,    hold:"3",  outcome:<Badge variant="pos">WIN</Badge>,     openExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_aaa…</span>, closeExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_bbb…</span>, inv:"—" },
+    { _raw:{closeDate:"2024-12-05",sym:"AAPL",outcome:"WIN",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  closeDate:"2024-12-05",sym:"AAPL",acct:acctLabel("schwab-7891"),  qty:"25", pnl:<span style={{color:"var(--pos)"}}>+$312</span>,    hold:"12", outcome:<Badge variant="pos">WIN</Badge>,     openExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_ccc…</span>, closeExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_ddd…</span>, inv:"—" },
+    { _raw:{closeDate:"2024-12-01",sym:"MSFT",outcome:"FLAT", acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  closeDate:"2024-12-01",sym:"MSFT",acct:acctLabel("schwab-7891"),  qty:"8",  pnl:<span style={{color:"var(--text-3)"}}>$0</span>,      hold:"1",  outcome:<Badge variant="neutral">FLAT</Badge>, openExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_eee…</span>, closeExec:<span style={{color:"var(--accent)",cursor:"pointer"}}>clt_fff…</span>, inv:"—" },
+  ];
+  const t2Rows = t2RowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct) && dateInRange(r._raw.closeDate, resolved.from, resolved.to));
+
+  const t3SummaryKpis = [
+    { label:"Performance Summary", value:"+$12,847", variant:"pos" },
+    { label:"Win Rate",            value:"67.8%",    variant:"accent" },
+    { label:"Expectancy / lot",    value:"+$26.37",  variant:"pos" },
+    { label:"Avg Hold",            value:"14.2d",    variant:"accent" },
+  ];
+  const t3Cols = [
+    { id:"tag",       label:"Tag",          sortable:true, filter:true },
+    { id:"underlying",label:"Underlying",   sortable:true, filter:true, mono:true },
+    { id:"acct",      label:"Account",      sortable:true, filter:true },
+    { id:"pnl",       label:"Realized P&L", sortable:true, filter:false, right:true, mono:true },
+    { id:"wr",        label:"Win Rate %",   sortable:true, filter:false, right:true, mono:true },
+    { id:"exp",       label:"Expectancy",   sortable:true, filter:false, right:true, mono:true },
+    { id:"hold",      label:"Avg Hold",     sortable:true, filter:false, right:true, mono:true },
+    { id:"detail",    label:"Detail",       sortable:false, filter:false },
+    { id:"inv",       label:"Investigate",  sortable:false, filter:false },
+  ];
+  const t3RowsAll = [
+    { _raw:{tag:"Covered Call",  underlying:"SPY",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  tag:"Covered Call",    underlying:"SPY",  acct:acctLabel("schwab-7891"),  pnl:<span style={{color:"var(--pos)"}}>+$4,210</span>, wr:"81.2%", exp:"+$52.14", hold:"14d", detail:<Btn variant="accent" size="xs">View detail</Btn>, inv:"—" },
+    { _raw:{tag:"Cash Sec. Put", underlying:"QQQ",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  tag:"Cash Sec. Put",   underlying:"QQQ",  acct:acctLabel("schwab-7891"),  pnl:<span style={{color:"var(--pos)"}}>+$2,880</span>, wr:"75.0%", exp:"+$40.00", hold:"21d", detail:<Btn variant="accent" size="xs">View detail</Btn>, inv:"—" },
+    { _raw:{tag:"Straddle",      underlying:"NVDA", acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  tag:"Straddle",        underlying:"NVDA", acct:acctLabel("schwab-7891"),  pnl:<span style={{color:"var(--pos)"}}>+$1,340</span>, wr:"55.0%", exp:"+$22.33", hold:"8d",  detail:<Btn variant="accent" size="xs">View detail</Btn>, inv:<Btn variant="ghost" size="xs">Case file</Btn> },
+    { _raw:{tag:"Long Equity",   underlying:"AAPL", acct:acctLabel("fidelity-3344"),acctId:"fidelity-3344"}, tag:"Long Equity",     underlying:"AAPL", acct:acctLabel("fidelity-3344"),pnl:<span style={{color:"var(--neg)"}}>−$420</span>,   wr:"40.0%", exp:"−$14.00", hold:"30d", detail:<Btn variant="accent" size="xs">View detail</Btn>, inv:"—" },
+  ];
+  const t3Rows = t3RowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct));
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <TabBar
+        tabs={[{id:"t1",label:"Executions",count:1204},{id:"t2",label:"Matched Lots",count:487},{id:"t3",label:"Setups",count:63}]}
+        active={tab} onSelect={setTab}
+      />
+      <div style={{ flex:1, overflow:"auto", display:"flex", flexDirection:"column" }}>
+        {tab==="t1" && (
+          <React.Fragment>
+            <DataTable columns={t1Cols} rows={t1Rows} />
+            <Pagination page={1} total={1204} pageSize={25} />
+          </React.Fragment>
+        )}
+        {tab==="t2" && (
+          <React.Fragment>
+            <DataTable columns={t2Cols} rows={t2Rows} />
+            <Pagination page={1} total={487} pageSize={25} />
+          </React.Fragment>
+        )}
+        {tab==="t3" && (
+          <React.Fragment>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:7, padding:14, borderBottom:"1px solid var(--border)", flexShrink:0 }}>
+              {t3SummaryKpis.map(c=><KpiCard key={c.label} label={c.label} value={c.value} variant={c.variant}/>)}
+            </div>
+            <DataTable columns={t3Cols} rows={t3Rows} />
+            <Pagination page={1} total={63} pageSize={25} />
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── SCREEN: ANALYTICS ────────────────────────────────────────── */
+function AnalyticsScreen() {
+  const { activeAcct } = useAccount();
+  const { resolved } = useDateRange();
+  const kpis=[
+    { label:"Total P&L",         value:"+$12,847", variant:"pos" },
+    { label:"Win Rate (%)",       value:"67.8%",    variant:"accent" },
+    { label:"Avg Hold",           value:"14.2d",    variant:"accent" },
+    { label:"Pair Ambiguities",   value:"4",        variant:"neutral" },
+    { label:"Short Call Paired",  value:"18",       variant:"neutral" },
+    { label:"Synth Expires",      value:"6",        variant:"neutral" },
+  ];
+  const cols=[
+    { id:"tag",       label:"Tag",         sortable:true },
+    { id:"underlying",label:"Underlying",  sortable:true, mono:true },
+    { id:"pnl",       label:"Realized P&L",sortable:true, right:true, mono:true },
+    { id:"wr",        label:"Win Rate",    sortable:true, right:true, mono:true },
+    { id:"exp",       label:"Expectancy",  sortable:true, right:true, mono:true },
+    { id:"hold",      label:"Avg Hold",    sortable:true, right:true, mono:true },
+  ];
+  const rowsAll=[
+    { _raw:{tag:"Covered Call",  underlying:"SPY",  acctId:"schwab-7891"},  tag:"Covered Call",  underlying:"SPY",  pnl:<span style={{color:"var(--pos)"}}>+$4,210</span>, wr:"81.2%", exp:"+$52.14", hold:"14.0" },
+    { _raw:{tag:"Cash Sec. Put", underlying:"QQQ",  acctId:"schwab-7891"},  tag:"Cash Sec. Put", underlying:"QQQ",  pnl:<span style={{color:"var(--pos)"}}>+$2,880</span>, wr:"75.0%", exp:"+$40.00", hold:"21.3" },
+    { _raw:{tag:"Straddle",      underlying:"NVDA", acctId:"schwab-7891"},  tag:"Straddle",      underlying:"NVDA", pnl:<span style={{color:"var(--pos)"}}>+$1,340</span>, wr:"55.0%", exp:"+$22.33", hold:"8.1" },
+    { _raw:{tag:"Long Equity",   underlying:"AAPL", acctId:"fidelity-3344"},tag:"Long Equity",   underlying:"AAPL", pnl:<span style={{color:"var(--neg)"}}>−$420</span>,   wr:"40.0%", exp:"−$14.00", hold:"30.4" },
+  ];
+  const rows = rowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct));
+  return (
+    <div style={{ padding:18, display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:7 }}>
+        {kpis.map(k=><KpiCard key={k.label} label={k.label} value={k.value} variant={k.variant}/>)}
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <Panel style={{padding:0}}>
+          <PanelHeader title="P&L by Setup Tag"/>
+          <div style={{padding:14}}>
+            {[["Covered Call","$4,210",0.82],["Cash Sec. Put","$2,880",0.56],["Straddle","$1,340",0.26],["Long Equity","−$420",0]].map(([tag,val,pct])=>(
+              <div key={tag} style={{marginBottom:9}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                  <span style={{color:"var(--text-2)",fontFamily:"var(--mono)"}}>{tag}</span>
+                  <span style={{color:pct>0?"var(--pos)":"var(--neg)",fontFamily:"var(--mono)"}}>{val}</span>
+                </div>
+                <div style={{height:3,background:"var(--surface-3)",borderRadius:2}}>
+                  <div style={{height:"100%",width:`${pct*100}%`,background:pct>0?"var(--pos)":"var(--neg)",borderRadius:2}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel style={{padding:0}}>
+          <PanelHeader title="Win / Loss / Flat"/>
+          <div style={{padding:16,display:"flex",alignItems:"center",justifyContent:"center",gap:20}}>
+            <svg width={110} height={110} viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="36" fill="none" stroke="var(--surface-3)" strokeWidth="16"/>
+              <circle cx="50" cy="50" r="36" fill="none" stroke="var(--pos)" strokeWidth="16" strokeDasharray="155 226" strokeDashoffset="56"/>
+              <circle cx="50" cy="50" r="36" fill="none" stroke="var(--neg)" strokeWidth="16" strokeDasharray="54 226" strokeDashoffset="-99"/>
+              <text x="50" y="46" textAnchor="middle" fontSize="11" fill="var(--text)" fontFamily="var(--mono)" fontWeight="600">67.8%</text>
+              <text x="50" y="58" textAnchor="middle" fontSize="8" fill="var(--text-3)">win rate</text>
+            </svg>
+            <div style={{display:"flex",flexDirection:"column",gap:7}}>
+              {[["WIN","330","var(--pos)"],["LOSS","157","var(--neg)"],["FLAT","0","var(--text-3)"]].map(([l,v,c])=>(
+                <div key={l} style={{display:"flex",gap:7,alignItems:"center",fontSize:12}}>
+                  <span style={{width:7,height:7,borderRadius:"50%",background:c,display:"block"}}/>
+                  <span style={{color:"var(--text-2)"}}>{l}</span>
+                  <span style={{color:"var(--text)",fontFamily:"var(--mono)",fontWeight:500}}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      </div>
+      <Panel style={{padding:0}}>
+        <PanelHeader title="Setup Analytics Table" actions={<Btn variant="outline" size="xs">Show all 63</Btn>}/>
+        <DataTable columns={cols} rows={rows}/>
+        <Pagination page={1} total={63} pageSize={25}/>
+      </Panel>
+    </div>
+  );
+}
+
+/* ─── SCREEN: POSITIONS ────────────────────────────────────────── */
+function PositionsScreen() {
+  const { activeAcct } = useAccount();
+  const { resolved } = useDateRange();
+  const cols=[
+    { id:"sym",    label:"Symbol",    sortable:true, filter:true, mono:true },
+    { id:"type",   label:"Type",      sortable:true, filter:true },
+    { id:"strike", label:"Strike",    sortable:true, filter:false, right:true, mono:true },
+    { id:"expiry", label:"Expiry",    sortable:true, filter:true },
+    { id:"dte",    label:"DTE",       sortable:true, filter:false, right:true, mono:true },
+    { id:"qty",    label:"Qty",       sortable:true, filter:false, right:true, mono:true },
+    { id:"cost",   label:"Cost Basis",sortable:true, filter:false, right:true, mono:true },
+    { id:"mark",   label:"Mark",      sortable:true, filter:false, right:true, mono:true },
+    { id:"mktval", label:"Mkt Value", sortable:true, filter:false, right:true, mono:true },
+    { id:"upnl",   label:"Unreal. P&L",sortable:true, filter:false, right:true, mono:true },
+    { id:"pct",    label:"P&L %",     sortable:true, filter:false, right:true, mono:true },
+    { id:"acct",   label:"Account",   sortable:true, filter:true },
+  ];
+  const rowsAll=[
+    { _raw:{sym:"SPY",  type:"EQUITY", expiry:"—",          acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  sym:"SPY",  type:<Badge>EQUITY</Badge>,         strike:"—",       expiry:"—",          dte:"—",                                     qty:<span style={{color:"var(--pos)"}}>+10</span>,  cost:"$58,942", mark:"$591.20", mktval:"$59,120", upnl:<span style={{color:"var(--pos)"}}>+$178</span>, pct:<span style={{color:"var(--pos)"}}>+0.30%</span>, acct:acctLabel("schwab-7891") },
+    { _raw:{sym:"NVDA", type:"PUT",    expiry:"2025-01-17",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891"},  sym:"NVDA", type:<Badge variant="accent">PUT</Badge>, strike:"$125.00", expiry:"2025-01-17", dte:<span style={{color:"var(--neg)"}}>5</span>,  qty:<span style={{color:"var(--neg)"}}>−1</span>,   cost:"$215",    mark:"$3.40",   mktval:"$340",    upnl:<span style={{color:"var(--neg)"}}>−$125</span>, pct:<span style={{color:"var(--neg)"}}>−58.1%</span>, acct:acctLabel("schwab-7891") },
+    { _raw:{sym:"AAPL", type:"EQUITY", expiry:"—",          acct:acctLabel("fidelity-3344"),acctId:"fidelity-3344"}, sym:"AAPL", type:<Badge>EQUITY</Badge>,         strike:"—",       expiry:"—",          dte:"—",                                     qty:<span style={{color:"var(--pos)"}}>+25</span>, cost:"$6,115",  mark:"$248.10", mktval:"$6,203",  upnl:<span style={{color:"var(--pos)"}}>+$88</span>,  pct:<span style={{color:"var(--pos)"}}>+1.43%</span>, acct:acctLabel("fidelity-3344") },
+  ];
+  const rows = rowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct));
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      <div style={{padding:"10px 18px",borderBottom:"1px solid var(--border)",display:"flex",gap:18,alignItems:"center",flexWrap:"wrap",background:"var(--surface)",flexShrink:0}}>
+        {[["Total Cost Basis","$65,272","neutral"],["Total Market Value","$65,663","neutral"],["Total Unrealized P&L","+$141","pos"]].map(([l,v,va])=>(
+          <div key={l}>
+            <div style={{fontSize:10,color:"var(--text-3)",letterSpacing:"0.06em",textTransform:"uppercase"}}>{l}</div>
+            <div style={{fontFamily:"var(--mono)",fontSize:15,fontWeight:600,color:va==="pos"?"var(--pos)":"var(--text)"}}>{v}</div>
+          </div>
+        ))}
+        <span style={{flex:1}}/>
+        <span style={{fontSize:11,color:"var(--text-3)"}}>Last quoted: 2 min ago</span>
+        <Btn variant="accent" size="sm">Refresh Quotes</Btn>
+      </div>
+      <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column"}}>
+        <DataTable columns={cols} rows={rows}/>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SCREEN: IMPORTS ──────────────────────────────────────────── */
+function ImportsScreen() {
+  const { activeAcct } = useAccount();
+  const { resolved } = useDateRange();
+  const [tab, setTab] = useState("history");
+  const histCols=[
+    { id:"at",       label:"Imported At",    sortable:true },
+    { id:"file",     label:"Filename",       sortable:true },
+    { id:"broker",   label:"Broker",         sortable:true, filter:true },
+    { id:"acct",     label:"Account",        sortable:true, filter:true },
+    { id:"status",   label:"Status",         sortable:true, filter:true },
+    { id:"parsed",   label:"Parsed",         sortable:false, right:true, mono:true },
+    { id:"inserted", label:"Inserted",       sortable:false, right:true, mono:true },
+    { id:"skipped",  label:"Skipped Dup.",   sortable:false, right:true, mono:true },
+    { id:"failed",   label:"Failed",         sortable:false, right:true, mono:true },
+    { id:"importId", label:"Import ID",      sortable:false, mono:true },
+    { id:"link",     label:"Link",           sortable:false },
+    { id:"del",      label:"Delete",         sortable:false },
+  ];
+  const histRowsAll=[
+    { _raw:{broker:"Schwab",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891",  status:"COMMITTED", at:"2024-12-15"}, at:"2024-12-15 09:14", file:"schwab_2024_dec.csv", broker:"Schwab",  acct:acctLabel("schwab-7891"),  status:<Badge variant="pos">COMMITTED</Badge>,  parsed:"310", inserted:"308", skipped:"2", failed:"0", importId:<span style={{fontFamily:"var(--mono)",fontSize:11}}>a1b2c3d4</span>, link:<Btn variant="accent" size="xs">View executions</Btn>, del:<Btn variant="danger" size="xs">Delete</Btn> },
+    { _raw:{broker:"Schwab",  acct:acctLabel("schwab-7891"),  acctId:"schwab-7891",  status:"COMMITTED", at:"2024-11-30"}, at:"2024-11-30 16:22", file:"schwab_2024_nov.csv", broker:"Schwab",  acct:acctLabel("schwab-7891"),  status:<Badge variant="pos">COMMITTED</Badge>,  parsed:"284", inserted:"281", skipped:"3", failed:"0", importId:<span style={{fontFamily:"var(--mono)",fontSize:11}}>e5f6g7h8</span>, link:<Btn variant="accent" size="xs">View executions</Btn>, del:<Btn variant="danger" size="xs">Delete</Btn> },
+    { _raw:{broker:"Fidelity",acct:acctLabel("fidelity-3344"),acctId:"fidelity-3344",status:"STAGED", at:"2024-11-30"},    at:"2024-11-30 16:18", file:"ira_2024_nov.csv",    broker:"Fidelity",acct:acctLabel("fidelity-3344"),status:<Badge variant="warn">STAGED</Badge>,     parsed:"42",  inserted:"0",   skipped:"0", failed:"2", importId:<span style={{fontFamily:"var(--mono)",fontSize:11}}>i9j0k1l2</span>, link:<Btn variant="ghost" size="xs">View executions</Btn>, del:<Btn variant="danger" size="xs">Delete</Btn> },
+  ];
+  const histRows = histRowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct) && dateInRange(r._raw.at, resolved.from, resolved.to));
+  const adapters=[
+    { name:"Schwab Brokerage", status:"ACTIVE", notes:"Supports equities, options, assignments, expirations. Known: excludes fractional shares." },
+    { name:"Fidelity CSV",     status:"ACTIVE", notes:"Supports equities and options. Known: splits not in export — use adjustment overlay." },
+    { name:"Tastytrade",       status:"BETA",   notes:"Equities and options. Does not emit execution IDs — instrument key fallback used." },
+  ];
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      <TabBar tabs={[{id:"upload",label:"Upload Statement"},{id:"history",label:"Import History"},{id:"adapters",label:"Adapter Registry"}]} active={tab} onSelect={setTab}/>
+      <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column"}}>
+        {tab==="upload" && (
+          <div style={{padding:22,maxWidth:520}}>
+            <Panel style={{padding:18}}>
+              <p style={{fontSize:13,fontWeight:600,marginBottom:4}}>Upload Statement</p>
+              <p style={{fontSize:12,color:"var(--text-3)",marginBottom:14,lineHeight:1.6}}>Select a broker statement CSV to detect, preview, and commit executions.</p>
+              <div style={{border:"1px solid var(--border)",borderRadius:"var(--r)",padding:"14px",marginBottom:12,background:"var(--surface-2)"}}>
+                <input type="file" style={{fontSize:12,color:"var(--text-2)"}}/>
+              </div>
+              <Btn variant="accent" size="sm">Upload</Btn>
+            </Panel>
+          </div>
+        )}
+        {tab==="history" && (
+          <React.Fragment>
+            <DataTable columns={histCols} rows={histRows}/>
+            <Pagination page={1} total={3} pageSize={25}/>
+          </React.Fragment>
+        )}
+        {tab==="adapters" && (
+          <div style={{padding:18,display:"flex",flexDirection:"column",gap:9}}>
+            {adapters.map(a=>(
+              <Panel key={a.name} style={{padding:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:5}}>
+                  <span style={{fontWeight:600,fontSize:13}}>{a.name}</span>
+                  <Badge variant={a.status==="ACTIVE"?"pos":"warn"}>{a.status}</Badge>
+                </div>
+                <p style={{fontSize:12,color:"var(--text-2)",lineHeight:1.6}}>{a.notes}</p>
+              </Panel>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── SCREEN: LEDGER ADMIN ─────────────────────────────────────── */
+function LedgerAdminScreen() {
+  const { activeAcct } = useAccount();
+  const { resolved } = useDateRange();
+  const [tab, setTab] = useState("accounts");
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildMsg, setRebuildMsg] = useState(null);
+
+  function doRebuild() {
+    setRebuilding(true); setRebuildMsg(null);
+    setTimeout(()=>{ setRebuilding(false); setRebuildMsg("Rebuild complete — 487 matched lots, 3 warnings cleared."); }, 1400);
+  }
+
+  const adjRowsAll=[
+    { _raw:{acct:acctLabel("schwab-7891"),  sym:"SDS",  type:"SPLIT",          status:"ACTIVE",      acctId:"schwab-7891",  created:"2024-12-10"},  created:"2024-12-10", acct:acctLabel("schwab-7891"),  sym:"SDS",  type:"SPLIT",          effective:"2024-12-09", reason:"2-for-1 split",    status:<Badge variant="pos">ACTIVE</Badge>,          action:<Btn variant="danger" size="xs">Reverse</Btn> },
+    { _raw:{acct:acctLabel("fidelity-3344"),sym:"AAPL", type:"PRICE_OVERRIDE",  status:"SUPERSEDED",  acctId:"fidelity-3344", created:"2024-11-05"}, created:"2024-11-05", acct:acctLabel("fidelity-3344"),sym:"AAPL", type:"PRICE_OVERRIDE",  effective:"2024-11-05", reason:"Price correction",  status:<Badge variant="neutral">SUPERSEDED</Badge>,  action:<Btn variant="danger" size="xs" disabled>Reverse</Btn> },
+  ];
+  const adjRows = adjRowsAll.filter(r => (activeAcct === "all" || r._raw.acctId === activeAcct) && dateInRange(r._raw.created, resolved.from, resolved.to));
+
+  const allAccounts = [
+    { label:"Schwab — Main", id:"schwab-7891",   broker:"Charles Schwab", cap:"$125,000", created:"2024-01-15" },
+    { label:"IRA — Roth",    id:"fidelity-3344", broker:"Fidelity",       cap:"$40,000",  created:"2024-01-15" },
+  ];
+  const accounts = activeAcct === "all" ? allAccounts : allAccounts.filter(a => a.id === activeAcct);
+
+  const adjCols=[
+    { id:"created",   label:"Created",   sortable:true, filter:true },
+    { id:"acct",      label:"Account",   sortable:true, filter:true },
+    { id:"sym",       label:"Symbol",    sortable:true, filter:true, mono:true },
+    { id:"type",      label:"Type",      sortable:true, filter:true },
+    { id:"effective", label:"Effective", sortable:true, filter:false },
+    { id:"reason",    label:"Reason",    sortable:false, filter:false },
+    { id:"status",    label:"Status",    sortable:true, filter:true },
+    { id:"action",    label:"Action",    sortable:false, filter:false },
+  ];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      <TabBar tabs={[{id:"accounts",label:"Accounts"},{id:"adjustments",label:"Adjustments"}]} active={tab} onSelect={setTab}/>
+      <div style={{flex:1,overflow:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
+        {tab==="accounts" && (
+          <Panel style={{overflow:"hidden"}}>
+            <PanelHeader title="Accounts"/>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr>
+                  {["Display Label","Broker Account","Broker Name","Starting Capital","Created","Action"].map(h=>(
+                    <th key={h} style={{padding:"7px 12px",textAlign:"left",color:"var(--text-3)",fontWeight:600,fontSize:10.5,letterSpacing:"0.05em",textTransform:"uppercase",borderBottom:"1px solid var(--border)",background:"var(--surface)",position:"sticky",top:0}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map(({label,id,broker,cap,created})=>(
+                  <tr key={id} style={{borderBottom:"1px solid var(--border-subtle)"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="var(--surface-2)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"7px 12px"}}><input defaultValue={label} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"3px 7px",color:"var(--text)",fontSize:12,width:150}}/></td>
+                    <td style={{padding:"7px 12px",fontFamily:"var(--mono)",fontSize:11,color:"var(--text-2)"}}>{id}</td>
+                    <td style={{padding:"7px 12px"}}><input defaultValue={broker} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"3px 7px",color:"var(--text)",fontSize:12,width:130}}/></td>
+                    <td style={{padding:"7px 12px"}}><input defaultValue={cap} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"3px 7px",color:"var(--text)",fontSize:12,width:100}}/></td>
+                    <td style={{padding:"7px 12px",color:"var(--text-3)",fontSize:11}}>{created}</td>
+                    <td style={{padding:"7px 12px"}}><Btn variant="outline" size="xs">Save</Btn></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        )}
+        {tab==="adjustments" && (
+          <React.Fragment>
+            <Panel style={{padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+                <div>
+                  <p style={{fontWeight:600,marginBottom:4,fontSize:13}}>Manual Adjustments</p>
+                  <p style={{fontSize:11,color:"var(--text-3)",maxWidth:440,lineHeight:1.6}}>Add auditable reconciliation overlays for corporate actions and exceptional corrections without mutating raw executions.</p>
+                </div>
+                <Btn variant="outline" size="sm" onClick={doRebuild} disabled={rebuilding}>{rebuilding?"Rebuilding…":"Rebuild Ledger"}</Btn>
+              </div>
+            </Panel>
+            {rebuildMsg && <div style={{background:"var(--accent-dim)",border:"1px solid var(--accent-border)",borderRadius:"var(--r)",padding:"9px 13px",fontSize:12,color:"var(--accent)"}}>{rebuildMsg}</div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <Panel style={{padding:14}}>
+                <p style={{fontWeight:600,marginBottom:11,fontSize:12}}>Create Adjustment</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                  {[["Account","Select"],["Symbol","SDS"],["Effective Date",""],["Type","SPLIT"]].map(([lbl,ph])=>(
+                    <label key={lbl} style={{fontSize:11,color:"var(--text-3)",display:"flex",flexDirection:"column",gap:3}}>
+                      {lbl}
+                      {lbl==="Account"||lbl==="Type"
+                        ? <select style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}><option>{ph}</option></select>
+                        : <input type={lbl==="Effective Date"?"date":"text"} placeholder={ph} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}/>
+                      }
+                    </label>
+                  ))}
+                  <label style={{fontSize:11,color:"var(--text-3)",display:"flex",flexDirection:"column",gap:3}}>Ratio From<input type="number" defaultValue={2} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}/></label>
+                  <label style={{fontSize:11,color:"var(--text-3)",display:"flex",flexDirection:"column",gap:3}}>Ratio To<input type="number" defaultValue={1} style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}/></label>
+                  <label style={{fontSize:11,color:"var(--text-3)",display:"flex",flexDirection:"column",gap:3,gridColumn:"span 2"}}>Reason (required)<input placeholder="Corporate action reconciliation" style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}/></label>
+                  <label style={{fontSize:11,color:"var(--text-3)",display:"flex",flexDirection:"column",gap:3,gridColumn:"span 2"}}>Evidence URL<input placeholder="https://…" style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:"var(--r-sm)",padding:"4px 7px",color:"var(--text)",fontSize:12}}/></label>
+                </div>
+                <div style={{display:"flex",gap:7,marginTop:11}}>
+                  <Btn variant="outline" size="sm">Preview</Btn>
+                  <Btn variant="accent" size="sm">Create Adjustment</Btn>
+                </div>
+              </Panel>
+              <Panel style={{padding:14}}>
+                <p style={{fontWeight:600,marginBottom:9,fontSize:12}}>Preview</p>
+                <p style={{fontSize:11,color:"var(--text-3)"}}>Run preview to see before/after impact.</p>
+              </Panel>
+            </div>
+            <Panel style={{overflow:"hidden"}}>
+              <PanelHeader title="Adjustment Ledger"/>
+              <DataTable columns={adjCols} rows={adjRows}/>
+              <Pagination page={1} total={2} pageSize={25}/>
+            </Panel>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── SCREEN: DIAGNOSTICS ──────────────────────────────────────── */
+function DiagnosticsScreen() {
+  const diags=[
+    {label:"Parse Coverage",        value:"98.2%", variant:"pos"},
+    {label:"Unsupported Rows",      value:"6",     variant:"neutral"},
+    {label:"Matching Coverage",     value:"96.5%", variant:"pos"},
+    {label:"Uncategorized Setups",  value:"2",     variant:"neutral"},
+    {label:"Warning Count",         value:"3",     variant:"warn"},
+    {label:"Synthetic Expires",     value:"6",     variant:"warn"},
+    {label:"Setup Inference Total", value:"63",    variant:"accent"},
+    {label:"Short Call Standalone", value:"4",     variant:"neutral"},
+    {label:"Short Call Paired",     value:"18",    variant:"neutral"},
+    {label:"Pair Outcomes V/C/D",   value:"42/18/3",variant:"neutral"},
+    {label:"Pair Failures",         value:"2",     variant:"neg"},
+    {label:"Pair Ambiguities",      value:"4",     variant:"warn"},
+  ];
+  const warnings=[
+    {title:"Expiration Inferred (EXPIRATION_INFERRED)", count:6, summary:"Expiration events were synthesized because the broker statement lacked an explicit EXPIRE row."},
+    {title:"Unknown Effect", count:2, summary:"Executions with effect=UNKNOWN could not be classified as TO_OPEN or TO_CLOSE."},
+    {title:"Parse Skipped — Unsupported Row Format", count:1, summary:"1 row in import i9j0k1l2 matched no known pattern for the Fidelity adapter."},
+  ];
+  return (
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:7}}>
+        {diags.map(d=><KpiCard key={d.label} label={d.label} value={d.value} variant={d.variant}/>)}
+      </div>
+      <Panel style={{padding:0}}>
+        <PanelHeader title="Warning Signals"/>
+        {warnings.map((w,i)=>(
+          <div key={i} style={{padding:"11px 14px",borderBottom:i<warnings.length-1?"1px solid var(--border-subtle)":"none",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+            <div>
+              <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:12,fontWeight:500}}>{w.title}</span>
+                <Badge variant="warn">{w.count}</Badge>
+              </div>
+              <p style={{fontSize:11,color:"var(--text-3)",lineHeight:1.6,maxWidth:540}}>{w.summary}</p>
+            </div>
+            <Btn variant="outline" size="xs">Open case file</Btn>
+          </div>
+        ))}
+      </Panel>
+    </div>
+  );
+}
+
+/* ─── SCREEN: TTS EVIDENCE ─────────────────────────────────────── */
+function TtsScreen() {
+  const metrics=[
+    {label:"Trades Per Month",       value:"82",          target:"≥ 60",    ok:true,  desc:"Monthly execution count averaged over the period in scope."},
+    {label:"Active Days / Week",     value:"4.3",         target:"≥ 4",     ok:true,  desc:"Average days per week with at least one execution."},
+    {label:"Avg Holding Period",     value:"14.2d",       target:"≤ 31d",   ok:true,  desc:"Mean holdingDays across all matched lots in scope."},
+    {label:"Annualized Trade Count", value:"984",         target:"≥ 720",   ok:true,  desc:"Annualized rate of executions based on activity in scope."},
+    {label:"Median Holding Period",  value:"9.0d",        target:"info",    ok:null,  desc:"Median holdingDays — informational, not a TTS criterion."},
+    {label:"Gross Trading Proceeds", value:"$482,900",    target:"info",    ok:null,  desc:"Sum of gross proceeds from all closing executions in scope."},
+  ];
+  const holdDist=[38,55,72,48,30,18,8,4,2];
+  const holdLabels=["0-1d","2-5d","6-10d","11-20d","21-30d","31-60d","61-90d","91-180d","180d+"];
+  const maxH=Math.max(...holdDist);
+  return (
+    <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:9}}>
+        <Badge variant="pos">READY</Badge>
+        <span style={{fontSize:13,color:"var(--text-2)"}}>Trader Tax Status readiness metrics</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
+        {metrics.map(m=>(
+          <Panel key={m.label} style={{padding:13}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <span style={{fontSize:10,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>{m.label}</span>
+              <Badge variant={m.ok===true?"pos":m.ok===false?"neg":"neutral"}>{m.target}</Badge>
+            </div>
+            <div style={{fontSize:20,fontWeight:600,fontFamily:"var(--mono)",color:m.ok===true?"var(--pos)":m.ok===false?"var(--neg)":"var(--text)",marginBottom:5,letterSpacing:"-0.02em"}}>{m.value}</div>
+            <p style={{fontSize:11,color:"var(--text-3)",lineHeight:1.6}}>{m.desc}</p>
+          </Panel>
+        ))}
+      </div>
+      <Panel style={{padding:0}}>
+        <PanelHeader title="Holding Period Distribution"/>
+        <div style={{padding:"16px 18px"}}>
+          <svg width="100%" height={110} viewBox={`0 0 ${holdDist.length*60} 110`} preserveAspectRatio="none">
+            {holdDist.map((v,i)=>{
+              const bH=(v/maxH)*82;
+              const color=i<2?"var(--pos)":i<5?"var(--warn)":"var(--neg)";
+              return (
+                <g key={i}>
+                  <rect x={i*60+5} y={100-bH} width={50} height={bH} fill={color} rx="3" opacity="0.82"/>
+                  <text x={i*60+30} y={108} textAnchor="middle" fontSize="8.5" fill="var(--text-3)" fontFamily="var(--sans)">{holdLabels[i]}</text>
+                  <text x={i*60+30} y={100-bH-4} textAnchor="middle" fontSize="8.5" fill={color} fontFamily="var(--mono)">{v}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* ─── SIDEBAR ──────────────────────────────────────────────────── */
+function Sidebar({ active, onNav, collapsed }) {
+  return (
+    <div style={{
+      width: collapsed ? 44 : "var(--sidebar-w)", flexShrink:0,
+      background:"var(--surface)", borderRight:"1px solid var(--border)",
+      display:"flex", flexDirection:"column",
+      transition:"width 0.18s ease", overflow:"hidden",
+    }}>
+      <div style={{padding:"0 14px",height:"var(--topbar-h)",display:"flex",alignItems:"center",borderBottom:"1px solid var(--border)",flexShrink:0}}>
+        {collapsed
+          ? <span style={{fontFamily:"var(--mono)",fontWeight:700,fontSize:14,color:"var(--accent)"}}>K</span>
+          : <span style={{fontFamily:"var(--mono)",fontWeight:700,fontSize:14,color:"var(--text)",letterSpacing:"-0.03em"}}>
+              <span style={{color:"var(--accent)"}}>Kap</span>Man
+            </span>
+        }
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"6px 0"}}>
+        {NAV.map(group=>(
+          <div key={group.group} style={{marginBottom:3}}>
+            {!collapsed && (
+              <div style={{padding:"6px 14px 2px",fontSize:9.5,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.10em"}}>{group.group}</div>
+            )}
+            {group.items.map(item=>(
+              <button key={item.id} onClick={()=>onNav(item.id)} style={{
+                width:"100%", display:"flex", alignItems:"center", gap:7,
+                padding: collapsed?"7px 11px":"6px 14px",
+                background: active===item.id ? "var(--accent-dim)" : "transparent",
+                border:"none",
+                borderLeft: active===item.id ? "2px solid var(--accent)" : "2px solid transparent",
+                color: active===item.id ? "var(--accent)" : "var(--text-2)",
+                fontSize:12, fontWeight: active===item.id ? 500 : 400,
+                cursor:"pointer", textAlign:"left",
+                transition:"all 0.1s",
+              }}
+              onMouseEnter={e=>{ if(active!==item.id) e.currentTarget.style.background="var(--surface-2)"; }}
+              onMouseLeave={e=>{ if(active!==item.id) e.currentTarget.style.background="transparent"; }}>
+                {!collapsed && <span style={{flex:1,whiteSpace:"nowrap"}}>{item.label}</span>}
+                {!collapsed && item.badge!=null && (
+                  <span style={{fontSize:10,fontFamily:"var(--mono)",background:"var(--surface-3)",color:"var(--text-3)",padding:"1px 5px",borderRadius:3}}>{item.badge}</span>
+                )}
+                {collapsed && <span title={item.label} style={{fontSize:12,fontWeight:600}}>{item.label[0]}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── TOPBAR ───────────────────────────────────────────────────── */
+function Topbar({ route, collapsed, onToggle }) {
+  const LABELS={dashboard:"Dashboard",analytics:"Analytics",positions:"Open Positions",trade:"Executions / Lots / Setups",imports:"Imports & Connections",ledger:"Ledger Admin",tts:"TTS Evidence",diagnostics:"Diagnostics"};
+  const tags = CONTEXT_TAGS[route] || [];
+  return (
+    <div style={{height:"var(--topbar-h)",display:"flex",alignItems:"center",padding:"0 14px",borderBottom:"1px solid var(--border)",background:"var(--surface)",gap:9,flexShrink:0}}>
+      <button onClick={onToggle} style={{background:"transparent",border:"none",color:"var(--text-3)",cursor:"pointer",fontSize:15,padding:"2px 4px",lineHeight:1}}>☰</button>
+      <span style={{fontWeight:600,fontSize:13,color:"var(--text)"}}>{LABELS[route]||route}</span>
+      <div style={{display:"flex",gap:5,alignItems:"center"}}>
+        {tags.map(t=><Badge key={t} variant="neutral">{t}</Badge>)}
+      </div>
+      <span style={{flex:1}}/>
+      <RangeSelector />
+      <div style={{width:1,height:18,background:"var(--border)"}}/>
+      <AccountSelector />
+      <div style={{width:1,height:18,background:"var(--border)",marginLeft:2}}/>
+      <div style={{width:26,height:26,borderRadius:"50%",background:"var(--accent-dim)",border:"1px solid var(--accent-border)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--accent)",fontWeight:700,fontFamily:"var(--mono)"}}>KM</div>
+    </div>
+  );
+}
+
+/* ─── APP ROOT ─────────────────────────────────────────────────── */
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [route, setRoute] = useState("dashboard");
+  const [collapsed, setCollapsed] = useState(false);
+  const [activeAcct, setActiveAcct] = useState("all");
+  const [rangeId, setRangeId] = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const resolved = useMemo(() => resolveRange(rangeId, customFrom, customTo), [rangeId, customFrom, customTo]);
+
+  useEffect(() => {
+    const a = ACCENTS[tweaks.accent] || ACCENTS.cyan;
+    document.documentElement.style.setProperty("--accent",        a.main);
+    document.documentElement.style.setProperty("--accent-dim",    a.dim);
+    document.documentElement.style.setProperty("--accent-border", a.border);
+  }, [tweaks.accent]);
+
+  useEffect(() => {
+    const d = tweaks.density;
+    document.documentElement.style.setProperty("--row-h",   d==="compact"?"28px":d==="spacious"?"40px":"34px");
+    document.documentElement.style.setProperty("--cell-py", d==="compact"?"4px":d==="spacious"?"10px":"7px");
+    document.documentElement.style.setProperty("--hdr-py",  d==="compact"?"4px":d==="spacious"?"10px":"7px");
+    document.documentElement.style.setProperty("--r",       d==="compact"?"4px":d==="spacious"?"12px":"7px");
+    document.documentElement.style.setProperty("--r-sm",    d==="compact"?"3px":d==="spacious"?"8px":"4px");
+  }, [tweaks.density]);
+
+  function renderScreen() {
+    switch(route) {
+      case "dashboard":    return <DashboardScreen/>;
+      case "analytics":    return <AnalyticsScreen/>;
+      case "positions":    return <PositionsScreen/>;
+      case "trade":        return <TradeRecordsScreen/>;
+      case "imports":      return <ImportsScreen/>;
+      case "ledger":       return <LedgerAdminScreen/>;
+      case "tts":          return <TtsScreen/>;
+      case "diagnostics":  return <DiagnosticsScreen/>;
+      default:             return <DashboardScreen/>;
+    }
+  }
+
+  return (
+    <DateRangeCtx.Provider value={{ rangeId, setRangeId, customFrom, setCustomFrom, customTo, setCustomTo, resolved }}>
+    <AccountCtx.Provider value={{ activeAcct, setActiveAcct }}>
+      <Sidebar active={route} onNav={setRoute} collapsed={collapsed}/>
+      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
+        <Topbar route={route} collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)}/>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {renderScreen()}
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakSection label="Accent Color">
+          <TweakRadio label="Hue" value={tweaks.accent} onChange={v=>setTweak("accent",v)}
+            options={["cyan","blue","violet","amber","green"].map(v=>({value:v,label:v.charAt(0).toUpperCase()+v.slice(1)}))}/>
+        </TweakSection>
+        <TweakSection label="Information Density">
+          <TweakRadio label="Rows" value={tweaks.density} onChange={v=>setTweak("density",v)}
+            options={[{value:"compact",label:"Compact"},{value:"normal",label:"Normal"},{value:"spacious",label:"Spacious"}]}/>
+        </TweakSection>
+      </TweaksPanel>
+    </AccountCtx.Provider>
+    </DateRangeCtx.Provider>
+  );
+}
+
+const rootEl = document.getElementById("root");
+const root = ReactDOM.createRoot(rootEl);
+root.render(<App/>);
+</script>
+</body>
+</html>
