@@ -513,13 +513,13 @@ export function SetupsAnalyticsPanel() {
                         <td className="px-2 py-2 text-right">{lot.holdingDays}</td>
                         <td className="px-2 py-2">{lot.outcome}</td>
                         <td className="px-2 py-2">
-                          <Link href={`/executions?execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">
+                          <Link href={`/trade-records?tab=executions&execution=${lot.openExecutionId}&account=${lot.accountId}`} className="text-accent underline">
                             {lot.openExecutionId.slice(0, 8)}...
                           </Link>
                         </td>
                         <td className="px-2 py-2">
                           {lot.closeExecutionId ? (
-                            <Link href={`/executions?execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">
+                            <Link href={`/trade-records?tab=executions&execution=${lot.closeExecutionId}&account=${lot.accountId}`} className="text-accent underline">
                               {lot.closeExecutionId.slice(0, 8)}...
                             </Link>
                           ) : (

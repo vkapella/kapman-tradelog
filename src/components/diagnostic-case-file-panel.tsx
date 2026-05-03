@@ -174,7 +174,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.executions.map((execution) => (
                     <li key={execution.id}>
-                      <Link href={`/executions?execution=${execution.id}`} className="text-blue-300 underline">
+                      <Link href={`/trade-records?tab=executions&execution=${execution.id}`} className="text-blue-300 underline">
                         {execution.id.slice(0, 8)}...
                       </Link>{" "}
                       {execution.underlyingSymbol ?? execution.symbol} {execution.eventType} {execution.openingClosingEffect ?? "UNKNOWN"}

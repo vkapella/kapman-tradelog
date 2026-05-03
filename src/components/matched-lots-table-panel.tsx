@@ -59,13 +59,13 @@ const MatchedLotsTableBody = memo(function MatchedLotsTableBody({
             {row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}
           </td>
           <td className="px-2 py-2 font-mono">
-            <Link href={`/executions?execution=${row.openExecutionId}&account=${row.accountId}`} className="text-accent underline">
+            <Link href={`/trade-records?tab=executions&execution=${row.openExecutionId}&account=${row.accountId}`} className="text-accent underline">
               {shortId(row.openExecutionId)}
             </Link>
           </td>
           <td className="px-2 py-2 font-mono">
             {row.closeExecutionId ? (
-              <Link href={`/executions?execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-accent underline">
+              <Link href={`/trade-records?tab=executions&execution=${row.closeExecutionId}&account=${row.accountId}`} className="text-accent underline">
                 {shortId(row.closeExecutionId)}
               </Link>
             ) : (
