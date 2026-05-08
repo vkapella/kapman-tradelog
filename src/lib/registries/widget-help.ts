@@ -11,10 +11,15 @@ const WIDGET_HELP_BY_TITLE: Record<string, InfoTooltipContent> = {
     source: "/api/diagnostics",
     interpretation: "Highlights data-quality issues that can affect trust in downstream analytics.",
   },
-  "Equity Curve": {
+  "Cash Balance Curve": {
     formula: "Daily snapshot balances grouped by date, rendered as combined or per-account lines.",
     source: "/api/overview/summary",
-    interpretation: "Shows how account value has evolved over time and where major inflections occurred.",
+    interpretation: "Shows how account cash balance has evolved over time and where major inflections occurred.",
+  },
+  "Daily P&L Calendar": {
+    formula: "Sum realized P&L from matched lots grouped by close trade date.",
+    source: "/api/matched-lots",
+    interpretation: "Shows daily close quality and lets you drill into matched lots for any specific day.",
   },
   "Expectancy vs Hold": {
     formula: "Scatter plot of setup expectancy on Y, average hold days on X, with bubble size tied to realized P&L magnitude.",
@@ -50,6 +55,16 @@ const WIDGET_HELP_BY_TITLE: Record<string, InfoTooltipContent> = {
     formula: "Most recent execution records sorted by event time.",
     source: "/api/executions",
     interpretation: "Provides a quick feed of the latest trading activity in scope.",
+  },
+  "Recent Matched Lots": {
+    formula: "Most recent closed matched lots sorted by close date.",
+    source: "/api/matched-lots",
+    interpretation: "Provides a quick feed of recently closed lots and realized outcomes.",
+  },
+  "Setup Expectancy": {
+    formula: "Expected value per lot by setup tag, with lot counts and weighted win-rate rollups.",
+    source: "/api/setups",
+    interpretation: "Shows which setup tags currently carry the strongest or weakest expectancy.",
   },
   "Setup Tag Rollup": {
     formula: "Realized P&L aggregated by setup tag or override tag.",

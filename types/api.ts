@@ -241,6 +241,7 @@ export interface SetupSummaryRecord {
   winRate: string | null;
   expectancy: string | null;
   averageHoldDays: string | null;
+  setupLotCount?: number;
 }
 
 export interface SetupsListQuery {

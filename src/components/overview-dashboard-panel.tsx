@@ -88,7 +88,7 @@ export function OverviewDashboardPanel() {
     <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
         <h2 className="text-xl font-semibold text-text">Overview Summary</h2>
-        <p className="text-sm text-text-2">Headline P&L and activity metrics, import quality checks, and equity-curve-ready snapshot series.</p>
+        <p className="text-sm text-text-2">Headline P&L and activity metrics, import quality checks, and cash-balance-curve snapshot series.</p>
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
@@ -147,7 +147,7 @@ export function OverviewDashboardPanel() {
 
             <div className="rounded-lg border border-border bg-bg p-4">
               <h3 className="text-sm font-semibold text-text">Snapshot Series Preview</h3>
-              <p className="mt-1 text-xs text-text-3">Latest 12 points for equity-curve rendering inputs.</p>
+              <p className="mt-1 text-xs text-text-3">Latest 12 points for cash balance curve rendering inputs.</p>
               <div className="mt-3 max-h-56 overflow-auto rounded border border-border">
                 <table className="min-w-full text-xs">
                   <thead className="bg-surface text-text-2">

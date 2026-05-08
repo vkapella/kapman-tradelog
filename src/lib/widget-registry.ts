@@ -1,14 +1,17 @@
 import type { ComponentType } from "react";
 import { AccountBalancesWidget } from "@/components/widgets/AccountBalancesWidget";
 import { DiagnosticsWidget } from "@/components/widgets/DiagnosticsWidget";
+import { DailyPnlCalendarWidget } from "@/components/widgets/DailyPnlCalendarWidget";
 import { EquityCurveWidget } from "@/components/widgets/EquityCurveWidget";
 import { ExpectancyScatterWidget } from "@/components/widgets/ExpectancyScatterWidget";
 import { HoldingDistributionWidget } from "@/components/widgets/HoldingDistributionWidget";
 import { ImportHealthWidget } from "@/components/widgets/ImportHealthWidget";
 import { MonthlyPnlWidget } from "@/components/widgets/MonthlyPnlWidget";
 import { OpenPositionsSummaryWidget } from "@/components/widgets/OpenPositionsSummaryWidget";
+import { RecentMatchedLotsWidget } from "@/components/widgets/RecentMatchedLotsWidget";
 import { ReconciliationWidget } from "@/components/widgets/ReconciliationWidget";
 import { RecentExecutionsWidget } from "@/components/widgets/RecentExecutionsWidget";
+import { SetupExpectancyWidget } from "@/components/widgets/SetupExpectancyWidget";
 import { SetupTagRollupWidget } from "@/components/widgets/SetupTagRollupWidget";
 import { StreakWidget } from "@/components/widgets/StreakWidget";
 import { SymbolPnlWidget } from "@/components/widgets/SymbolPnlWidget";
@@ -25,7 +28,8 @@ export interface WidgetDefinition {
 }
 
 export const WIDGET_REGISTRY: WidgetDefinition[] = [
-  { id: "equity-curve", name: "Equity Curve", description: "Daily balance trajectory by account.", defaultColSpan: 2, component: EquityCurveWidget },
+  { id: "equity-curve", name: "Cash Balance Curve", description: "Daily cash-balance trajectory by account.", defaultColSpan: 2, component: EquityCurveWidget },
+  { id: "daily-pnl-calendar", name: "Daily P&L Calendar", description: "Realized P&L heatmap by matched-lot close date.", defaultColSpan: 2, component: DailyPnlCalendarWidget },
   {
     id: "account-balances",
     name: "Account Balances + NLV",
@@ -48,6 +52,7 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
   { id: "import-health", name: "Import Health", description: "Import quality and failure/skipped checks.", defaultColSpan: 1, component: ImportHealthWidget },
   { id: "tts-scorecard", name: "TTS Readiness", description: "Evidence scorecard from trading activity.", defaultColSpan: 1, component: TtsReadinessWidget },
   { id: "diag-badge", name: "Diagnostics Badge", description: "Parser/matching quality and warnings.", defaultColSpan: 1, component: DiagnosticsWidget },
+  { id: "recent-matched-lots", name: "Recent Matched Lots", description: "Latest closed matched lots in scope.", defaultColSpan: 1, component: RecentMatchedLotsWidget },
   { id: "recent-execs", name: "Recent Executions", description: "Latest execution feed from selected accounts.", defaultColSpan: 2, component: RecentExecutionsWidget },
   {
     id: "open-pos-summary",
@@ -70,14 +75,16 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     defaultColSpan: 2,
     component: ExpectancyScatterWidget,
   },
+  { id: "setup-expectancy", name: "Setup Expectancy", description: "Expectancy rollup by setup tag.", defaultColSpan: 1, component: SetupExpectancyWidget },
   { id: "streaks", name: "Win / Loss Streak", description: "Current and longest streak statistics.", defaultColSpan: 1, component: StreakWidget },
 ];
 
 export const DEFAULT_DASHBOARD_LAYOUT = [
   "equity-curve",
+  "daily-pnl-calendar",
   "account-balances",
+  "recent-matched-lots",
   "win-loss-flat",
   "holding-dist",
-  "top-setups",
-  "import-health",
+  "setup-expectancy",
 ];

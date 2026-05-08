@@ -37,6 +37,13 @@ export async function GET(request: Request) {
     prisma.setupGroup.count({ where }),
     prisma.setupGroup.findMany({
       where,
+      include: {
+        _count: {
+          select: {
+            lots: true,
+          },
+        },
+      },
       orderBy: [{ realizedPnl: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -53,6 +60,7 @@ export async function GET(request: Request) {
     winRate: row.winRate?.toString() ?? null,
     expectancy: row.expectancy?.toString() ?? null,
     averageHoldDays: row.averageHoldDays?.toString() ?? null,
+    setupLotCount: row._count.lots,
   }));
 
   return listResponse(data, { total, page, pageSize });

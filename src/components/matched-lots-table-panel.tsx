@@ -83,6 +83,8 @@ const MatchedLotsTableRow = memo(function MatchedLotsTableRow({
 
 export function MatchedLotsTablePanel() {
   const searchParams = useSearchParams();
+  const dateFromParam = searchParams.get("date_from");
+  const dateToParam = searchParams.get("date_to");
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
 
@@ -131,6 +133,12 @@ export function MatchedLotsTablePanel() {
         const query = new URLSearchParams();
         applyAccountIdsToSearchParams(query, selectedAccounts);
         applyRangeToSearchParams(query);
+        if (dateFromParam) {
+          query.set("date_from", dateFromParam);
+        }
+        if (dateToParam) {
+          query.set("date_to", dateToParam);
+        }
         const payload = await fetchAllPages<MatchedLotRecord>("/api/matched-lots", query);
         if (!cancelled) {
           setRows(payload.data);
@@ -152,7 +160,7 @@ export function MatchedLotsTablePanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
+  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams, dateFromParam, dateToParam]);
 
   const importLabelById = useMemo(() => {
     return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));
