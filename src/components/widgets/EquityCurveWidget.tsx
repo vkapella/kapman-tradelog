@@ -69,7 +69,7 @@ export function EquityCurveWidget() {
 
   return (
     <WidgetCard
-      title="Equity Curve"
+      title="Cash Balance Curve"
       action={
         <button
           type="button"
@@ -90,7 +90,7 @@ export function EquityCurveWidget() {
               <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}K`} />
               <Tooltip
                 contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
-                formatter={(value: number) => [value.toFixed(2), "Balance"]}
+                formatter={(value: number) => [value.toFixed(2), "Cash Balance"]}
               />
               {viewMode === "combined" ? (
                 <Line type="monotone" dataKey="combined" stroke="var(--accent)" strokeWidth={2} dot={false} />
