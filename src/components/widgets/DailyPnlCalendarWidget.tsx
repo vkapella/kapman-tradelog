@@ -16,12 +16,28 @@ interface CalendarDay {
   count: number;
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function toMonthKey(date: Date): string {
+  return date.toISOString().slice(0, 7);
+}
+
 function normalizeUtcMidnight(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+function toMonthDate(month: string): Date {
+  return new Date(`${month}-01T00:00:00.000Z`);
+}
+
+function addMonths(month: string, delta: number): string {
+  const date = toMonthDate(month);
+  date.setUTCMonth(date.getUTCMonth() + delta);
+  return toMonthKey(date);
 }
 
 function createDateRange(start: Date, end: Date): string[] {
@@ -60,6 +76,7 @@ export function DailyPnlCalendarWidget() {
   const [rows, setRows] = useState<MatchedLotRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(toMonthKey(new Date()));
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +143,49 @@ export function DailyPnlCalendarWidget() {
     return Math.max(1, ...calendarDays.map((day) => Math.abs(day.pnl)));
   }, [calendarDays]);
 
+  const availableMonths = useMemo(() => {
+    return Array.from(new Set(calendarDays.map((day) => day.date.slice(0, 7)))).sort((left, right) => left.localeCompare(right));
+  }, [calendarDays]);
+
+  useEffect(() => {
+    if (calendarDays.length === 0) {
+      return;
+    }
+
+    const currentMonth = toMonthKey(new Date());
+    const hasCurrentMonthData = availableMonths.includes(currentMonth);
+    const defaultMonth = hasCurrentMonthData ? currentMonth : availableMonths[availableMonths.length - 1]!;
+
+    setSelectedMonth((current) => (availableMonths.includes(current) ? current : defaultMonth));
+  }, [calendarDays, availableMonths]);
+
+  const monthDays = useMemo(() => {
+    const monthStart = toMonthDate(selectedMonth);
+    const monthEnd = new Date(monthStart);
+    monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+    monthEnd.setUTCDate(0);
+
+    const monthDateKeys = createDateRange(monthStart, monthEnd);
+    const dayByDate = new Map(calendarDays.map((day) => [day.date, day]));
+    const firstDayOffset = monthStart.getUTCDay();
+    const cells: Array<CalendarDay | null> = [];
+
+    for (let index = 0; index < firstDayOffset; index += 1) {
+      cells.push(null);
+    }
+
+    for (const dateKey of monthDateKeys) {
+      cells.push(dayByDate.get(dateKey) ?? { date: dateKey, pnl: 0, count: 0 });
+    }
+
+    return cells;
+  }, [calendarDays, selectedMonth]);
+
+  const monthLabel = useMemo(() => {
+    const monthDate = toMonthDate(selectedMonth);
+    return monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  }, [selectedMonth]);
+
   return (
     <WidgetCard title="Daily P&L Calendar">
       {loading ? <p className="text-xs text-text-2">Loading daily P&amp;L…</p> : null}
@@ -142,8 +202,46 @@ export function DailyPnlCalendarWidget() {
 
       {!loading && !error && calendarDays.length > 0 ? (
         <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() => setSelectedMonth((current) => addMonths(current, -1))}
+                className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+              >
+                {"<"}
+              </button>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => setSelectedMonth((current) => addMonths(current, 1))}
+                className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+              >
+                {">"}
+              </button>
+            </div>
+            <p className="text-xs text-text">{monthLabel}</p>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+            />
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-[10px] text-text-3">
+            {WEEKDAY_LABELS.map((label) => (
+              <p key={label} className="px-1 text-center">
+                {label}
+              </p>
+            ))}
+          </div>
           <div className="grid grid-cols-7 gap-1">
-            {calendarDays.map((day) => {
+            {monthDays.map((day, dayIndex) => {
+              if (!day) {
+                return <div key={`blank-${String(dayIndex)}`} className="rounded border border-transparent px-1 py-1 text-center text-[10px]" />;
+              }
+
               const level = resolveHeatLevel(day.pnl, maxAbsPnl);
               const toneClassName =
                 level === 0
