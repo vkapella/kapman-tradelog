@@ -192,6 +192,95 @@ describe("computeOpenPositions", () => {
     expect(result[0]?.costBasis).toBeCloseTo(2974, 6);
   });
 
+  it("subtracts matched quantities from split-adjusted open quantities", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "open-xlu-stock",
+        accountId: "account-1",
+        symbol: "XLU",
+        quantity: "100",
+        price: "91.78",
+        instrumentKey: "XLU",
+        tradeDate: "2025-10-24T00:00:00.000Z",
+        eventTimestamp: "2025-10-24T12:18:56.000Z",
+      }),
+    ];
+    const lots: MatchedLotRecord[] = [
+      matchedLot({ id: "lot-xlu", openExecutionId: "open-xlu-stock", quantity: "100", symbol: "XLU", accountId: "account-1" }),
+    ];
+    const adjustments: ManualAdjustmentRecord[] = [
+      {
+        id: "split-xlu",
+        createdAt: "2025-12-05T00:00:00.000Z",
+        createdBy: "tester",
+        accountId: "account-1",
+        accountExternalId: "D-68011053",
+        symbol: "XLU",
+        effectiveDate: "2025-12-05T00:00:00.000Z",
+        adjustmentType: "SPLIT",
+        payload: { from: 1, to: 2 },
+        reason: "forward split",
+        evidenceRef: null,
+        status: "ACTIVE",
+        reversedByAdjustmentId: null,
+      },
+    ];
+
+    const result = computeOpenPositions(executions, lots, adjustments);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.netQty).toBeCloseTo(100, 6);
+    expect(result[0]?.costBasis).toBeCloseTo(4589, 6);
+  });
+
+  it("does not leave false open shares after a reverse split position is fully closed", () => {
+    const executions: ExecutionRecord[] = [
+      execution({
+        id: "open-sds-a",
+        accountId: "account-1",
+        symbol: "SDS",
+        quantity: "200",
+        price: "14.87",
+        instrumentKey: "SDS",
+        tradeDate: "2025-09-18T00:00:00.000Z",
+      }),
+      execution({
+        id: "open-sds-b",
+        accountId: "account-1",
+        symbol: "SDS",
+        quantity: "100",
+        price: "14.67",
+        instrumentKey: "SDS",
+        tradeDate: "2025-11-07T00:00:00.000Z",
+      }),
+    ];
+    const lots: MatchedLotRecord[] = [
+      matchedLot({ id: "lot-sds-a", openExecutionId: "open-sds-a", quantity: "40", symbol: "SDS", accountId: "account-1" }),
+      matchedLot({ id: "lot-sds-b", openExecutionId: "open-sds-b", quantity: "20", symbol: "SDS", accountId: "account-1" }),
+    ];
+    const adjustments: ManualAdjustmentRecord[] = [
+      {
+        id: "split-sds",
+        createdAt: "2025-11-20T00:00:00.000Z",
+        createdBy: "tester",
+        accountId: "account-1",
+        accountExternalId: "D-68011053",
+        symbol: "SDS",
+        effectiveDate: "2025-11-20T00:00:00.000Z",
+        adjustmentType: "SPLIT",
+        payload: { from: 5, to: 1 },
+        reason: "reverse split",
+        evidenceRef: null,
+        status: "ACTIVE",
+        reversedByAdjustmentId: null,
+      },
+    ];
+
+    const result = computeOpenPositions(executions, lots, adjustments);
+
+    expect(result).toHaveLength(0);
+  });
+
   it("applies execution price overrides to open-position basis", () => {
     const executions: ExecutionRecord[] = [
       execution({

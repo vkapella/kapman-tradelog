@@ -72,4 +72,33 @@ describe("parseThinkorswimTradeHistory", () => {
     expect(result.executions[0]?.price).toBeNull();
     expect(result.warnings.some((warning) => warning.code === "UNKNOWN_SPREAD_TYPE")).toBe(true);
   });
+
+  it("parses assignment stock acquisitions from cash balance EXP rows", () => {
+    const synthetic = [
+      "This document was exported from the paperMoney platform.",
+      "",
+      "Account Statement for D-99999999 (margin) since 5/1/26 through 5/2/26",
+      "",
+      "Cash Balance",
+      "DATE,TIME,TYPE,REF #,DESCRIPTION,Commissions & Fees,Short Term Rdm Fee,AMOUNT,BALANCE",
+      "5/2/26,01:00:00,EXP,=\"5336674732\",Bought 100.0 XLE due to assignment,,,\"-5,900.00\",\"37,961.37\"",
+      "",
+      "Account Trade History",
+      ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type",
+    ].join("\n");
+
+    const result = parseThinkorswimTradeHistory(synthetic);
+
+    expect(result.executions).toHaveLength(1);
+    expect(result.executions[0]).toMatchObject({
+      eventType: "ASSIGNMENT",
+      assetClass: "EQUITY",
+      symbol: "XLE",
+      side: "BUY",
+      quantity: 100,
+      price: 59,
+      openingClosingEffect: "UNKNOWN",
+      brokerRefNumber: "5336674732",
+    });
+  });
 });
