@@ -285,7 +285,7 @@ export interface OverviewSummaryResponse {
     accountCount: number;
     missingBeginningValueAccountIds: string[];
     missingEndingValueAccountIds: string[];
-    endingValueSource: "position_snapshot" | "daily_account_snapshot" | "unavailable";
+    endingValueSource: "position_snapshot" | "daily_account_snapshot" | "mixed" | "unavailable";
   };
   profitFactor: string | null;
   expectancy: string | null;

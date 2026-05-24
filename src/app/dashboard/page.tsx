@@ -395,7 +395,7 @@ export default function Page() {
                     label={definition.name}
                     value={definition.formatValue(summary)}
                     colorVariant={definition.getColorVariant(summary)}
-                    helpText={definition.helpText}
+                    helpText={definition.getHelpText ? definition.getHelpText(summary) : definition.helpText}
                   />
                 </DashboardTile>
               );

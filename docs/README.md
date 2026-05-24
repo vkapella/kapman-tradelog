@@ -13,7 +13,7 @@ Use this directory as the source of truth for active story scope, sequencing, an
 
 - `architecture.md` - current as-built application architecture and data flow.
 - `data_model.md` - current Prisma domain model and API-facing data contracts.
-- `metrics_calcs.md` - current screen metrics, source endpoints, and calculation formulas.
+- `metrics_calcs.md` - current screen metrics, source endpoints, and calculation formulas (including dashboard Return on Capital semantics and explainability payload fields).
 - `recommendations.md` - minimal recommendations to clarify behavior, improve accuracy, and reduce brittleness.
 - `testing/` - manual and smoke-test checklists.
 - `reconciliation/` - historical reconciliation reports.

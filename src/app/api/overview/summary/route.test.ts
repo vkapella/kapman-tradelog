@@ -25,7 +25,7 @@ const routeMocks = vi.hoisted(() => ({
       findMany: vi.fn(),
     },
     positionSnapshot: {
-      findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
   },
   loadAccountBalanceContext: vi.fn(),
@@ -82,9 +82,12 @@ describe("GET /api/overview/summary", () => {
         },
       ]);
     routeMocks.prisma.cashEvent.findMany.mockResolvedValue([{ amount: money("52973.60") }]);
-    routeMocks.prisma.positionSnapshot.findFirst.mockResolvedValue({
-      currentNlv: money("127574.58"),
-    });
+    routeMocks.prisma.positionSnapshot.findMany.mockResolvedValue([
+      {
+        accountIds: JSON.stringify(["acct-internal-1"]),
+        currentNlv: money("127574.58"),
+      },
+    ]);
     routeMocks.loadAccountBalanceContext.mockResolvedValue([
       {
         accountExternalId: "X19467537",
@@ -178,7 +181,7 @@ describe("GET /api/overview/summary", () => {
         },
       ]);
     routeMocks.prisma.cashEvent.findMany.mockResolvedValue([]);
-    routeMocks.prisma.positionSnapshot.findFirst.mockResolvedValue(null);
+    routeMocks.prisma.positionSnapshot.findMany.mockResolvedValue([]);
 
     const { GET } = await import("./route");
 
@@ -189,5 +192,96 @@ describe("GET /api/overview/summary", () => {
 
     expect(payload.data.returnOnCapitalPct).toBeNull();
     expect(payload.data.returnOnCapital.missingBeginningValueAccountIds).toEqual(["D-68011054"]);
+  });
+
+  it("reduces capital base by withdrawals and uses snapshot ending source when quote-backed NLV is unavailable", async () => {
+    routeMocks.prisma.cashEvent.findMany.mockResolvedValue([{ amount: money("2000.00") }, { amount: money("-500.00") }]);
+    routeMocks.prisma.positionSnapshot.findMany.mockResolvedValue([]);
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/overview/summary?accountIds=X19467537&startDate=2026-01-01&endDate=2026-05-24"),
+    );
+    const payload = await response.json();
+
+    expect(payload.data.returnOnCapital).toMatchObject({
+      netExternalContributions: "1500.00",
+      positiveExternalContributions: "2000.00",
+      withdrawals: "500.00",
+      returnDollars: "78024.61",
+      capitalBase: "49549.97",
+      endingValueSource: "daily_account_snapshot",
+    });
+    expect(payload.data.returnOnCapitalPct).toBe("157.47");
+  });
+
+  it("aggregates multi-account return on capital portfolio-style and reports mixed ending source", async () => {
+    routeMocks.prisma.account.findMany.mockResolvedValue([
+      { id: "acct-internal-1", accountId: "X19467537" },
+      { id: "acct-internal-2", accountId: "D-68011054" },
+    ]);
+    routeMocks.prisma.dailyAccountSnapshot.findMany
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "beginning-snapshot-1",
+          accountId: "acct-internal-1",
+          snapshotDate: new Date("2026-01-01T00:00:00.000Z"),
+          balance: money("10000.00"),
+          totalCash: null,
+          brokerNetLiquidationValue: money("10000.00"),
+        },
+        {
+          id: "beginning-snapshot-2",
+          accountId: "acct-internal-2",
+          snapshotDate: new Date("2026-01-01T00:00:00.000Z"),
+          balance: money("20000.00"),
+          totalCash: null,
+          brokerNetLiquidationValue: money("20000.00"),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "ending-snapshot-1",
+          accountId: "acct-internal-1",
+          snapshotDate: new Date("2026-05-24T00:00:00.000Z"),
+          balance: money("14000.00"),
+          totalCash: null,
+          brokerNetLiquidationValue: money("14000.00"),
+        },
+        {
+          id: "ending-snapshot-2",
+          accountId: "acct-internal-2",
+          snapshotDate: new Date("2026-05-24T00:00:00.000Z"),
+          balance: money("26000.00"),
+          totalCash: null,
+          brokerNetLiquidationValue: money("26000.00"),
+        },
+      ]);
+    routeMocks.prisma.cashEvent.findMany.mockResolvedValue([{ amount: money("5000.00") }]);
+    routeMocks.prisma.positionSnapshot.findMany.mockResolvedValue([
+      {
+        accountIds: JSON.stringify(["acct-internal-1"]),
+        currentNlv: money("15000.00"),
+      },
+    ]);
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request("http://localhost/api/overview/summary?accountIds=X19467537,D-68011054&startDate=2026-01-01&endDate=2026-05-24"),
+    );
+    const payload = await response.json();
+
+    expect(payload.data.returnOnCapital).toMatchObject({
+      beginningValue: "30000.00",
+      endingValue: "41000.00",
+      netExternalContributions: "5000.00",
+      capitalBase: "35000.00",
+      endingValueSource: "mixed",
+      missingBeginningValueAccountIds: [],
+      missingEndingValueAccountIds: [],
+    });
+    expect(payload.data.returnOnCapitalPct).toBe("17.14");
   });
 });

@@ -5,7 +5,12 @@ import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-contex
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { computeMaxDrawdown } from "@/lib/overview/max-drawdown";
-import { calculateReturnOnCapital, EXTERNAL_CAPITAL_ROW_TYPES, snapshotValue } from "@/lib/overview/return-on-capital";
+import {
+  calculateReturnOnCapital,
+  EXTERNAL_CAPITAL_ROW_TYPES,
+  type ReturnOnCapitalEndingValueSource,
+  snapshotValue,
+} from "@/lib/overview/return-on-capital";
 import { serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type { OverviewSummaryResponse } from "@/types/api";
 
@@ -85,7 +90,7 @@ export async function GET(request: Request) {
   });
   const internalAccountIds = scopedAccounts.map((account) => account.id);
   const accountExternalIdsByInternalId = new Map(scopedAccounts.map((account) => [account.id, account.accountId]));
-  const positionSnapshotAccountIdsJson = serializePositionSnapshotAccountIds(internalAccountIds);
+  const perAccountPositionScopeKeys = internalAccountIds.map((accountId) => serializePositionSnapshotAccountIds([accountId]));
 
   const [
     executionCount,
@@ -99,7 +104,7 @@ export async function GET(request: Request) {
     beginningSnapshotRows,
     endingSnapshotRows,
     capitalFlowRows,
-    latestPositionSnapshot,
+    latestPerAccountPositionSnapshots,
   ] = await Promise.all([
     prisma.execution.count({
       where: { AND: [whereAccount as Prisma.ExecutionWhereInput, executionDateWhere as Prisma.ExecutionWhereInput].filter(Boolean) },
@@ -158,15 +163,15 @@ export async function GET(request: Request) {
       },
       select: { amount: true },
     }),
-    prisma.positionSnapshot.findFirst({
+    prisma.positionSnapshot.findMany({
       where: {
-        accountIds: positionSnapshotAccountIdsJson,
+        accountIds: { in: perAccountPositionScopeKeys },
         status: "COMPLETE",
         currentNlv: { not: null },
         ...(endDateBound ? { snapshotAt: { lte: endDateBound } } : {}),
       },
       orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      select: { currentNlv: true },
+      select: { accountIds: true, currentNlv: true },
     }),
   ]);
 
@@ -206,12 +211,26 @@ export async function GET(request: Request) {
   const missingBeginningValueAccountIds = internalAccountIds
     .filter((accountId) => !beginningSnapshotsByAccountId.has(accountId))
     .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
-  const missingEndingValueAccountIds =
-    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
-      ? []
-      : internalAccountIds
-          .filter((accountId) => !endingSnapshotsByAccountId.has(accountId))
-          .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
+  const latestPositionNlvByAccountId = new Map<string, number>();
+  for (const row of latestPerAccountPositionSnapshots) {
+    let parsedScope: unknown;
+    try {
+      parsedScope = JSON.parse(row.accountIds) as unknown;
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(parsedScope) || parsedScope.length !== 1 || row.currentNlv === null) {
+      continue;
+    }
+    const scopedAccountId = String(parsedScope[0]);
+    if (latestPositionNlvByAccountId.has(scopedAccountId)) {
+      continue;
+    }
+    latestPositionNlvByAccountId.set(scopedAccountId, Number(row.currentNlv));
+  }
+  const missingEndingValueAccountIds = internalAccountIds
+    .filter((accountId) => !latestPositionNlvByAccountId.has(accountId) && !endingSnapshotsByAccountId.has(accountId))
+    .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
   const beginningValue =
     missingBeginningValueAccountIds.length > 0
       ? null
@@ -219,23 +238,40 @@ export async function GET(request: Request) {
           const snapshot = beginningSnapshotsByAccountId.get(accountId);
           return snapshot ? sum + snapshotValue(snapshot) : sum;
         }, 0);
-  const snapshotEndingValue =
+  const endingResolution = internalAccountIds.map((accountId) => {
+    const positionNlv = latestPositionNlvByAccountId.get(accountId);
+    if (positionNlv !== undefined) {
+      return { source: "position_snapshot" as const, value: positionNlv };
+    }
+    const snapshot = endingSnapshotsByAccountId.get(accountId);
+    if (snapshot) {
+      return { source: "daily_account_snapshot" as const, value: snapshotValue(snapshot) };
+    }
+    return null;
+  });
+  const endingValue =
     missingEndingValueAccountIds.length > 0
       ? null
-      : internalAccountIds.reduce((sum, accountId) => {
-          const snapshot = endingSnapshotsByAccountId.get(accountId);
-          return snapshot ? sum + snapshotValue(snapshot) : sum;
-        }, 0);
-  const endingValue =
-    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
-      ? Number(latestPositionSnapshot.currentNlv)
-      : snapshotEndingValue;
-  const endingValueSource =
-    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
-      ? "position_snapshot"
-      : endingValue === null
-        ? "unavailable"
-        : "daily_account_snapshot";
+      : endingResolution.reduce((sum, resolved) => (resolved ? sum + resolved.value : sum), 0);
+  const endingSourceSet = new Set(
+    endingResolution.reduce<Array<"position_snapshot" | "daily_account_snapshot">>((sources, resolved) => {
+      if (!resolved) {
+        return sources;
+      }
+      sources.push(resolved.source);
+      return sources;
+    }, []),
+  );
+  let endingValueSource: ReturnOnCapitalEndingValueSource = "unavailable";
+  if (endingSourceSet.size === 1 && endingSourceSet.has("position_snapshot")) {
+    endingValueSource = "position_snapshot";
+  } else if (endingSourceSet.size === 1 && endingSourceSet.has("daily_account_snapshot")) {
+    endingValueSource = "daily_account_snapshot";
+  } else if (endingSourceSet.size > 1) {
+    endingValueSource = "mixed";
+  } else if (endingValue !== null) {
+    endingValueSource = "daily_account_snapshot";
+  }
   const positiveExternalContributions = capitalFlowRows.reduce((sum, row) => {
     const amount = Number(row.amount);
     return amount > 0 ? sum + amount : sum;
