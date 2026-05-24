@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { buildAccountIdWhere, buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import { buildMatchedLotOpenDateWhere, buildSetupOpenDateWhere } from "@/lib/api/strategy-date-range";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
@@ -37,43 +38,8 @@ export async function GET(request: Request) {
         },
       }
     : undefined;
-  const matchedLotDateWhere = startDate || endDate
-    ? {
-        OR: [
-          {
-            closeExecution: {
-              is: {
-                tradeDate: {
-                  ...(startDateBound ? { gte: startDateBound } : {}),
-                  ...(endDateBound ? { lte: endDateBound } : {}),
-                },
-              },
-            },
-          },
-          {
-            AND: [
-              { closeExecution: { is: null } },
-              {
-                openExecution: {
-                  tradeDate: {
-                    ...(startDateBound ? { gte: startDateBound } : {}),
-                    ...(endDateBound ? { lte: endDateBound } : {}),
-                  },
-                },
-              },
-            ],
-          },
-        ],
-      }
-    : undefined;
-  const setupDateWhere = startDate || endDate
-    ? {
-        createdAt: {
-          ...(startDateBound ? { gte: startDateBound } : {}),
-          ...(endDateBound ? { lte: endDateBound } : {}),
-        },
-      }
-    : undefined;
+  const matchedLotDateWhere = buildMatchedLotOpenDateWhere({ startDate, endDate });
+  const setupDateWhere = buildSetupOpenDateWhere({ startDate, endDate });
   const snapshotDateWhere = startDate || endDate
     ? {
         snapshotDate: {

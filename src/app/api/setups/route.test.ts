@@ -50,4 +50,40 @@ describe("GET /api/setups", () => {
     const countArgs = setupsRouteMocks.setupGroup.count.mock.calls[0]?.[0] as { where: Record<string, unknown> };
     expect(countArgs.where).toEqual({});
   });
+
+  it("filters date ranges by linked matched lot open trade dates and excludes no-lot setups", async () => {
+    setupsRouteMocks.setupGroup.count.mockResolvedValueOnce(0);
+    setupsRouteMocks.setupGroup.findMany.mockResolvedValueOnce([]);
+    const { GET } = await import("./route");
+
+    await GET(new Request("http://localhost/api/setups?startDate=2025-09-02&endDate=2025-09-30"));
+
+    const countArgs = setupsRouteMocks.setupGroup.count.mock.calls[0]?.[0] as { where: { AND: Array<Record<string, unknown>> } };
+    expect(countArgs.where.AND).toEqual([
+      {
+        lots: {
+          some: {
+            matchedLot: {
+              openExecution: {
+                tradeDate: {
+                  gte: new Date("2025-09-02"),
+                  lte: new Date("2025-09-30T23:59:59.999Z"),
+                },
+              },
+            },
+          },
+          every: {
+            matchedLot: {
+              openExecution: {
+                tradeDate: {
+                  gte: new Date("2025-09-02"),
+                  lte: new Date("2025-09-30T23:59:59.999Z"),
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
+  });
 });

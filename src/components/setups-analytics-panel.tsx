@@ -11,6 +11,7 @@ import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { InfoTooltip } from "@/components/widgets/InfoTooltip";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -195,7 +196,18 @@ export function SetupsAnalyticsPanel() {
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-text">Setup Analytics (T3)</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-text">Setup Analytics (T3)</h2>
+          <InfoTooltip
+            label="Setup Analytics"
+            content={{
+              formula: "Selected date ranges include setups only when linked lots opened inside the range.",
+              source: "/api/setups and /api/matched-lots",
+              interpretation:
+                "Portfolio return measures NLV change over the selected date range after external capital flows. Strategy analytics include only trades opened within the selected range, so the two views may not reconcile exactly.",
+            }}
+          />
+        </div>
         <p className="text-sm text-text-2">Grouped setup performance summary with drill-through to matched lots and source executions.</p>
       </header>
 

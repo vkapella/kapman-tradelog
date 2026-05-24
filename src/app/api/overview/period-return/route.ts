@@ -1,12 +1,13 @@
 import type { PeriodReturnResponse } from "@/types/api";
 import {
-  buildAccountScopeWhere,
+  buildAccountIdWhere,
   parseAccountIds,
   parseDateRangeParams,
   toEndOfDayUtcIso,
 } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
+import { EXTERNAL_CAPITAL_ROW_TYPES } from "@/lib/overview/return-on-capital";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   }
 
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
-  const accountScope = buildAccountScopeWhere(accountIds);
+  const accountIdWhere = buildAccountIdWhere(accountIds);
 
   const startDateBound = new Date(startDate);
   const endDateBound = toEndOfDayUtcIso(endDate);
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     accountIds.length > 0
       ? (
           await prisma.account.findMany({
-            where: accountScope,
+            where: accountIdWhere,
             select: { id: true },
           })
         ).map((a) => a.id)
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
     prisma.cashEvent.aggregate({
       where: {
         accountId: { in: internalAccountIds },
+        rowType: { in: [...EXTERNAL_CAPITAL_ROW_TYPES] },
         eventDate: { gte: startDateBound, lte: endDateBound },
       },
       _sum: { amount: true },

@@ -128,6 +128,56 @@ describe("GET /api/overview/summary", () => {
         }),
       }),
     );
+    expect(routeMocks.prisma.matchedLot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            expect.any(Object),
+            {
+              openExecution: {
+                tradeDate: {
+                  gte: new Date("2026-01-01"),
+                  lte: new Date("2026-05-24T23:59:59.999Z"),
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
+    expect(routeMocks.prisma.setupGroup.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            expect.any(Object),
+            {
+              lots: {
+                some: {
+                  matchedLot: {
+                    openExecution: {
+                      tradeDate: {
+                        gte: new Date("2026-01-01"),
+                        lte: new Date("2026-05-24T23:59:59.999Z"),
+                      },
+                    },
+                  },
+                },
+                every: {
+                  matchedLot: {
+                    openExecution: {
+                      tradeDate: {
+                        gte: new Date("2026-01-01"),
+                        lte: new Date("2026-05-24T23:59:59.999Z"),
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
     expect(payload.data.returnOnCapitalPct).toBe("26.28");
     expect(payload.data.returnOnCapital).toMatchObject({
       beginningValue: "48049.97",

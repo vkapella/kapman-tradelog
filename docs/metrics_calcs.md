@@ -12,7 +12,7 @@ This document maps visible metrics to their current data sources and calculation
 | Option multiplier | `100` in FIFO P&L, open-position market value, and unrealized P&L calculations. |
 | Equity multiplier | `1`. |
 | Account scope | Usually internal `Account.id` values passed as `accountIds`. |
-| Date range | Supplied by `RangeFilterContext`; semantics vary by endpoint. |
+| Date range | Supplied by `RangeFilterContext`; strategy analytics use trade-entry cohorts, while portfolio return uses NLV period boundaries. |
 
 ## FIFO Realized P&L
 
@@ -38,18 +38,18 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 
 | Field | Calculation |
 |---|---|
-| `netPnl` | Sum of `MatchedLot.realizedPnl`. |
+| `netPnl` | Sum of `MatchedLot.realizedPnl`; with a selected date range, includes only lots whose open execution trade date is inside the range. |
 | `executionCount` | Count of executions in scope. |
-| `matchedLotCount` | Count of matched lots in scope. |
-| `setupCount` | Count of setup groups in scope. |
-| `averageHoldDays` | Average `MatchedLot.holdingDays`; returns `0.00` when no lots exist. |
-| `winRate` | `WIN / (WIN + LOSS) * 100`; excludes `FLAT`. |
-| `profitFactor` | Gross winning P&L divided by absolute gross losing P&L; `null` when there are no losses. |
-| `expectancy` | Total realized P&L divided by matched-lot count. |
+| `matchedLotCount` | Count of matched lots in scope; with a selected date range, uses the same open execution trade-date cohort as `netPnl`. |
+| `setupCount` | Count of setup groups in scope; with a selected date range, a setup must have at least one linked lot and every linked lot must have an open execution trade date inside the range. |
+| `averageHoldDays` | Average `MatchedLot.holdingDays` for the matched-lot cohort; returns `0.00` when no lots exist. |
+| `winRate` | `WIN / (WIN + LOSS) * 100` for the matched-lot cohort; excludes `FLAT`. |
+| `profitFactor` | Gross winning P&L divided by absolute gross losing P&L for the matched-lot cohort; `null` when there are no losses. |
+| `expectancy` | Total realized P&L divided by matched-lot count for the matched-lot cohort. |
 | `startingCapital` | Sum of configured account starting capital. |
 | `currentNlv` | Sum of latest broker NLV when available, otherwise latest cash. |
 | `totalReturnPct` | Legacy metric kept for compatibility: `(currentNlv - startingCapital) / startingCapital * 100`; `null` when starting capital is not positive. |
-| `returnOnCapitalPct` | `(endingValue - beginningValue - netExternalContributions) / capitalBase * 100`; `null` when beginning/ending coverage is incomplete or capital base is not positive. |
+| `returnOnCapitalPct` | `(endingValue - beginningValue - netExternalContributions) / capitalBase * 100`; uses NLV period boundaries and only external capital flows (`TRANSFER_IN`, `ACAT_RECEIVE`, `ACAT_CREDIT`); `null` when beginning/ending coverage is incomplete or capital base is not positive. |
 | `returnOnCapital` | Explainability payload for the KPI: beginning/ending values, deposits, withdrawals, return dollars, capital base, missing coverage account IDs, and ending value source. |
 | `snapshotCount` | Count of daily account snapshots. |
 | `maxDrawdown` | Largest peak-to-trough decline in the combined snapshot series. |
@@ -82,14 +82,14 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 | Widget | Primary Source | Calculation |
 |---|---|---|
 | Cash Balance Curve | `/api/overview/summary` | Plots `snapshotSeries.balance` by date, combined or per account. |
-| Daily P&L Calendar | `/api/matched-lots` | Groups closed matched lots by close date and sums realized P&L per day. |
+| Daily P&L Calendar | `/api/matched-lots` | Groups fetched matched lots by close date and sums realized P&L per day. The shared range filter fetches lots by open trade date. |
 | Account Balances + NLV | `/api/positions/snapshot`, `/api/overview/summary`, `/api/accounts/starting-capital` | Uses broker NLV when available; otherwise cash plus marked open-position value. Scale base is starting capital, falling back to earliest snapshot. |
-| Win / Loss / Flat | `/api/matched-lots` | Counts outcomes and calculates win rate as `WIN / (WIN + LOSS)`. |
-| Holding Distribution | `/api/matched-lots` | Buckets hold days into `0-1d`, `2-5d`, `6-20d`, and `21d+`. |
-| Top Setups by P&L | `/api/setups` | Sorts setup groups by realized P&L descending. |
-| Symbol P&L Ranking | `/api/matched-lots` | Groups realized P&L by matched-lot symbol, then lists top winners and losers. |
-| Monthly P&L Bars | `/api/matched-lots` | Groups realized P&L by close month, falling back to open month when close date is null. |
-| Setup Tag Rollup | `/api/setups` | Groups setup realized P&L and counts by effective tag (`overrideTag` or `tag`). |
+| Win / Loss / Flat | `/api/matched-lots` | Counts outcomes in the open-date cohort and calculates win rate as `WIN / (WIN + LOSS)`. |
+| Holding Distribution | `/api/matched-lots` | Buckets hold days for the open-date cohort into `0-1d`, `2-5d`, `6-20d`, and `21d+`. |
+| Top Setups by P&L | `/api/setups` | Sorts setup groups by realized P&L descending after open-date setup cohort filtering. |
+| Symbol P&L Ranking | `/api/matched-lots` | Groups realized P&L by matched-lot symbol in the open-date cohort, then lists top winners and losers. |
+| Monthly P&L Bars | `/api/matched-lots` | Groups realized P&L for the open-date cohort by close month, falling back to open month when close date is null. |
+| Setup Tag Rollup | `/api/setups` | Groups setup realized P&L and counts by effective tag (`overrideTag` or `tag`) after open-date setup cohort filtering. |
 | Import Health | `/api/imports` | Counts total, committed, failed, parsed rows, and skipped rows. |
 | TTS Readiness | `/api/tts/evidence` | Displays TTS threshold metrics and RAG status. |
 | Diagnostics Badge | `/api/diagnostics` | Shows parse coverage, matching coverage, warnings, pair ambiguities, and synthetic expirations. |
@@ -97,6 +97,7 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 | Recent Executions | `/api/executions` | Latest executions by event timestamp. |
 | Open Positions Summary | `openPositionsStore` | Counts cached open positions and sums cost basis, mark value, and unrealized P&L. |
 | Portfolio Reconciliation | `/api/positions/snapshot` through `usePositionSnapshot()` | Shows persisted reconciliation bridge from the latest position snapshot. |
+| Period Return | `/api/overview/period-return` | Uses latest account snapshots at or before the selected start/end dates and subtracts only external capital flows (`TRANSFER_IN`, `ACAT_RECEIVE`, `ACAT_CREDIT`) from the selected period. |
 | Expectancy vs Hold | `/api/setups` | Scatter plot of setup average hold days versus setup expectancy; bubble size is realized P&L magnitude. |
 | Setup Expectancy | `/api/setups` | Groups setups by tag, sums realized P&L and lot counts, and computes P&L per lot. |
 | Win / Loss Streak | `/api/overview/streaks` | Orders matched lots by close date, falls back to open date, and tracks current plus longest win/loss streaks. |
@@ -109,7 +110,7 @@ Some widgets fetch only the first 1000 rows. See `docs/recommendations.md` for t
 
 | Metric | Calculation |
 |---|---|
-| Total P&L | Sum of setup realized P&L in the current client-side scope. |
+| Total P&L | Sum of setup realized P&L in the current client-side scope after the server applies open-trade-date cohort filtering. |
 | Win Rate | `WIN / (WIN + LOSS) * 100` from matched lots; excludes `FLAT`. |
 | Avg Hold | Average matched-lot `holdingDays`. |
 | Pair Ambiguities | `setupInference.setupInferencePairAmbiguousTotal` from diagnostics. |

@@ -23,14 +23,13 @@ Minimal change:
 - Use smaller server-limited requests for recent-list widgets, for example `pageSize=10` for Recent Executions.
 - Prefer small server aggregate endpoints later if performance becomes a problem.
 
-## 2. Make Setup Date Filtering Trade-Date Based
+## 2. Add Explicit Setup Entry/Exit Date Fields If Needed
 
-`/api/setups` currently filters date ranges by `SetupGroup.createdAt`. Since setup groups are rebuilt derivations, this can make analytics date ranges depend on rebuild time rather than trade activity.
+`/api/setups` now filters active date ranges through linked matched lots using `openExecution.tradeDate`, so analytics date ranges are based on trade entry instead of setup rebuild time.
 
-Minimal change:
+Potential later change:
 
-- Filter setup groups through linked matched lots using close date, with open date as fallback when no close exists.
-- Longer term, add explicit setup entry/exit date fields if the UI needs stable setup-level date semantics.
+- Add explicit setup entry/exit date fields if the UI needs stable setup-level date display, sorting, or exit-window filtering independent of linked lot details.
 
 ## 3. Align Win/Loss Streaks With Range Filters And API Shape
 
