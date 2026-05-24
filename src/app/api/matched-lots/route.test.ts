@@ -50,4 +50,24 @@ describe("GET /api/matched-lots", () => {
     const countArgs = matchedLotsRouteMocks.matchedLot.count.mock.calls[0]?.[0] as { where: Record<string, unknown> };
     expect(countArgs.where).toEqual({});
   });
+
+  it("filters global date ranges by matched lot open trade date", async () => {
+    matchedLotsRouteMocks.matchedLot.count.mockResolvedValueOnce(0);
+    matchedLotsRouteMocks.matchedLot.findMany.mockResolvedValueOnce([]);
+    const { GET } = await import("./route");
+
+    await GET(new Request("http://localhost/api/matched-lots?startDate=2025-09-02&endDate=2025-09-30"));
+
+    const countArgs = matchedLotsRouteMocks.matchedLot.count.mock.calls[0]?.[0] as { where: { AND: Array<Record<string, unknown>> } };
+    expect(countArgs.where.AND).toEqual([
+      {
+        openExecution: {
+          tradeDate: {
+            gte: new Date("2025-09-02"),
+            lte: new Date("2025-09-30T23:59:59.999Z"),
+          },
+        },
+      },
+    ]);
+  });
 });

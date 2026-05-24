@@ -124,14 +124,15 @@ The app uses shared table and widget infrastructure:
 
 Most routes support account scoping through an `accountIds` query parameter. This parameter generally carries internal Prisma `Account.id` values, while display surfaces use broker account numbers or configured labels through `AccountLabel` and `AccountFilterContext`.
 
-Many routes also support date range parameters from `RangeFilterContext`. Date semantics vary by endpoint:
+Many routes also support date range parameters from `RangeFilterContext`. Current date semantics are:
 
 - executions filter by execution timestamp or trade date
-- matched lots filter by close date, falling back to open date for open/null close cases in some paths
-- setups currently filter by `SetupGroup.createdAt`
-- snapshots filter by snapshot date or snapshot compute time
+- matched lots and strategy analytics use a trade-entry cohort, filtering by `openExecution.tradeDate`
+- setups filter through linked matched lots; with an active range, a setup must have at least one linked lot and every linked lot must have an opening trade date in range
+- portfolio return and Return on Capital use period boundaries: latest snapshot at or before the start date, latest value at or before the end date, and external capital flows inside the range
+- snapshots filter by snapshot date or snapshot compute time where the route is snapshot-oriented
 
-These differences matter for metric interpretation and are called out in the recommendations.
+These differences mean NLV-based portfolio return and strategy analytics may not reconcile exactly for the same selected range.
 
 ## External Integrations
 

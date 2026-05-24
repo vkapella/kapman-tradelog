@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams } from "@/lib/api/account-scope";
+import { buildSetupOpenDateWhere } from "@/lib/api/strategy-date-range";
 import type { SetupSummaryRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -23,13 +24,9 @@ export async function GET(request: Request) {
   if (account) {
     andClauses.push({ account: { accountId: { equals: account, mode: "insensitive" } } });
   }
-  if (startDate || endDate) {
-    andClauses.push({
-      createdAt: {
-        ...(startDate ? { gte: new Date(startDate) } : {}),
-        ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
-      },
-    });
+  const strategyDateWhere = buildSetupOpenDateWhere({ startDate, endDate });
+  if (strategyDateWhere) {
+    andClauses.push(strategyDateWhere);
   }
   const where: Prisma.SetupGroupWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 

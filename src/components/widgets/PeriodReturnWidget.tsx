@@ -66,6 +66,12 @@ export function PeriodReturnWidget() {
       value={returnDisplay}
       sub={`Profit: ${profitDisplay}`}
       colorVariant={colorVariant}
+      helpText={{
+        formula: "(Ending NLV - beginning NLV - external capital flows) / (beginning NLV + external capital flows).",
+        source: "/api/overview/period-return",
+        interpretation:
+          "Portfolio return measures NLV change over the selected date range after external capital flows. Strategy analytics include only trades opened within the selected range, so the two views may not reconcile exactly.",
+      }}
     />
   );
 }

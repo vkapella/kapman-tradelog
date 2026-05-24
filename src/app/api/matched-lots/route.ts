@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import { buildMatchedLotOpenDateWhere } from "@/lib/api/strategy-date-range";
 import type { MatchedLotRecord } from "@/types/api";
 import { listResponse, parsePagination } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
@@ -66,34 +67,9 @@ export async function GET(request: Request) {
       },
     });
   }
-  if (startDate || endDate) {
-    andClauses.push({
-      OR: [
-        {
-          closeExecution: {
-            is: {
-              tradeDate: {
-                ...(startDate ? { gte: new Date(startDate) } : {}),
-                ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
-              },
-            },
-          },
-        },
-        {
-          AND: [
-            { closeExecution: { is: null } },
-            {
-              openExecution: {
-                tradeDate: {
-                  ...(startDate ? { gte: new Date(startDate) } : {}),
-                  ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
-                },
-              },
-            },
-          ],
-        },
-      ],
-    });
+  const strategyDateWhere = buildMatchedLotOpenDateWhere({ startDate, endDate });
+  if (strategyDateWhere) {
+    andClauses.push(strategyDateWhere);
   }
 
   const where: Prisma.MatchedLotWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
