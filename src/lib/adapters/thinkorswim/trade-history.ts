@@ -271,6 +271,10 @@ function assignBrokerReferenceNumbers(executions: NormalizedExecution[], tradeRe
   }
 
   for (const execution of executions) {
+    if (execution.brokerRefNumber) {
+      continue;
+    }
+
     const fullKey = buildTradeRefKey(
       execution.eventTimestamp,
       execution.symbol,
@@ -484,6 +488,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
 
   const cashBalanceRows = parseCashBalanceRows(csvText);
   warnings.push(...cashBalanceRows.warnings);
+  executions.push(...cashBalanceRows.assignmentExecutions);
   assignBrokerReferenceNumbers(executions, cashBalanceRows.tradeReferences);
   const snapshots = applyAccountSummaryToSnapshots(cashBalanceRows.snapshots, csvText);
   const cashEvents: NormalizedCashEvent[] = cashBalanceRows.cashEvents;
@@ -498,7 +503,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     executions,
     snapshots,
     cashEvents,
-    parsedRows,
+    parsedRows: parsedRows + cashBalanceRows.assignmentExecutions.length,
     skippedRows,
   };
 }

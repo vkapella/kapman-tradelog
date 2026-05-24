@@ -147,6 +147,10 @@ function isCloseExecution(execution: LedgerExecution): boolean {
     return true;
   }
 
+  if (execution.assetClass === "EQUITY" && execution.openingClosingEffect === "UNKNOWN") {
+    return false;
+  }
+
   return execution.eventType === "ASSIGNMENT" || execution.eventType === "EXERCISE";
 }
 

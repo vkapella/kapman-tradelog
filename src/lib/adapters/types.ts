@@ -113,7 +113,7 @@ export interface ParseResult {
 export interface NormalizedExecution {
   eventTimestamp: Date;
   tradeDate: Date;
-  eventType: "TRADE";
+  eventType: "TRADE" | "ASSIGNMENT" | "EXERCISE";
   assetClass: "EQUITY" | "OPTION";
   symbol: string;
   side: "BUY" | "SELL";

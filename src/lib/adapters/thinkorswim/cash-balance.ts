@@ -1,4 +1,4 @@
-import type { AdapterWarning, CashEventRowType, NormalizedCashEvent, NormalizedDailyAccountSnapshot } from "../types";
+import type { AdapterWarning, CashEventRowType, NormalizedCashEvent, NormalizedDailyAccountSnapshot, NormalizedExecution } from "../types";
 
 const KNOWN_SPREAD_LABELS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
 const DERIVATIVE_SECTION_HEADERS = ["Forex Statements", "Futures Statements", "Crypto Statements"] as const;
@@ -121,6 +121,12 @@ interface ParsedTradeDescriptor {
   price: string | null;
 }
 
+interface ParsedAssignmentDescriptor {
+  side: "BUY" | "SELL";
+  quantity: number;
+  symbol: string;
+}
+
 function parseTradeDescriptor(description: string): ParsedTradeDescriptor | null {
   const normalizedDescription = parseDescription(description);
   const actionMatch = normalizedDescription.match(/^(BOT|SOLD)\s+([+-]?\d+)\s+(.+)$/i);
@@ -159,6 +165,25 @@ function parseTradeDescriptor(description: string): ParsedTradeDescriptor | null
     symbol: symbolToken.toUpperCase(),
     optionType,
     price: parseTradePrice(details),
+  };
+}
+
+function parseAssignmentDescriptor(description: string): ParsedAssignmentDescriptor | null {
+  const normalizedDescription = parseDescription(description);
+  const match = normalizedDescription.match(/^(Bought|Sold)\s+([0-9]+(?:\.[0-9]+)?)\s+([A-Z][A-Z0-9.-]*)\s+due to assignment$/i);
+  if (!match) {
+    return null;
+  }
+
+  const quantity = Number(match[2]);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  return {
+    side: match[1]?.toUpperCase() === "BOUGHT" ? "BUY" : "SELL",
+    quantity,
+    symbol: (match[3] ?? "").toUpperCase(),
   };
 }
 
@@ -208,6 +233,7 @@ export interface ParsedCashBalanceRows {
   snapshots: NormalizedDailyAccountSnapshot[];
   cashEvents: NormalizedCashEvent[];
   tradeReferences: ParsedCashTradeReference[];
+  assignmentExecutions: NormalizedExecution[];
   warnings: AdapterWarning[];
 }
 
@@ -226,12 +252,14 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
   const snapshots: NormalizedDailyAccountSnapshot[] = [];
   const cashEvents: NormalizedCashEvent[] = [];
   const tradeReferences: ParsedCashTradeReference[] = [];
+  const assignmentExecutions: NormalizedExecution[] = [];
   const warnings: AdapterWarning[] = [];
 
   let inCashBalanceSection = false;
   const skippedDerivativeSections = new Set<DerivativeSectionHeader>();
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? "";
     if (line.trim() === "Cash Balance") {
       inCashBalanceSection = true;
       continue;
@@ -295,6 +323,48 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
     }
 
     if (rowType !== "FND" && rowType !== "LIQ" && rowType !== "RAD") {
+      if (rowType === "EXP") {
+        const eventTimestamp = parseUsDateTime(dateRaw, timeRaw);
+        const refNumber = parseRefNumber(refRaw);
+        const assignmentDescriptor = parseAssignmentDescriptor(descriptionRaw);
+        const amount = parseCurrency(amountRaw);
+
+        if (!eventTimestamp || !refNumber || !assignmentDescriptor || amount === null) {
+          continue;
+        }
+
+        const price = Math.abs(amount) / assignmentDescriptor.quantity;
+        assignmentExecutions.push({
+          eventTimestamp,
+          tradeDate: new Date(Date.UTC(eventTimestamp.getUTCFullYear(), eventTimestamp.getUTCMonth(), eventTimestamp.getUTCDate())),
+          eventType: "ASSIGNMENT",
+          assetClass: "EQUITY",
+          symbol: assignmentDescriptor.symbol,
+          side: assignmentDescriptor.side,
+          quantity: assignmentDescriptor.quantity,
+          price,
+          grossAmount: Math.abs(amount),
+          netAmount: amount,
+          openingClosingEffect: "UNKNOWN",
+          underlyingSymbol: assignmentDescriptor.symbol,
+          optionType: null,
+          strike: null,
+          expirationDate: null,
+          spread: "STOCK",
+          spreadGroupId: null,
+          brokerRefNumber: refNumber,
+          sourceRowRef: String(lineIndex + 1),
+          rawRowJson: {
+            rowType,
+            refNumber,
+            description: parseDescription(descriptionRaw),
+            amount: amountRaw || null,
+            balance: balanceRaw || null,
+          },
+        });
+        continue;
+      }
+
       if (rowType !== "TRD") {
         continue;
       }
@@ -358,7 +428,7 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
     snapshotDates.add(dateKey);
   }
 
-  return { snapshots, cashEvents, tradeReferences, warnings };
+  return { snapshots, cashEvents, tradeReferences, assignmentExecutions, warnings };
 }
 
 export function parseCashBalanceSnapshots(csvText: string): NormalizedDailyAccountSnapshot[] {

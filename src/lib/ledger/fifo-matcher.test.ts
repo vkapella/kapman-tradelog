@@ -405,6 +405,31 @@ describe("runFifoMatcher", () => {
     expect(result.matchedLots[0]?.realizedPnl).toBe(-9800);
   });
 
+  it("allows equity assignment rows with unknown effect to open stock positions", () => {
+    const assignmentStock = makeExecution({
+      id: "assignment-stock",
+      eventTimestamp: date("2026-05-02T01:00:00.000Z"),
+      tradeDate: date("2026-05-02T00:00:00.000Z"),
+      eventType: "ASSIGNMENT",
+      assetClass: "EQUITY",
+      symbol: "XLE",
+      underlyingSymbol: "XLE",
+      side: "BUY",
+      quantity: 100,
+      price: 59,
+      openingClosingEffect: "UNKNOWN",
+      strike: null,
+      expirationDate: null,
+      optionType: null,
+      instrumentKey: "XLE",
+    });
+
+    const result = runFifoMatcher([assignmentStock], date("2026-05-24T00:00:00.000Z"));
+
+    expect(result.matchedLots).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
   it("matches multiple opens to one close in FIFO order", () => {
     const firstOpen = makeExecution({
       id: "fifo-open-1",

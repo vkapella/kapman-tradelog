@@ -70,8 +70,11 @@ export function computeOpenPositionsWithDiagnostics(
       continue;
     }
 
+    const relevantAdjustments = adjustments.filter((adjustment) => adjustment.accountId === execution.accountId);
+    const splitScales = applyExecutionSplitAdjustment(execution, relevantAdjustments);
+    const adjustedOpenQuantity = openQuantity * splitScales.quantityScale;
     const matchedQuantity = matchedQtyByOpenExecutionId.get(execution.id) ?? 0;
-    const remainingQuantity = Math.max(0, openQuantity - matchedQuantity);
+    const remainingQuantity = Math.max(0, adjustedOpenQuantity - matchedQuantity);
     if (remainingQuantity === 0) {
       continue;
     }
@@ -81,11 +84,8 @@ export function computeOpenPositionsWithDiagnostics(
 
     const overridePrice = executionPriceOverrides.get(execution.id)?.overridePrice;
     const price = overridePrice ?? Number(execution.price ?? 0);
-    const relevantAdjustments = adjustments.filter((adjustment) => adjustment.accountId === execution.accountId);
-    const splitScales = applyExecutionSplitAdjustment(execution, relevantAdjustments);
-    const adjustedQuantity = remainingQuantity * splitScales.quantityScale;
     const adjustedPrice = price * splitScales.priceScale;
-    const qtySigned = signedQuantity(execution.side, adjustedQuantity);
+    const qtySigned = signedQuantity(execution.side, remainingQuantity);
     const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
 
     const existing = grouped.get(groupKey);
