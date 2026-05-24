@@ -106,8 +106,8 @@ export function ExpectancyScatterWidget() {
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 12, bottom: 12, left: 0 }}>
-            <XAxis dataKey="x" name="Average Hold (days)" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
-            <YAxis dataKey="y" name="Expectancy ($ / lot)" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+            <XAxis dataKey="x" type="number" domain={[0, "auto"]} tickCount={6} name="Average Hold (days)" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
+            <YAxis dataKey="y" type="number" name="Expectancy ($ / lot)" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
             <ZAxis dataKey="z" range={[40, 260]} />
             <Tooltip
               cursor={{ strokeDasharray: "3 3" }}
