@@ -1,10 +1,12 @@
 import { Prisma } from "@prisma/client";
-import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import { buildAccountIdWhere, buildAccountScopeWhere, parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { detailResponse } from "@/lib/api/responses";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
 import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { computeMaxDrawdown } from "@/lib/overview/max-drawdown";
+import { calculateReturnOnCapital, EXTERNAL_CAPITAL_ROW_TYPES, snapshotValue } from "@/lib/overview/return-on-capital";
+import { serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 function formatNullableMetric(value: number | null): string | null {
@@ -19,12 +21,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const accountIds = parseAccountIds(url.searchParams.get("accountIds"));
   const { startDate, endDate } = parseDateRangeParams(url.searchParams);
+  const startDateBound = startDate ? new Date(startDate) : null;
+  const endDateBound = endDate ? toEndOfDayUtcIso(endDate) : null;
   const whereAccount = buildAccountScopeWhere(accountIds);
   const executionDateWhere = startDate || endDate
     ? {
         eventTimestamp: {
-          ...(startDate ? { gte: new Date(startDate) } : {}),
-          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          ...(startDateBound ? { gte: startDateBound } : {}),
+          ...(endDateBound ? { lte: endDateBound } : {}),
         },
       }
     : undefined;
@@ -35,8 +39,8 @@ export async function GET(request: Request) {
             closeExecution: {
               is: {
                 tradeDate: {
-                  ...(startDate ? { gte: new Date(startDate) } : {}),
-                  ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                  ...(startDateBound ? { gte: startDateBound } : {}),
+                  ...(endDateBound ? { lte: endDateBound } : {}),
                 },
               },
             },
@@ -47,8 +51,8 @@ export async function GET(request: Request) {
               {
                 openExecution: {
                   tradeDate: {
-                    ...(startDate ? { gte: new Date(startDate) } : {}),
-                    ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+                    ...(startDateBound ? { gte: startDateBound } : {}),
+                    ...(endDateBound ? { lte: endDateBound } : {}),
                   },
                 },
               },
@@ -60,21 +64,43 @@ export async function GET(request: Request) {
   const setupDateWhere = startDate || endDate
     ? {
         createdAt: {
-          ...(startDate ? { gte: new Date(startDate) } : {}),
-          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          ...(startDateBound ? { gte: startDateBound } : {}),
+          ...(endDateBound ? { lte: endDateBound } : {}),
         },
       }
     : undefined;
   const snapshotDateWhere = startDate || endDate
     ? {
         snapshotDate: {
-          ...(startDate ? { gte: new Date(startDate) } : {}),
-          ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
+          ...(startDateBound ? { gte: startDateBound } : {}),
+          ...(endDateBound ? { lte: endDateBound } : {}),
         },
       }
     : undefined;
 
-  const [executionCount, matchedLots, setupCount, imports, snapshotCount, snapshots, accountBalances, startingCapitalSummary] = await Promise.all([
+  const scopedAccounts = await prisma.account.findMany({
+    where: buildAccountIdWhere(accountIds) as Prisma.AccountWhereInput | undefined,
+    select: { id: true, accountId: true },
+    orderBy: { id: "asc" },
+  });
+  const internalAccountIds = scopedAccounts.map((account) => account.id);
+  const accountExternalIdsByInternalId = new Map(scopedAccounts.map((account) => [account.id, account.accountId]));
+  const positionSnapshotAccountIdsJson = serializePositionSnapshotAccountIds(internalAccountIds);
+
+  const [
+    executionCount,
+    matchedLots,
+    setupCount,
+    imports,
+    snapshotCount,
+    snapshots,
+    accountBalances,
+    startingCapitalSummary,
+    beginningSnapshotRows,
+    endingSnapshotRows,
+    capitalFlowRows,
+    latestPositionSnapshot,
+  ] = await Promise.all([
     prisma.execution.count({
       where: { AND: [whereAccount as Prisma.ExecutionWhereInput, executionDateWhere as Prisma.ExecutionWhereInput].filter(Boolean) },
     }),
@@ -107,6 +133,41 @@ export async function GET(request: Request) {
     }),
     loadAccountBalanceContext(accountIds),
     getStartingCapitalSummary(accountIds),
+    prisma.dailyAccountSnapshot.findMany({
+      where: {
+        accountId: { in: internalAccountIds },
+        ...(startDateBound ? { snapshotDate: { lte: startDateBound } } : {}),
+      },
+      orderBy: [{ snapshotDate: startDateBound ? "desc" : "asc" }, { id: "asc" }],
+    }),
+    prisma.dailyAccountSnapshot.findMany({
+      where: {
+        accountId: { in: internalAccountIds },
+        ...(endDateBound ? { snapshotDate: { lte: endDateBound } } : {}),
+      },
+      orderBy: [{ snapshotDate: "desc" }, { id: "asc" }],
+    }),
+    prisma.cashEvent.findMany({
+      where: {
+        accountId: { in: internalAccountIds },
+        rowType: { in: [...EXTERNAL_CAPITAL_ROW_TYPES] },
+        eventDate: {
+          ...(startDateBound ? { gte: startDateBound } : {}),
+          ...(endDateBound ? { lte: endDateBound } : {}),
+        },
+      },
+      select: { amount: true },
+    }),
+    prisma.positionSnapshot.findFirst({
+      where: {
+        accountIds: positionSnapshotAccountIdsJson,
+        status: "COMPLETE",
+        currentNlv: { not: null },
+        ...(endDateBound ? { snapshotAt: { lte: endDateBound } } : {}),
+      },
+      orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      select: { currentNlv: true },
+    }),
   ]);
 
   const totalPnl = matchedLots.reduce((sum, lot) => sum + Number(lot.realizedPnl), 0);
@@ -130,6 +191,68 @@ export async function GET(request: Request) {
     return sum + (accountBalance.brokerNetLiquidationValue ?? accountBalance.cash);
   }, 0);
   const totalReturnPct = startingCapital > 0 ? ((currentNlv - startingCapital) / startingCapital) * 100 : null;
+  const beginningSnapshotsByAccountId = new Map<string, (typeof beginningSnapshotRows)[number]>();
+  for (const snapshot of beginningSnapshotRows) {
+    if (!beginningSnapshotsByAccountId.has(snapshot.accountId)) {
+      beginningSnapshotsByAccountId.set(snapshot.accountId, snapshot);
+    }
+  }
+  const endingSnapshotsByAccountId = new Map<string, (typeof endingSnapshotRows)[number]>();
+  for (const snapshot of endingSnapshotRows) {
+    if (!endingSnapshotsByAccountId.has(snapshot.accountId)) {
+      endingSnapshotsByAccountId.set(snapshot.accountId, snapshot);
+    }
+  }
+  const missingBeginningValueAccountIds = internalAccountIds
+    .filter((accountId) => !beginningSnapshotsByAccountId.has(accountId))
+    .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
+  const missingEndingValueAccountIds =
+    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
+      ? []
+      : internalAccountIds
+          .filter((accountId) => !endingSnapshotsByAccountId.has(accountId))
+          .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
+  const beginningValue =
+    missingBeginningValueAccountIds.length > 0
+      ? null
+      : internalAccountIds.reduce((sum, accountId) => {
+          const snapshot = beginningSnapshotsByAccountId.get(accountId);
+          return snapshot ? sum + snapshotValue(snapshot) : sum;
+        }, 0);
+  const snapshotEndingValue =
+    missingEndingValueAccountIds.length > 0
+      ? null
+      : internalAccountIds.reduce((sum, accountId) => {
+          const snapshot = endingSnapshotsByAccountId.get(accountId);
+          return snapshot ? sum + snapshotValue(snapshot) : sum;
+        }, 0);
+  const endingValue =
+    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
+      ? Number(latestPositionSnapshot.currentNlv)
+      : snapshotEndingValue;
+  const endingValueSource =
+    latestPositionSnapshot && latestPositionSnapshot.currentNlv !== null
+      ? "position_snapshot"
+      : endingValue === null
+        ? "unavailable"
+        : "daily_account_snapshot";
+  const positiveExternalContributions = capitalFlowRows.reduce((sum, row) => {
+    const amount = Number(row.amount);
+    return amount > 0 ? sum + amount : sum;
+  }, 0);
+  const withdrawals = capitalFlowRows.reduce((sum, row) => {
+    const amount = Number(row.amount);
+    return amount < 0 ? sum + Math.abs(amount) : sum;
+  }, 0);
+  const returnOnCapital = calculateReturnOnCapital({
+    beginningValue,
+    endingValue,
+    positiveExternalContributions,
+    withdrawals,
+    missingBeginningValueAccountIds,
+    missingEndingValueAccountIds,
+    endingValueSource,
+  });
   const maxDrawdown = computeMaxDrawdown(
     snapshots.map((snapshot) => ({
       accountId: snapshot.account.accountId,
@@ -149,6 +272,20 @@ export async function GET(request: Request) {
     averageHoldDays: avgHold.toFixed(2),
     winRate: formatNullableMetric(winRate),
     totalReturnPct: formatNullableMetric(totalReturnPct),
+    returnOnCapitalPct: formatNullableMetric(returnOnCapital.returnOnCapitalPct),
+    returnOnCapital: {
+      beginningValue: formatNullableMetric(returnOnCapital.beginningValue),
+      endingValue: formatNullableMetric(returnOnCapital.endingValue),
+      netExternalContributions: returnOnCapital.netExternalContributions.toFixed(2),
+      positiveExternalContributions: returnOnCapital.positiveExternalContributions.toFixed(2),
+      withdrawals: returnOnCapital.withdrawals.toFixed(2),
+      returnDollars: formatNullableMetric(returnOnCapital.returnDollars),
+      capitalBase: formatNullableMetric(returnOnCapital.capitalBase),
+      accountCount: internalAccountIds.length,
+      missingBeginningValueAccountIds: returnOnCapital.missingBeginningValueAccountIds,
+      missingEndingValueAccountIds: returnOnCapital.missingEndingValueAccountIds,
+      endingValueSource: returnOnCapital.endingValueSource,
+    },
     profitFactor: formatNullableMetric(profitFactor),
     expectancy: formatNullableMetric(expectancy),
     maxDrawdown: formatNullableMetric(maxDrawdown),

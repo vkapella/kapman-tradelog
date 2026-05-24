@@ -273,6 +273,20 @@ export interface OverviewSummaryResponse {
   averageHoldDays: string;
   winRate: string | null;
   totalReturnPct: string | null;
+  returnOnCapitalPct: string | null;
+  returnOnCapital: {
+    beginningValue: string | null;
+    endingValue: string | null;
+    netExternalContributions: string;
+    positiveExternalContributions: string;
+    withdrawals: string;
+    returnDollars: string | null;
+    capitalBase: string | null;
+    accountCount: number;
+    missingBeginningValueAccountIds: string[];
+    missingEndingValueAccountIds: string[];
+    endingValueSource: "position_snapshot" | "daily_account_snapshot" | "unavailable";
+  };
   profitFactor: string | null;
   expectancy: string | null;
   maxDrawdown: string | null;

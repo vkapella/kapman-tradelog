@@ -142,16 +142,16 @@ export const KPI_REGISTRY: KpiDefinition[] = [
   },
   {
     id: "total-return-pct",
-    name: "Total Return %",
-    description: "Current NLV relative to starting capital.",
-    dataSource: "/api/overview/summary + /api/accounts/starting-capital",
+    name: "Return on Capital",
+    description: "Portfolio return against capital in scope.",
+    dataSource: "/api/overview/summary",
     helpText: {
-      formula: "(Current NLV - starting capital) / starting capital * 100.",
+      formula: "(Ending value - beginning value - net external contributions) / (beginning value + deposits - withdrawals) * 100.",
       source: "/api/overview/summary",
-      interpretation: "Shows portfolio-level performance against configured starting capital.",
+      interpretation: "Shows investment return after removing deposits and withdrawals for the selected accounts and date range.",
     },
-    formatValue: (summary) => formatNullablePercent(summary.totalReturnPct, 2),
-    getColorVariant: (summary) => signVariant(summary.totalReturnPct),
+    formatValue: (summary) => formatNullablePercent(summary.returnOnCapitalPct, 2),
+    getColorVariant: (summary) => signVariant(summary.returnOnCapitalPct),
   },
   {
     id: "profit-factor",
