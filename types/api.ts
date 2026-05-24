@@ -728,3 +728,13 @@ export type AccountLedgerRebuildApiResponse = ApiDetailResponse<AccountLedgerReb
 export type OptionQuotesApiResponse = ApiDetailResponse<OptionQuotesMap> | ApiErrorResponse;
 export type PositionSnapshotComputeApiResponse = ApiDetailResponse<PositionSnapshotComputeResponse> | ApiErrorResponse;
 export type PositionSnapshotApiResponse = PositionSnapshotResponse | ApiErrorResponse;
+
+export interface PeriodReturnResponse {
+  profit: number;
+  returnPercentage: number | null;
+  startingNlv: number;
+  endingNlv: number;
+  netFlows: number;
+}
+
+export type PeriodReturnApiResponse = ApiDetailResponse<PeriodReturnResponse> | ApiErrorResponse;

@@ -13,6 +13,7 @@ import { ReconciliationWidget } from "@/components/widgets/ReconciliationWidget"
 import { RecentExecutionsWidget } from "@/components/widgets/RecentExecutionsWidget";
 import { SetupExpectancyWidget } from "@/components/widgets/SetupExpectancyWidget";
 import { SetupTagRollupWidget } from "@/components/widgets/SetupTagRollupWidget";
+import { PeriodReturnWidget } from "@/components/widgets/PeriodReturnWidget";
 import { StreakWidget } from "@/components/widgets/StreakWidget";
 import { SymbolPnlWidget } from "@/components/widgets/SymbolPnlWidget";
 import { TopSetupsWidget } from "@/components/widgets/TopSetupsWidget";
@@ -77,6 +78,13 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
   },
   { id: "setup-expectancy", name: "Setup Expectancy", description: "Expectancy rollup by setup tag.", defaultColSpan: 1, component: SetupExpectancyWidget },
   { id: "streaks", name: "Win / Loss Streak", description: "Current and longest streak statistics.", defaultColSpan: 1, component: StreakWidget },
+  {
+    id: "period-return",
+    name: "Period Return",
+    description: "Net-contribution-adjusted return for the selected date range.",
+    defaultColSpan: 1,
+    component: PeriodReturnWidget,
+  },
 ];
 
 export const DEFAULT_DASHBOARD_LAYOUT = [
