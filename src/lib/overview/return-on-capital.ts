@@ -1,6 +1,6 @@
 export const EXTERNAL_CAPITAL_ROW_TYPES = ["TRANSFER_IN", "ACAT_RECEIVE", "ACAT_CREDIT"] as const;
 
-export type ReturnOnCapitalEndingValueSource = "position_snapshot" | "daily_account_snapshot" | "unavailable";
+export type ReturnOnCapitalEndingValueSource = "position_snapshot" | "daily_account_snapshot" | "mixed" | "unavailable";
 
 export interface ReturnOnCapitalInput {
   beginningValue: number | null;

@@ -14,8 +14,37 @@ export interface KpiDefinition {
   description: string;
   dataSource: string;
   helpText: KpiHelpText;
+  getHelpText?: (summary: OverviewSummaryResponse) => KpiHelpText;
   formatValue: (summary: OverviewSummaryResponse) => string;
   getColorVariant: (summary: OverviewSummaryResponse) => KpiCardColorVariant;
+}
+
+function formatMissingAccountIds(accountIds: string[]): string {
+  return accountIds.length > 0 ? accountIds.join(", ") : "none";
+}
+
+export function getReturnOnCapitalHelpText(summary: OverviewSummaryResponse): KpiHelpText {
+  const missingBeginning = summary.returnOnCapital.missingBeginningValueAccountIds;
+  const missingEnding = summary.returnOnCapital.missingEndingValueAccountIds;
+  const hasMissing = missingBeginning.length > 0 || missingEnding.length > 0;
+  const missingCoverageMessage = hasMissing
+    ? `Missing beginning account IDs: ${formatMissingAccountIds(missingBeginning)}. Missing ending account IDs: ${formatMissingAccountIds(missingEnding)}.`
+    : "Beginning and ending value coverage is complete for selected accounts.";
+  const endingSourceMessage =
+    summary.returnOnCapital.endingValueSource === "daily_account_snapshot"
+      ? "Ending value uses latest available account snapshot; quote-backed position NLV was unavailable for this date range."
+      : summary.returnOnCapital.endingValueSource === "mixed"
+        ? "Ending value mixes quote-backed position NLV and daily account snapshots across selected accounts."
+        : summary.returnOnCapital.endingValueSource === "position_snapshot"
+          ? "Ending value uses quote-backed position snapshot NLV."
+          : "Ending value source unavailable because one or more accounts are missing ending snapshots.";
+
+  return {
+    formula:
+      "(Ending value - beginning value - net external contributions) / capital base. Capital base: beginning value + deposits - withdrawals.",
+    source: "Daily account snapshots, cash events, and position snapshots when available.",
+    interpretation: `${missingCoverageMessage} ${endingSourceMessage}`,
+  };
 }
 
 function parseNullableMetric(value: string | null | undefined): number | null {
@@ -150,6 +179,7 @@ export const KPI_REGISTRY: KpiDefinition[] = [
       source: "/api/overview/summary",
       interpretation: "Shows investment return after removing deposits and withdrawals for the selected accounts and date range.",
     },
+    getHelpText: (summary) => getReturnOnCapitalHelpText(summary),
     formatValue: (summary) => formatNullablePercent(summary.returnOnCapitalPct, 2),
     getColorVariant: (summary) => signVariant(summary.returnOnCapitalPct),
   },

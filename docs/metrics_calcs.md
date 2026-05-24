@@ -48,7 +48,9 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 | `expectancy` | Total realized P&L divided by matched-lot count. |
 | `startingCapital` | Sum of configured account starting capital. |
 | `currentNlv` | Sum of latest broker NLV when available, otherwise latest cash. |
-| `totalReturnPct` | `(currentNlv - startingCapital) / startingCapital * 100`; `null` when starting capital is not positive. |
+| `totalReturnPct` | Legacy metric kept for compatibility: `(currentNlv - startingCapital) / startingCapital * 100`; `null` when starting capital is not positive. |
+| `returnOnCapitalPct` | `(endingValue - beginningValue - netExternalContributions) / capitalBase * 100`; `null` when beginning/ending coverage is incomplete or capital base is not positive. |
+| `returnOnCapital` | Explainability payload for the KPI: beginning/ending values, deposits, withdrawals, return dollars, capital base, missing coverage account IDs, and ending value source. |
 | `snapshotCount` | Count of daily account snapshots. |
 | `maxDrawdown` | Largest peak-to-trough decline in the combined snapshot series. |
 | `importQuality` | Import counts and parsed/skipped row totals. |
@@ -69,7 +71,7 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 | Setup Count | `setupCount` |
 | Avg Hold Days | `averageHoldDays` |
 | Win Rate | `winRate` |
-| Total Return % | `totalReturnPct` |
+| Return on Capital | `returnOnCapitalPct` |
 | Profit Factor | `profitFactor` |
 | Expectancy | `expectancy` |
 | Max Drawdown | `maxDrawdown` |
@@ -282,4 +284,3 @@ The Adjustments page exposes:
 - account-level ledger rebuild
 
 Adjustment preview compares before and after open quantity, cost basis per share, gross cost, affected execution count, and, for execution overrides, affected matched lots and realized P&L impact.
-
