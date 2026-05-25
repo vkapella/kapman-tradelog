@@ -31,6 +31,7 @@ const tagColors: Record<string, string> = {
   stock: "var(--pos)",
   bull_vertical: "var(--warn)",
   diagonal: "var(--neg)",
+  cash_secured_put: "var(--accent-2)",
 };
 
 const INFO_LEGEND = [
@@ -44,8 +45,22 @@ const CATEGORY_LEGEND = [
   { tag: "stock", color: tagColors.stock },
   { tag: "bull_vertical", color: tagColors.bull_vertical },
   { tag: "diagonal", color: tagColors.diagonal },
+  { tag: "cash_secured_put", color: tagColors.cash_secured_put },
   { tag: "other", color: "var(--text-2)" },
 ] as const;
+
+type KnownSeriesTag = "long_call" | "stock" | "bull_vertical" | "diagonal" | "cash_secured_put";
+const KNOWN_SERIES_TAGS: ReadonlySet<string> = new Set<string>([
+  "long_call",
+  "stock",
+  "bull_vertical",
+  "diagonal",
+  "cash_secured_put",
+]);
+
+function toSeriesTag(tag: string): KnownSeriesTag | "other" {
+  return KNOWN_SERIES_TAGS.has(tag) ? (tag as KnownSeriesTag) : "other";
+}
 
 function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -169,8 +184,9 @@ export function ExpectancyScatterWidget() {
     const map = new Map<string, Array<{ x: number; y: number; z: number; row: SetupSummaryRecord }>>();
 
     for (const row of rows) {
-      const tag = row.overrideTag ?? row.tag;
-      const points = map.get(tag) ?? [];
+      const rawTag = row.overrideTag ?? row.tag;
+      const seriesTag = toSeriesTag(rawTag);
+      const points = map.get(seriesTag) ?? [];
       const RAW_Z = Math.max(1, Math.abs(safeNumber(row.realizedPnl)));
       const Z_CAP = 15000;
       const z = Math.min(RAW_Z, Z_CAP);
@@ -180,7 +196,7 @@ export function ExpectancyScatterWidget() {
         z,
         row,
       });
-      map.set(tag, points);
+      map.set(seriesTag, points);
     }
 
     if (multiLotOnly) {
