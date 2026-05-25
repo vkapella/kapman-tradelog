@@ -21,6 +21,7 @@
   --neg-dim:        oklch(0.65 0.20 25 / 0.12);
   --warn:           oklch(0.78 0.14 75);
   --warn-dim:       oklch(0.78 0.14 75 / 0.12);
+  --chart-purple:   #a78bfa;
   --mono:           "Geist Mono", ui-monospace, monospace;
   --sans:           "Geist", system-ui, sans-serif;
   --sidebar-w:      220px;
