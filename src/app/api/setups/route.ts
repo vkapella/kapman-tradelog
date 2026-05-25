@@ -40,6 +40,16 @@ export async function GET(request: Request) {
             lots: true,
           },
         },
+        lots: {
+          select: {
+            matchedLot: {
+              select: {
+                openExecution: { select: { tradeDate: true } },
+                closeExecution: { select: { tradeDate: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: [{ realizedPnl: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
@@ -47,18 +57,32 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const data: SetupSummaryRecord[] = rows.map((row) => ({
-    id: row.id,
-    accountId: row.accountId,
-    tag: row.tag,
-    overrideTag: row.overrideTag,
-    underlyingSymbol: row.underlyingSymbol,
-    realizedPnl: row.realizedPnl?.toString() ?? null,
-    winRate: row.winRate?.toString() ?? null,
-    expectancy: row.expectancy?.toString() ?? null,
-    averageHoldDays: row.averageHoldDays?.toString() ?? null,
-    setupLotCount: row._count.lots,
-  }));
+  const data: SetupSummaryRecord[] = rows.map((row) => {
+    const openDates = row.lots.map((l) => l.matchedLot.openExecution.tradeDate.getTime());
+    const closeDates = row.lots
+      .map((l) => l.matchedLot.closeExecution?.tradeDate?.getTime())
+      .filter((d): d is number => d !== undefined);
+    const setupOpenDate = openDates.length > 0 ? new Date(Math.min(...openDates)).toISOString().split("T")[0] : null;
+    const setupCloseDate =
+      closeDates.length === row.lots.length && closeDates.length > 0
+        ? new Date(Math.max(...closeDates)).toISOString().split("T")[0]
+        : null;
+
+    return {
+      id: row.id,
+      accountId: row.accountId,
+      tag: row.tag,
+      overrideTag: row.overrideTag,
+      underlyingSymbol: row.underlyingSymbol,
+      realizedPnl: row.realizedPnl?.toString() ?? null,
+      winRate: row.winRate?.toString() ?? null,
+      expectancy: row.expectancy?.toString() ?? null,
+      averageHoldDays: row.averageHoldDays?.toString() ?? null,
+      setupLotCount: row._count.lots,
+      setupOpenDate,
+      setupCloseDate,
+    };
+  });
 
   return listResponse(data, { total, page, pageSize });
 }

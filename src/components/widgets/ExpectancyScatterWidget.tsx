@@ -52,6 +52,12 @@ function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
   const { row } = payload[0].payload;
   const tag = row.overrideTag ?? row.tag;
   const ticker = row.underlyingSymbol ?? "—";
+  const lotCount = row.setupLotCount ?? 1;
+  const openLabel = row.setupOpenDate ?? "—";
+  const closeLabel = row.setupCloseDate ?? "Open";
+  const dateRange = `${openLabel} → ${closeLabel}`;
+  const showExpectancy = lotCount > 1;
+
   return (
     <div
       className="rounded border px-3 py-2 text-xs"
@@ -64,8 +70,10 @@ function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
       <p className="font-semibold">
         {ticker} · {tag}
       </p>
+      <p>Lots: {lotCount}</p>
+      <p>{dateRange}</p>
       <p>Hold: {safeNumber(row.averageHoldDays).toFixed(1)} days</p>
-      <p>Expectancy: {formatCurrency(safeNumber(row.expectancy))} / lot</p>
+      {showExpectancy && <p>Expectancy: {formatCurrency(safeNumber(row.expectancy))} / lot</p>}
       <p>Realized P&L: {formatCurrency(safeNumber(row.realizedPnl))}</p>
     </div>
   );
@@ -74,11 +82,23 @@ function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
 interface ExpectancyLegendProps extends LegendProps {
   hiddenTags: Set<string>;
   onToggle: (tag: string) => void;
+  multiLotOnly: boolean;
+  onMultiLotToggle: () => void;
 }
 
-function ExpectancyLegend({ hiddenTags, onToggle }: ExpectancyLegendProps) {
+function ExpectancyLegend({ hiddenTags, onToggle, multiLotOnly, onMultiLotToggle }: ExpectancyLegendProps) {
   return (
     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-text-2">
+      <button
+        type="button"
+        onClick={onMultiLotToggle}
+        aria-pressed={multiLotOnly}
+        className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] transition-colors ${
+          multiLotOnly ? "border-accent text-accent" : "border-border text-text-2"
+        }`}
+      >
+        Multi-lot only
+      </button>
       {INFO_LEGEND.map((item) => (
         <div key={item.label} className="flex items-center gap-2">
           <span
@@ -118,6 +138,7 @@ export function ExpectancyScatterWidget() {
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [rows, setRows] = useState<SetupSummaryRecord[]>([]);
   const [hiddenTags, setHiddenTags] = useState<Set<string>>(new Set());
+  const [multiLotOnly, setMultiLotOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,8 +183,14 @@ export function ExpectancyScatterWidget() {
       map.set(tag, points);
     }
 
+    if (multiLotOnly) {
+      map.forEach((points, tag) => {
+        map.set(tag, points.filter((p) => (p.row.setupLotCount ?? 1) > 1));
+      });
+    }
+
     return map;
-  }, [rows]);
+  }, [rows, multiLotOnly]);
 
   function toggleTag(tag: string) {
     setHiddenTags((prev) => {
@@ -200,7 +227,14 @@ export function ExpectancyScatterWidget() {
             <Legend
               verticalAlign="bottom"
               align="left"
-              content={<ExpectancyLegend hiddenTags={hiddenTags} onToggle={toggleTag} />}
+              content={
+                <ExpectancyLegend
+                  hiddenTags={hiddenTags}
+                  onToggle={toggleTag}
+                  multiLotOnly={multiLotOnly}
+                  onMultiLotToggle={() => setMultiLotOnly((v) => !v)}
+                />
+              }
             />
             {Array.from(grouped.entries())
               .filter(([tag]) => !hiddenTags.has(tag))
