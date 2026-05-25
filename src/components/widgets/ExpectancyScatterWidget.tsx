@@ -31,7 +31,7 @@ const tagColors: Record<string, string> = {
   stock: "var(--pos)",
   bull_vertical: "var(--warn)",
   diagonal: "var(--neg)",
-  cash_secured_put: "var(--accent-2)",
+  cash_secured_put: "var(--warn)",
 };
 
 const INFO_LEGEND = [
