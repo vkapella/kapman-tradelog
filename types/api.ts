@@ -242,6 +242,8 @@ export interface SetupSummaryRecord {
   expectancy: string | null;
   averageHoldDays: string | null;
   setupLotCount?: number;
+  setupOpenDate?: string | null;
+  setupCloseDate?: string | null;
 }
 
 export interface SetupsListQuery {
