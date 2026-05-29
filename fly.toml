@@ -1,7 +1,11 @@
-app = "kapman-tradelog-APP_NAME_PLACEHOLDER"
+app = "kapman-tradelog"
 primary_region = "iad"
 
 [build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  release_command = "npx prisma migrate deploy"
 
 [http_service]
   internal_port = 3000
