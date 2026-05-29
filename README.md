@@ -175,23 +175,69 @@ For full operational notes, see [RUNBOOK.md](RUNBOOK.md).
 
 ## Fly.io deployment
 
-1. Authenticate and initialize the app:
+The app is configured for Fly.io in `fly.toml`:
+
+- app name: `kapman-tradelog`
+- region: `iad`
+- app port: `3000`
+- deploy migration command: `npx prisma migrate deploy`
+- health check: `GET /api/health`
+
+The pragmatic first-deploy path uses Fly's unmanaged Postgres. Fly notes that
+unmanaged Postgres is operator-managed; use this path only when that tradeoff is
+acceptable for the deployment.
+
+### First deploy
+
+1. Authenticate and create the app if it does not already exist:
 
 ```bash
 fly auth login
-fly launch
+fly apps create kapman-tradelog
 ```
 
-2. Set runtime database connection (Fly secrets or managed Postgres):
+2. Create and attach Postgres:
 
 ```bash
-fly secrets set DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<db>?sslmode=require
+fly postgres create
+fly postgres attach <pg-app-name> -a kapman-tradelog
 ```
 
-3. Deploy:
+`fly postgres attach` injects `DATABASE_URL` into `kapman-tradelog`; do not
+commit database credentials to the repo.
+
+3. Set the Basic Auth credentials used by `src/middleware.ts`:
 
 ```bash
-fly deploy
+fly secrets set BASIC_AUTH_USER='<user>' BASIC_AUTH_PASSWORD='<strong-pass>' -a kapman-tradelog
 ```
 
-`fly.toml` is configured for region `iad` with an HTTP health check on `/api/health`.
+4. Deploy:
+
+```bash
+fly deploy -a kapman-tradelog
+```
+
+5. Verify the deployed app:
+
+```bash
+curl -sf https://kapman-tradelog.fly.dev/api/health | grep ok
+curl -u '<user>:<strong-pass>' -sf https://kapman-tradelog.fly.dev/api/overview/summary | grep netPnl
+fly checks list -a kapman-tradelog
+```
+
+### Clean redeploy
+
+Use this after changing code or deployment config:
+
+```bash
+npm run typecheck
+npm run lint
+npm test -- --passWithNoTests
+fly deploy -a kapman-tradelog
+curl -sf https://kapman-tradelog.fly.dev/api/health | grep ok
+curl -u '<user>:<strong-pass>' -sf https://kapman-tradelog.fly.dev/api/overview/summary | grep netPnl
+```
+
+Use the same Basic Auth username and password already stored in Fly secrets.
+Only rerun `fly secrets set ...` when rotating credentials.
