@@ -4,6 +4,10 @@ import { warnDeprecatedStartingCapitalEnvVar } from "@/lib/accounts/env";
 import { ensureAccountDefaults } from "@/lib/accounts/ensure-defaults";
 import { prisma } from "@/lib/db/prisma";
 
+// Always query the live database at request time; never statically prerender
+// this handler at build (no DB is available then).
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   warnDeprecatedStartingCapitalEnvVar();
   await ensureAccountDefaults();

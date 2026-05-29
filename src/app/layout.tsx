@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description: "Containerized trading journal for imports, FIFO lots, and setup analytics.",
 };
 
+// This is a runtime, database-backed dashboard rendered per request; opt the
+// whole route tree out of build-time static generation so `next build` does not
+// try to prerender pages that depend on live data.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
