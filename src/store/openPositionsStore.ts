@@ -149,6 +149,23 @@ function splitSnapshotByAccount(positions: PositionSnapshotOpenPosition[], accou
   return grouped;
 }
 
+function mergeCachedQuotes(current: AccountSnapshot, next: AccountSnapshot): AccountSnapshot {
+  const activeInstrumentKeys = new Set(next.positions.map((position) => position.instrumentKey));
+  const cachedQuotes = Object.fromEntries(
+    Object.entries(current.quotes).filter(([instrumentKey]) => activeInstrumentKeys.has(instrumentKey)),
+  );
+  const freshQuoteCount = Object.keys(next.quotes).length;
+
+  return {
+    ...next,
+    quotes: {
+      ...cachedQuotes,
+      ...next.quotes,
+    },
+    lastRefreshedAt: freshQuoteCount > 0 ? next.lastRefreshedAt : current.lastRefreshedAt,
+  };
+}
+
 async function fetchSnapshot(accountIds: string[], snapshotId?: string): Promise<PositionSnapshotApiResponse> {
   const query = new URLSearchParams();
   if (snapshotId) {
@@ -203,13 +220,14 @@ function createOpenPositionsStore(): OpenPositionsStore {
     const grouped = splitSnapshotByAccount(positions, accountIds, snapshotAt);
 
     for (const accountId of accountIds) {
-      const nextSnapshot = grouped.get(accountId) ?? {
+      const apiSnapshot = grouped.get(accountId) ?? {
         positions: [],
         quotes: {},
         lastRefreshedAt: Date.parse(snapshotAt),
         isLoading: false,
         error: null,
       };
+      const nextSnapshot = mergeCachedQuotes(readAccountSnapshot(accountId), apiSnapshot);
 
       writeAccountSnapshot(accountId, nextSnapshot);
       persistAccountSnapshot(accountId, nextSnapshot);
