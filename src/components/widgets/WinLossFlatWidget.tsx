@@ -5,12 +5,37 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import { formatNullablePercent } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
   data: MatchedLotRecord[];
+}
+
+interface WinLossFlatCounts {
+  WIN: number;
+  LOSS: number;
+  FLAT: number;
+}
+
+export function summarizeWinLossFlatRows(rows: MatchedLotRecord[], selectedAccounts: string[]): WinLossFlatCounts {
+  const counts = { WIN: 0, LOSS: 0, FLAT: 0 };
+  for (const row of rows) {
+    if (!isAccountInScope(selectedAccounts, row.accountId)) {
+      continue;
+    }
+
+    if (row.outcome === "WIN") {
+      counts.WIN += 1;
+    } else if (row.outcome === "LOSS") {
+      counts.LOSS += 1;
+    } else {
+      counts.FLAT += 1;
+    }
+  }
+
+  return counts;
 }
 
 export function WinLossFlatWidget() {
@@ -43,24 +68,7 @@ export function WinLossFlatWidget() {
     };
   }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
-  const counts = useMemo(() => {
-    const initial = { WIN: 0, LOSS: 0, FLAT: 0 };
-    for (const row of rows) {
-      if (!selectedAccounts.includes(row.accountId)) {
-        continue;
-      }
-
-      if (row.outcome === "WIN") {
-        initial.WIN += 1;
-      } else if (row.outcome === "LOSS") {
-        initial.LOSS += 1;
-      } else {
-        initial.FLAT += 1;
-      }
-    }
-
-    return initial;
-  }, [rows, selectedAccounts]);
+  const counts = useMemo(() => summarizeWinLossFlatRows(rows, selectedAccounts), [rows, selectedAccounts]);
 
   const chartData = [
     { name: "WIN", value: counts.WIN, color: "var(--pos)" },

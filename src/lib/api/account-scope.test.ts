@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAccountIdsToSearchParams, buildAccountScopeWhere, parseAccountIds } from "./account-scope";
+import { applyAccountIdsToSearchParams, buildAccountScopeWhere, isAccountInScope, parseAccountIds } from "./account-scope";
 
 describe("parseAccountIds", () => {
   it("parses, trims, de-duplicates, and omits empty values", () => {
@@ -30,5 +30,16 @@ describe("buildAccountScopeWhere", () => {
     expect(buildAccountScopeWhere(["acct-1", "acct-2"])).toEqual({
       OR: [{ accountId: { in: ["acct-1", "acct-2"] } }, { account: { accountId: { in: ["acct-1", "acct-2"] } } }],
     });
+  });
+});
+
+describe("isAccountInScope", () => {
+  it("treats an empty selection as all accounts", () => {
+    expect(isAccountInScope([], "acct-1")).toBe(true);
+  });
+
+  it("matches selected accounts explicitly", () => {
+    expect(isAccountInScope(["acct-1", "acct-2"], "acct-2")).toBe(true);
+    expect(isAccountInScope(["acct-1", "acct-2"], "acct-3")).toBe(false);
   });
 });

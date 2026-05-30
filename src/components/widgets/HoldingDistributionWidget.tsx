@@ -5,7 +5,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import type { MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
@@ -51,7 +51,7 @@ export function HoldingDistributionWidget() {
     };
 
     for (const row of rows) {
-      if (!selectedAccounts.includes(row.accountId)) {
+      if (!isAccountInScope(selectedAccounts, row.accountId)) {
         continue;
       }
 

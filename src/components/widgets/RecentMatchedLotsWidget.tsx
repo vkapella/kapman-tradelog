@@ -6,7 +6,7 @@ import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
@@ -58,7 +58,7 @@ export function RecentMatchedLotsWidget() {
 
   const recentRows = useMemo(() => {
     return rows
-      .filter((row) => Boolean(row.closeTradeDate) && selectedAccounts.includes(row.accountId))
+      .filter((row) => Boolean(row.closeTradeDate) && isAccountInScope(selectedAccounts, row.accountId))
       .sort((left, right) => String(right.closeTradeDate).localeCompare(String(left.closeTradeDate)))
       .slice(0, 8);
   }, [rows, selectedAccounts]);

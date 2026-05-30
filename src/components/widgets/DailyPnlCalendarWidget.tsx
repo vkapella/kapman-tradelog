@@ -6,7 +6,7 @@ import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { fetchAllPages } from "@/lib/api/fetch-all-pages";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { MatchedLotRecord } from "@/types/api";
 
@@ -116,7 +116,7 @@ export function DailyPnlCalendarWidget() {
     const grouped = new Map<string, CalendarDay>();
 
     for (const row of rows) {
-      if (!row.closeTradeDate || !selectedAccounts.includes(row.accountId)) {
+      if (!row.closeTradeDate || !isAccountInScope(selectedAccounts, row.accountId)) {
         continue;
       }
 

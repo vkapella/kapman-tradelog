@@ -5,7 +5,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
 
@@ -47,7 +47,7 @@ export function SetupTagRollupWidget() {
     const grouped = new Map<string, { pnl: number; count: number }>();
 
     for (const row of rows) {
-      if (!selectedAccounts.includes(row.accountId)) {
+      if (!isAccountInScope(selectedAccounts, row.accountId)) {
         continue;
       }
 
