@@ -29,6 +29,10 @@ export function applyAccountIdsToSearchParams(params: URLSearchParams, accountId
   }
 }
 
+export function isAccountInScope(selectedAccounts: string[], accountId: string): boolean {
+  return selectedAccounts.length === 0 || selectedAccounts.includes(accountId);
+}
+
 export function buildAccountScopeWhere(accountIds: string[]): Record<string, unknown> | undefined {
   if (accountIds.length === 0) {
     return undefined;

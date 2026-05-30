@@ -12,6 +12,7 @@ import type { DataTableColumnDefinition, SortDirection } from "@/components/data
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useOpenPositions } from "@/hooks/useOpenPositions";
+import { isAccountInScope } from "@/lib/api/account-scope";
 import { openPositionsStore } from "@/store/openPositionsStore";
 import type { OpenPosition } from "@/types/api";
 
@@ -66,7 +67,7 @@ export default function Page() {
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const filteredPositions = useMemo(() => positions.filter((position) => selectedAccounts.includes(position.accountId)), [positions, selectedAccounts]);
+  const filteredPositions = useMemo(() => positions.filter((position) => isAccountInScope(selectedAccounts, position.accountId)), [positions, selectedAccounts]);
   const lastQuoted = useMemo(() => (snapshot.lastRefreshedAt === null ? null : new Date(snapshot.lastRefreshedAt)), [snapshot.lastRefreshedAt]);
   const hasPersistedSnapshot = snapshot.lastRefreshedAt !== null;
 

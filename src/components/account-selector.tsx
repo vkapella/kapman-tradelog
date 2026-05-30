@@ -6,10 +6,18 @@ import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 
 export function AccountSelector() {
   const [open, setOpen] = useState(false);
-  const { availableAccounts, selectedAccounts, setSelectedAccounts } = useAccountFilterContext();
+  const { accountsError, accountsLoading, availableAccounts, reloadAccounts, selectedAccounts, setSelectedAccounts } = useAccountFilterContext();
 
   const allSelected = availableAccounts.length > 0 && selectedAccounts.length === availableAccounts.length;
   const label = useMemo(() => {
+    if (accountsLoading && availableAccounts.length === 0) {
+      return "Accounts: loading";
+    }
+
+    if (accountsError && availableAccounts.length === 0) {
+      return "Accounts: unavailable";
+    }
+
     if (availableAccounts.length === 0) {
       return "Accounts: none";
     }
@@ -19,7 +27,7 @@ export function AccountSelector() {
     }
 
     return `Accounts: ${selectedAccounts.length}/${availableAccounts.length}`;
-  }, [allSelected, availableAccounts.length, selectedAccounts.length]);
+  }, [accountsError, accountsLoading, allSelected, availableAccounts.length, selectedAccounts.length]);
 
   function toggleAccount(accountId: string) {
     if (selectedAccounts.includes(accountId)) {
@@ -55,7 +63,16 @@ export function AccountSelector() {
           </div>
 
           <div className="max-h-56 space-y-2 overflow-auto pr-1">
-            {availableAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts available</p> : null}
+            {accountsLoading && availableAccounts.length === 0 ? <p className="text-xs text-text-2">Loading accounts...</p> : null}
+            {accountsError ? (
+              <div className="space-y-2">
+                <p className="text-xs text-amber-200">{accountsError}</p>
+                <button type="button" onClick={reloadAccounts} className="text-[11px] text-accent underline">
+                  Retry
+                </button>
+              </div>
+            ) : null}
+            {!accountsLoading && !accountsError && availableAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts available</p> : null}
             {availableAccounts.map((accountId) => (
               <label key={accountId} className="flex cursor-pointer items-center gap-2 text-xs text-text">
                 <input

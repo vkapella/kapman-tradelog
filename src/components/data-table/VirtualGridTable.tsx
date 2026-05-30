@@ -3,6 +3,13 @@
 import type { ReactElement, ReactNode, RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
+const VIRTUAL_GRID_PLAIN_ROW_LIMIT = 1000;
+const VIRTUAL_GRID_FALLBACK_HEIGHT = 600;
+
+export function shouldRenderPlainVirtualGridRows(rowCount: number, virtualItemCount: number): boolean {
+  return rowCount > 0 && (rowCount <= VIRTUAL_GRID_PLAIN_ROW_LIMIT || virtualItemCount === 0);
+}
+
 interface VirtualGridTableShellProps {
   children: ReactNode;
   height?: number | string;
@@ -78,13 +85,35 @@ export function VirtualGridBody<TRow>({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollContainerRef.current,
+    getItemKey: (index) => (getRowKey ? getRowKey(rows[index] as TRow, index) : index),
     estimateSize: () => estimateSize ?? 36,
+    initialRect: { width: 0, height: VIRTUAL_GRID_FALLBACK_HEIGHT },
     overscan: overscan ?? 5,
+    useAnimationFrameWithResizeObserver: true,
   });
+  const virtualItems = virtualizer.getVirtualItems();
+
+  if (shouldRenderPlainVirtualGridRows(rows.length, virtualItems.length)) {
+    return (
+      <div className="min-w-max text-xs">
+        {rows.map((row, index) => (
+          <div
+            key={getRowKey ? getRowKey(row, index) : index}
+            className={["grid w-full", rowClassName].join(" ")}
+            data-virtual-grid-row=""
+            role="row"
+            style={{ gridTemplateColumns: columnTemplate }}
+          >
+            {renderRow(row, index)}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-w-max text-xs" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-      {virtualizer.getVirtualItems().map((virtualItem) => {
+      {virtualItems.map((virtualItem) => {
         const row = rows[virtualItem.index];
         return (
           <div

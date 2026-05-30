@@ -12,8 +12,11 @@ interface ResolvedAccountLabel {
 }
 
 interface AccountFilterContextValue {
+  accountsError: string | null;
+  accountsLoading: boolean;
   availableAccounts: string[];
   selectedAccounts: string[];
+  reloadAccounts: () => void;
   setSelectedAccounts: (ids: string[]) => void;
   isSelectedAccount: (accountId: string) => boolean;
   toExternalAccountId: (accountId: string) => string;
@@ -33,11 +36,19 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   const [externalByInternal, setExternalByInternal] = useState<Record<string, string>>({});
   const [displayLabelByInternal, setDisplayLabelByInternal] = useState<Record<string, string>>({});
   const [internalByExternal, setInternalByExternal] = useState<Record<string, string>>({});
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAccounts() {
+      if (!cancelled) {
+        setAccountsLoading(true);
+        setAccountsError(null);
+      }
+
       try {
         const response = await fetch("/api/accounts", { cache: "no-store" });
         if (!response.ok) {
@@ -73,13 +84,14 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
           const filtered = current.filter((accountId) => uniqueAccounts.includes(accountId));
           return filtered.length > 0 ? filtered : uniqueAccounts;
         });
+        setAccountsError(null);
       } catch {
         if (!cancelled) {
-          setExternalByInternal({});
-          setDisplayLabelByInternal({});
-          setInternalByExternal({});
-          setAvailableAccounts([]);
-          setSelectedAccountsState([]);
+          setAccountsError("Unable to refresh accounts.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAccountsLoading(false);
         }
       }
     }
@@ -89,7 +101,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
   useEffect(() => {
     if (availableAccounts.length === 0) {
@@ -134,8 +146,11 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
     };
 
     return {
+      accountsError,
+      accountsLoading,
       availableAccounts,
       selectedAccounts,
+      reloadAccounts: () => setReloadToken((current) => current + 1),
       setSelectedAccounts: (ids: string[]) => {
         const unique = uniqueSorted(ids);
         const valid = unique.filter((accountId) => availableAccounts.includes(accountId));
@@ -153,7 +168,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         return externalAccountId ? selectedExternalSet.has(externalAccountId) : false;
       },
     };
-  }, [availableAccounts, selectedAccounts, externalByInternal, displayLabelByInternal, internalByExternal]);
+  }, [accountsError, accountsLoading, availableAccounts, selectedAccounts, externalByInternal, displayLabelByInternal, internalByExternal]);
 
   return <AccountFilterContext.Provider value={value}>{children}</AccountFilterContext.Provider>;
 }

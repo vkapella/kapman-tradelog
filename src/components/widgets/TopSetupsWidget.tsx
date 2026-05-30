@@ -4,7 +4,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
 
@@ -44,7 +44,7 @@ export function TopSetupsWidget() {
 
   const topRows = useMemo(() => {
     return rows
-      .filter((row) => selectedAccounts.includes(row.accountId))
+      .filter((row) => isAccountInScope(selectedAccounts, row.accountId))
       .sort((left, right) => safeNumber(right.realizedPnl) - safeNumber(left.realizedPnl))
       .slice(0, 10);
   }, [rows, selectedAccounts]);

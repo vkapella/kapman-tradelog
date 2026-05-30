@@ -6,7 +6,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
@@ -81,8 +81,8 @@ export default function Page() {
     return () => { cancelled = true; };
   }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
-  const filteredAllSetups = useMemo(() => allSetups.filter((row) => selectedAccounts.includes(row.accountId)), [allSetups, selectedAccounts]);
-  const filteredLots = useMemo(() => matchedLots.filter((row) => selectedAccounts.includes(row.accountId)), [matchedLots, selectedAccounts]);
+  const filteredAllSetups = useMemo(() => allSetups.filter((row) => isAccountInScope(selectedAccounts, row.accountId)), [allSetups, selectedAccounts]);
+  const filteredLots = useMemo(() => matchedLots.filter((row) => isAccountInScope(selectedAccounts, row.accountId)), [matchedLots, selectedAccounts]);
 
   const kpis = useMemo(() => {
     const totalPnl = filteredAllSetups.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);

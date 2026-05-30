@@ -11,6 +11,7 @@ import type { DataTableColumnDefinition, SortDirection } from "@/components/data
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { findSupersededExecutionPriceOverrideIds } from "@/lib/adjustments/execution-price-overrides";
 import { findSupersededExecutionQtyOverrideIds } from "@/lib/adjustments/execution-qty-overrides";
+import { isAccountInScope } from "@/lib/api/account-scope";
 import type { ManualAdjustmentRecord } from "@/types/api";
 
 const ADJUSTMENTS_COLUMN_TEMPLATE = "190px 160px 110px 150px 120px 300px 300px 140px 110px";
@@ -45,7 +46,7 @@ export function AdjustmentList({ adjustments, onReverse, reversingId }: { adjust
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const supersededIds = useMemo(() => new Set<string>([...Array.from(findSupersededExecutionQtyOverrideIds(adjustments)), ...Array.from(findSupersededExecutionPriceOverrideIds(adjustments))]), [adjustments]);
-  const scopedAdjustments = useMemo(() => adjustments.filter((record) => selectedAccounts.includes(record.accountId)), [adjustments, selectedAccounts]);
+  const scopedAdjustments = useMemo(() => adjustments.filter((record) => isAccountInScope(selectedAccounts, record.accountId)), [adjustments, selectedAccounts]);
 
   const columns = useMemo<DataTableColumnDefinition<ManualAdjustmentRecord>[]>(() => [
     { id: "createdAt", label: "Created", filterMode: "discrete", getFilterValues: (row) => row.createdAt, getFilterOptionLabel: (value) => new Date(value).toLocaleString(), sortMode: "date", getSortValue: (row) => row.createdAt, defaultSortDirection: "desc", panelWidthClassName: "w-80" },

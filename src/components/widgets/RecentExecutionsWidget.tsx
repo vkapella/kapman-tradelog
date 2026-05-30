@@ -6,7 +6,7 @@ import { Badge } from "@/components/Badge";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
 import type { ExecutionRecord } from "@/types/api";
 
 interface ExecutionsPayload {
@@ -45,7 +45,7 @@ export function RecentExecutionsWidget() {
 
   const recentRows = useMemo(() => {
     return rows
-      .filter((row) => selectedAccounts.includes(row.accountId))
+      .filter((row) => isAccountInScope(selectedAccounts, row.accountId))
       .sort((left, right) => new Date(right.eventTimestamp).getTime() - new Date(left.eventTimestamp).getTime())
       .slice(0, 10);
   }, [rows, selectedAccounts]);
