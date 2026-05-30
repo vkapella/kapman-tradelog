@@ -3,7 +3,8 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { RangeFilterContext, type RangePreset } from "@/contexts/RangeFilterContext";
 
-const PRESETS: Array<{ value: RangePreset; label: string }> = [
+export const RANGE_PRESETS: Array<{ value: RangePreset; label: string }> = [
+  { value: "kapman-start", label: "Kapman Start" },
   { value: "all", label: "All Time" },
   { value: "ytd", label: "YTD" },
   { value: "1yr", label: "1 yr" },
@@ -77,7 +78,7 @@ export function RangeSelector() {
       {open ? (
         <div className="absolute right-0 z-30 mt-2 w-[360px] rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
           <div role="radiogroup" aria-label="Date range" className="flex flex-wrap gap-1">
-            {PRESETS.map((preset) => {
+            {RANGE_PRESETS.map((preset) => {
               const selected = preset.value === range.preset || (preset.value === "custom" && showCustomForm);
               return (
                 <button

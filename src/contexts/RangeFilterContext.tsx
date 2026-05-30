@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-export type RangePreset = "all" | "ytd" | "1yr" | "3yr" | "30d" | "7d" | "custom";
+export type RangePreset = "kapman-start" | "all" | "ytd" | "1yr" | "3yr" | "30d" | "7d" | "custom";
 
 export interface RangeFilterState {
   preset: RangePreset;
@@ -19,15 +19,27 @@ export interface RangeFilterContextValue {
 }
 
 const STORAGE_KEY = "kapman_range_filter";
-const DEFAULT_RANGE: RangeFilterState = { preset: "all", startDate: null, endDate: null };
+export const KAPMAN_START_DATE = "2025-09-02";
+const ALL_TIME_RANGE: RangeFilterState = { preset: "all", startDate: null, endDate: null };
 
 function toIsoDate(value: Date): string {
-  return value.toISOString().slice(0, 10);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function computePresetRange(preset: Exclude<RangePreset, "custom">): RangeFilterState {
+export function computePresetRange(preset: Exclude<RangePreset, "custom">): RangeFilterState {
+  if (preset === "kapman-start") {
+    return {
+      preset,
+      startDate: KAPMAN_START_DATE,
+      endDate: toIsoDate(new Date()),
+    };
+  }
+
   if (preset === "all") {
-    return DEFAULT_RANGE;
+    return ALL_TIME_RANGE;
   }
 
   const today = new Date();
@@ -37,7 +49,7 @@ function computePresetRange(preset: Exclude<RangePreset, "custom">): RangeFilter
   if (preset === "ytd") {
     return {
       preset,
-      startDate: `${today.getUTCFullYear()}-01-01`,
+      startDate: `${today.getFullYear()}-01-01`,
       endDate,
     };
   }
@@ -52,20 +64,33 @@ function computePresetRange(preset: Exclude<RangePreset, "custom">): RangeFilter
   };
 }
 
+function getDefaultRange(): RangeFilterState {
+  return computePresetRange("kapman-start");
+}
+
 function parseStoredRange(raw: string | null): RangeFilterState {
   if (!raw) {
-    return DEFAULT_RANGE;
+    return getDefaultRange();
   }
 
   try {
     const parsed = JSON.parse(raw) as Partial<RangeFilterState>;
     if (!parsed || typeof parsed !== "object") {
-      return DEFAULT_RANGE;
+      return getDefaultRange();
     }
 
     const preset = parsed.preset;
-    if (preset !== "all" && preset !== "ytd" && preset !== "1yr" && preset !== "3yr" && preset !== "30d" && preset !== "7d" && preset !== "custom") {
-      return DEFAULT_RANGE;
+    if (
+      preset !== "kapman-start" &&
+      preset !== "all" &&
+      preset !== "ytd" &&
+      preset !== "1yr" &&
+      preset !== "3yr" &&
+      preset !== "30d" &&
+      preset !== "7d" &&
+      preset !== "custom"
+    ) {
+      return getDefaultRange();
     }
 
     return {
@@ -74,11 +99,12 @@ function parseStoredRange(raw: string | null): RangeFilterState {
       endDate: typeof parsed.endDate === "string" ? parsed.endDate : null,
     };
   } catch {
-    return DEFAULT_RANGE;
+    return getDefaultRange();
   }
 }
 
 function getDisplayText(preset: RangePreset): string {
+  if (preset === "kapman-start") return "Kapman Start";
   if (preset === "all") return "All Time";
   if (preset === "ytd") return "YTD";
   if (preset === "1yr") return "1 yr";
@@ -89,21 +115,21 @@ function getDisplayText(preset: RangePreset): string {
 }
 
 export const RangeFilterContext = React.createContext<RangeFilterContextValue>({
-  range: DEFAULT_RANGE,
+  range: getDefaultRange(),
   setPreset: () => {
     throw new Error("RangeFilterContext is not mounted.");
   },
   setCustomRange: () => {
     throw new Error("RangeFilterContext is not mounted.");
   },
-  displayText: "All Time",
+  displayText: "Kapman Start",
   applyRangeToSearchParams: () => {
     throw new Error("RangeFilterContext is not mounted.");
   },
 });
 
 export function RangeFilterProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const [range, setRange] = useState<RangeFilterState>(DEFAULT_RANGE);
+  const [range, setRange] = useState<RangeFilterState>(() => getDefaultRange());
 
   useEffect(() => {
     const restored = parseStoredRange(window.localStorage.getItem(STORAGE_KEY));
