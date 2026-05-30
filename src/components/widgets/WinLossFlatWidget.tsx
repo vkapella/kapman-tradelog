@@ -1,42 +1,19 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { WinLossFlatChart } from "@/components/widgets/WinLossFlatChart";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
-import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
-import { formatNullablePercent } from "@/components/widgets/utils";
+import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { summarizeWinLossFlatRows } from "@/lib/metrics/win-loss-flat";
 import type { MatchedLotRecord } from "@/types/api";
 
 interface MatchedLotsPayload {
   data: MatchedLotRecord[];
 }
 
-interface WinLossFlatCounts {
-  WIN: number;
-  LOSS: number;
-  FLAT: number;
-}
-
-export function summarizeWinLossFlatRows(rows: MatchedLotRecord[], selectedAccounts: string[]): WinLossFlatCounts {
-  const counts = { WIN: 0, LOSS: 0, FLAT: 0 };
-  for (const row of rows) {
-    if (!isAccountInScope(selectedAccounts, row.accountId)) {
-      continue;
-    }
-
-    if (row.outcome === "WIN") {
-      counts.WIN += 1;
-    } else if (row.outcome === "LOSS") {
-      counts.LOSS += 1;
-    } else {
-      counts.FLAT += 1;
-    }
-  }
-
-  return counts;
-}
+export { summarizeWinLossFlatRows } from "@/lib/metrics/win-loss-flat";
 
 export function WinLossFlatWidget() {
   const { selectedAccounts } = useAccountFilterContext();
@@ -70,40 +47,9 @@ export function WinLossFlatWidget() {
 
   const counts = useMemo(() => summarizeWinLossFlatRows(rows, selectedAccounts), [rows, selectedAccounts]);
 
-  const chartData = [
-    { name: "WIN", value: counts.WIN, color: "var(--pos)" },
-    { name: "LOSS", value: counts.LOSS, color: "var(--neg)" },
-    { name: "FLAT", value: counts.FLAT, color: "var(--text-2)" },
-  ];
-
-  const winRate = counts.WIN + counts.LOSS === 0 ? null : (counts.WIN / (counts.WIN + counts.LOSS)) * 100;
-
   return (
     <WidgetCard title="Win / Loss / Flat">
-      <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-        <div className="h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={chartData} dataKey="value" innerRadius={35} outerRadius={52} paddingAngle={2}>
-                {chartData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="space-y-1 text-xs text-text-2">
-          <p className="text-base font-semibold text-text" title="Percent of closed lots with positive outcome. Flat lots excluded.">
-            Win Rate (%): {formatNullablePercent(winRate, 1)}
-          </p>
-          {chartData.map((entry) => (
-            <p key={entry.name}>
-              {entry.name}: {entry.value}
-            </p>
-          ))}
-        </div>
-      </div>
+      <WinLossFlatChart counts={counts} />
     </WidgetCard>
   );
 }

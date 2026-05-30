@@ -1,12 +1,14 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KpiCard } from "@/components/KpiCard";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
+import { WinLossFlatChart } from "@/components/widgets/WinLossFlatChart";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
+import { summarizeWinLossFlatRows, winRateFromCounts } from "@/lib/metrics/win-loss-flat";
 import type { InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "@/types/api";
@@ -22,7 +24,7 @@ interface DiagnosticsPayload { data: DiagnosticsResponse; }
 
 const analyticsKpiHelpText: Record<string, InfoTooltipContent> = {
   totalPnl: { formula: "Sum of realized P&L across setup groups in scope.", source: "/api/setups", interpretation: "Shows aggregate realized performance for the current analytics scope." },
-  winRate: { formula: "WIN count / (WIN + LOSS count), excluding FLAT lots.", source: "/api/matched-lots", interpretation: "Shows the share of closed lots that finished profitable." },
+  winRate: { formula: "WIN count divided by non-flat closed lot count, excluding FLAT lots.", source: "/api/matched-lots", interpretation: "Shows the share of closed lots that finished profitable." },
   avgHold: { formula: "Average holdingDays across matched lots in scope.", source: "/api/matched-lots", interpretation: "Shows the typical holding period of closed activity." },
   pairAmbiguities: { formula: "Count of ambiguous setup-pairing diagnostics.", source: "/api/diagnostics", interpretation: "Higher counts indicate more setup inference ambiguity that needs review." },
   shortCallPaired: { formula: "Count of short-call pairings detected by setup inference diagnostics.", source: "/api/diagnostics", interpretation: "Shows how often the inference engine paired short calls into covered-call style cases." },
@@ -83,21 +85,20 @@ export default function Page() {
 
   const filteredAllSetups = useMemo(() => allSetups.filter((row) => isAccountInScope(selectedAccounts, row.accountId)), [allSetups, selectedAccounts]);
   const filteredLots = useMemo(() => matchedLots.filter((row) => isAccountInScope(selectedAccounts, row.accountId)), [matchedLots, selectedAccounts]);
+  const winLossFlatCounts = useMemo(() => summarizeWinLossFlatRows(filteredLots, selectedAccounts), [filteredLots, selectedAccounts]);
 
   const kpis = useMemo(() => {
     const totalPnl = filteredAllSetups.reduce((sum, row) => sum + safeNumber(row.realizedPnl), 0);
-    const wins = filteredLots.filter((row) => row.outcome === "WIN").length;
-    const losses = filteredLots.filter((row) => row.outcome === "LOSS").length;
     const avgHold = filteredLots.length === 0 ? 0 : filteredLots.reduce((sum, row) => sum + row.holdingDays, 0) / filteredLots.length;
     return {
       totalPnl,
-      winRate: wins + losses === 0 ? null : (wins / (wins + losses)) * 100,
+      winRate: winRateFromCounts(winLossFlatCounts),
       avgHold,
       pairAmbiguities: diagnostics?.setupInference.setupInferencePairAmbiguousTotal ?? 0,
       shortCallPaired: diagnostics?.setupInference.setupInferenceShortCallPairedTotal ?? 0,
       synthExpires: diagnostics?.syntheticExpirationCount ?? 0,
     };
-  }, [diagnostics, filteredAllSetups, filteredLots]);
+  }, [diagnostics, filteredAllSetups, filteredLots, winLossFlatCounts]);
 
   const pnlByTagData = useMemo(() => {
     const grouped = new Map<string, number>();
@@ -107,13 +108,6 @@ export default function Page() {
     }
     return Array.from(grouped.entries()).map(([tag, pnl]) => ({ tag, pnl }));
   }, [filteredAllSetups]);
-
-  const outcomeData = useMemo(() => {
-    const wins = filteredLots.filter((row) => row.outcome === "WIN").length;
-    const losses = filteredLots.filter((row) => row.outcome === "LOSS").length;
-    const flat = filteredLots.filter((row) => row.outcome !== "WIN" && row.outcome !== "LOSS").length;
-    return [{ name: "WIN", value: wins, color: "var(--pos)" }, { name: "LOSS", value: losses, color: "var(--neg)" }, { name: "FLAT", value: flat, color: "var(--text-2)" }];
-  }, [filteredLots]);
 
   const sortedTableRows = useMemo(() => {
     const numericColumns = new Set<SortColumn>(["realizedPnl", "winRate", "expectancy", "averageHoldDays"]);
@@ -152,7 +146,7 @@ export default function Page() {
         </article>
         <article className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-2 text-sm font-semibold text-text">Win / Loss / Flat</h2>
-          <div className="h-56"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={outcomeData} dataKey="value" innerRadius={46} outerRadius={72}>{outcomeData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}</Pie></PieChart></ResponsiveContainer></div>
+          <WinLossFlatChart counts={winLossFlatCounts} />
         </article>
       </div>
 
