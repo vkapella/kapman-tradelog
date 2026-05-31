@@ -5,6 +5,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 import { KpiCard } from "@/components/KpiCard";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { WinLossFlatChart } from "@/components/widgets/WinLossFlatChart";
+import { AccountValueCurveWidget } from "@/components/widgets/AccountValueCurveWidget";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
@@ -138,6 +139,8 @@ export default function Page() {
         <KpiCard label="Short Call Paired" value={kpis.shortCallPaired} colorVariant="neutral" helpText={analyticsKpiHelpText.shortCallPaired} />
         <KpiCard label="Synth Expires" value={kpis.synthExpires} colorVariant="neutral" helpText={analyticsKpiHelpText.synthExpires} />
       </div>
+
+      <AccountValueCurveWidget />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-border bg-surface p-4">
