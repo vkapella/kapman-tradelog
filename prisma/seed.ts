@@ -17,7 +17,9 @@ const prisma = new PrismaClient();
 const seedFiles = [
   "fixtures/2026-05-29-AccountStatement53.csv",
   "fixtures/2026-05-29-AccountStatement54.csv",
-  "fixtures/History_for_Account_X19467537-19.csv",
+  "fixtures/History_for_Account_X19467537-20-2024.csv",
+  "fixtures/History_for_Account_X19467537-20-2025.csv",
+  "fixtures/History_for_Account_X19467537-20-2026-05-29.csv",
 ];
 
 async function seedCorporateActionAdjustments(accountInternalId: string, externalAccountId: string) {
