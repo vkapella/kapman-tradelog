@@ -12,6 +12,7 @@
     "test": "vitest run",
     "rebuild:pnl": "tsx scripts/rebuild-pnl.ts",
     "ingest:equity-marks": "tsx scripts/ingest-equity-marks.ts",
+    "ingest:option-marks": "tsx scripts/ingest-option-marks.ts",
     "backfill:value-snapshots": "tsx scripts/backfill-value-snapshots.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
