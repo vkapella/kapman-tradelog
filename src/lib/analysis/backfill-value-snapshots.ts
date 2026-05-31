@@ -52,6 +52,14 @@ type ManualAdjustmentRow = Prisma.ManualAdjustmentGetPayload<{
 
 const FALLBACK_MARK_LOOKBACK_DAYS = 10;
 const UPSERT_BATCH_SIZE = 50;
+const INTERNAL_CASH_EQUIVALENT_ROW_TYPES = new Set([
+  "MONEY_MARKET",
+  "MONEY_MARKET_BUY",
+  "MONEY_MARKET_REDEEM",
+  "MONEY_MARKET_EXCHANGE_OUT",
+  "MONEY_MARKET_EXCHANGE_IN",
+  "REDEMPTION",
+]);
 
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -74,9 +82,39 @@ function isOnOrBeforeDate(date: Date, snapshotDate: Date): boolean {
 }
 
 export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decimal | number; rowType: string }): number {
-  // CashEvent is the ledger boundary: every persisted row type contributes.
-  // TRD cash-balance rows are trade references and should not be persisted here.
+  // Money-market sweep rows move cash into/out of cash-equivalent funds. Trade
+  // cash deltas already capture buying power changes, so including sweeps here
+  // would double-count internal bookkeeping.
+  if (INTERNAL_CASH_EQUIVALENT_ROW_TYPES.has(event.rowType)) {
+    return 0;
+  }
+
   return Number(event.amount);
+}
+
+export function reconstructedTradeCashDelta(execution: {
+  assetClass: string;
+  side: string | null;
+  quantity: Prisma.Decimal | string | number;
+  price: Prisma.Decimal | string | number | null;
+}): number {
+  if (execution.side !== "BUY" && execution.side !== "SELL") {
+    return 0;
+  }
+
+  if (execution.price === null) {
+    return 0;
+  }
+
+  const quantity = Math.abs(Number(execution.quantity));
+  const price = Number(execution.price);
+  if (!Number.isFinite(quantity) || !Number.isFinite(price)) {
+    return 0;
+  }
+
+  const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
+  const grossCashFlow = quantity * price * multiplier;
+  return execution.side === "BUY" ? grossCashFlow * -1 : grossCashFlow;
 }
 
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
@@ -355,12 +393,21 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
     const accountAdjustments = adjustments.filter((adjustment) => adjustment.accountId === account.id);
     const accountCashEvents = cashEventRows.filter((event) => event.accountId === account.id);
     const accountFirstTradeDate = firstTradeDateByAccount.get(account.id) ?? null;
+    let executionCashIndex = 0;
     let cashEventIndex = 0;
     let cashValue = Number(account.startingCapital ?? 0);
     let accountSnapshotsUpserted = 0;
 
     for (const tradingDay of tradingDays) {
       const snapshotDate = startOfUtcDay(tradingDay.markDate);
+
+      while (executionCashIndex < accountExecutions.length && isOnOrBeforeDate(new Date(accountExecutions[executionCashIndex]?.tradeDate ?? 0), snapshotDate)) {
+        const execution = accountExecutions[executionCashIndex];
+        if (execution) {
+          cashValue += reconstructedTradeCashDelta(execution);
+        }
+        executionCashIndex += 1;
+      }
 
       while (cashEventIndex < accountCashEvents.length && isOnOrBeforeDate(accountCashEvents[cashEventIndex]?.eventDate ?? new Date(0), snapshotDate)) {
         const cashEvent = accountCashEvents[cashEventIndex];
