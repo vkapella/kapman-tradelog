@@ -1,0 +1,143 @@
+import {
+  applyExecutionSplitAdjustment,
+  applyPositionAdjustmentsWithWarnings,
+} from "@/lib/adjustments/apply-adjustments";
+import { buildExecutionPriceOverrideMap } from "@/lib/adjustments/execution-price-overrides";
+import { toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord, OpenPosition } from "@/types/api";
+
+function signedQuantity(side: string | null, quantity: number): number {
+  return side === "SELL" ? quantity * -1 : quantity;
+}
+
+function fallbackInstrumentKey(execution: ExecutionRecord): string {
+  const expiration = execution.expirationDate ? execution.expirationDate.slice(0, 10) : "";
+  return [
+    execution.accountId,
+    execution.assetClass,
+    execution.underlyingSymbol ?? execution.symbol,
+    execution.optionType ?? "",
+    execution.strike ?? "",
+    expiration,
+  ].join("|");
+}
+
+function asOfEndOfDayUtc(asOfDate: Date): Date | null {
+  if (!Number.isFinite(asOfDate.getTime())) {
+    return null;
+  }
+
+  return toEndOfDayUtcIso(asOfDate.toISOString().slice(0, 10));
+}
+
+function isOnOrBeforeEndOfDay(value: string | null, endOfDay: Date): boolean {
+  if (value === null) {
+    return false;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && timestamp <= endOfDay.getTime();
+}
+
+export function computeHoldingsAsOf(
+  executions: ExecutionRecord[],
+  matchedLots: MatchedLotRecord[],
+  adjustments: ManualAdjustmentRecord[],
+  asOfDate: Date,
+): OpenPosition[] {
+  const endOfDay = asOfEndOfDayUtc(asOfDate);
+  if (endOfDay === null) {
+    return [];
+  }
+
+  const effectiveAdjustments = adjustments.filter((adjustment) => isOnOrBeforeEndOfDay(adjustment.effectiveDate, endOfDay));
+  const matchedQtyByOpenExecutionId = new Map<string, number>();
+  for (const lot of matchedLots) {
+    if (!isOnOrBeforeEndOfDay(lot.closeTradeDate, endOfDay)) {
+      continue;
+    }
+
+    const quantity = Number(lot.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      continue;
+    }
+
+    const current = matchedQtyByOpenExecutionId.get(lot.openExecutionId) ?? 0;
+    matchedQtyByOpenExecutionId.set(lot.openExecutionId, current + quantity);
+  }
+
+  const grouped = new Map<string, OpenPosition>();
+  const executionPriceOverrides = buildExecutionPriceOverrideMap(effectiveAdjustments);
+
+  for (const execution of executions) {
+    if (!isOnOrBeforeEndOfDay(execution.tradeDate, endOfDay)) {
+      continue;
+    }
+
+    const isPlainEquityBuy =
+      execution.assetClass === "EQUITY" &&
+      execution.side === "BUY" &&
+      execution.openingClosingEffect === "UNKNOWN" &&
+      execution.spreadGroupId === null;
+
+    if (execution.openingClosingEffect !== "TO_OPEN" && !isPlainEquityBuy) {
+      continue;
+    }
+
+    const openQuantity = Number(execution.quantity);
+    if (!Number.isFinite(openQuantity) || openQuantity <= 0) {
+      continue;
+    }
+
+    const relevantAdjustments = effectiveAdjustments.filter((adjustment) => adjustment.accountId === execution.accountId);
+    const splitScales = applyExecutionSplitAdjustment(execution, relevantAdjustments);
+    const adjustedOpenQuantity = openQuantity * splitScales.quantityScale;
+    const matchedQuantity = matchedQtyByOpenExecutionId.get(execution.id) ?? 0;
+    const remainingQuantity = Math.max(0, adjustedOpenQuantity - matchedQuantity);
+    if (remainingQuantity === 0) {
+      continue;
+    }
+
+    const key = execution.instrumentKey ?? fallbackInstrumentKey(execution);
+    const groupKey = execution.accountId + "::" + key;
+
+    const overridePrice = executionPriceOverrides.get(execution.id)?.overridePrice;
+    const price = overridePrice ?? Number(execution.price ?? 0);
+    const adjustedPrice = price * splitScales.priceScale;
+    const qtySigned = signedQuantity(execution.side, remainingQuantity);
+    const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
+
+    const existing = grouped.get(groupKey);
+    if (existing) {
+      existing.netQty += qtySigned;
+      existing.costBasis += qtySigned * adjustedPrice * multiplier;
+      continue;
+    }
+
+    grouped.set(groupKey, {
+      symbol: execution.symbol,
+      underlyingSymbol: execution.underlyingSymbol ?? execution.symbol,
+      assetClass: execution.assetClass === "OPTION" ? "OPTION" : "EQUITY",
+      optionType: execution.optionType === "CALL" || execution.optionType === "PUT" ? execution.optionType : null,
+      strike: execution.strike,
+      expirationDate: execution.expirationDate,
+      instrumentKey: key,
+      netQty: qtySigned,
+      costBasis: qtySigned * adjustedPrice * multiplier,
+      accountId: execution.accountId,
+    });
+  }
+
+  const basePositions = Array.from(grouped.values())
+    .filter((position) => position.netQty !== 0)
+    .sort((left, right) => {
+      const symbolOrder = left.underlyingSymbol.localeCompare(right.underlyingSymbol);
+      if (symbolOrder !== 0) {
+        return symbolOrder;
+      }
+
+      return left.instrumentKey.localeCompare(right.instrumentKey);
+    });
+
+  return applyPositionAdjustmentsWithWarnings(basePositions, effectiveAdjustments).positions;
+}
