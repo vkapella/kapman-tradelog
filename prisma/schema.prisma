@@ -65,6 +65,23 @@ enum PositionSnapshotStatus {
   FAILED
 }
 
+enum MarkAssetClass {
+  EQUITY
+  OPTION
+}
+
+enum MarkSource {
+  MASSIVE_S3
+  POLYGON_REST
+  MANUAL
+}
+
+enum ValueSnapshotSource {
+  RECONSTRUCTED
+  BROKER_NLV
+  MIXED
+}
+
 model Account {
   id              String   @id @default(cuid())
   accountId       String   @unique @map("account_id")
@@ -77,13 +94,14 @@ model Account {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  imports     Import[]
-  executions  Execution[]
-  snapshots   DailyAccountSnapshot[]
-  cashEvents  CashEvent[]
-  adjustments ManualAdjustment[]
-  setupGroups SetupGroup[]
-  matchedLots MatchedLot[]
+  imports        Import[]
+  executions     Execution[]
+  snapshots      DailyAccountSnapshot[]
+  cashEvents     CashEvent[]
+  adjustments    ManualAdjustment[]
+  setupGroups    SetupGroup[]
+  matchedLots    MatchedLot[]
+  valueSnapshots AccountValueSnapshot[]
 
   @@map("accounts")
 }
@@ -148,8 +166,8 @@ model Execution {
   accountId String  @map("account_id")
   account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  openMatchedLots  MatchedLot[] @relation("open_execution")
-  closeMatchedLots MatchedLot[] @relation("close_execution")
+  openMatchedLots  MatchedLot[]      @relation("open_execution")
+  closeMatchedLots MatchedLot[]      @relation("close_execution")
   importLinks      ImportExecution[]
 
   @@unique([accountId, brokerTxId])
@@ -193,6 +211,7 @@ model MatchedLot {
   closeExecution   Execution? @relation("close_execution", fields: [closeExecutionId], references: [id], onDelete: SetNull)
 
   setupGroupLots SetupGroupLot[]
+  excursion      LotExcursion?
 
   @@index([accountId])
   @@map("matched_lots")
@@ -313,4 +332,79 @@ model ManualAdjustment {
   @@index([accountId, symbol, effectiveDate])
   @@index([status, effectiveDate])
   @@map("manual_adjustments")
+}
+
+/// Daily OHLC for one instrument (equity symbol or option contract).
+/// instrumentKey is the canonical key defined in 00-overview §7.
+model HistoricalMark {
+  id            String         @id @default(cuid())
+  instrumentKey String         @map("instrument_key")
+  assetClass    MarkAssetClass @map("asset_class")
+  /// Equity: symbol. Option: underlying symbol. Useful for filtering/backfill.
+  symbol        String
+  markDate      DateTime       @map("mark_date") @db.Date
+  open          Decimal        @db.Decimal(20, 6)
+  high          Decimal        @db.Decimal(20, 6)
+  low           Decimal        @db.Decimal(20, 6)
+  close         Decimal        @db.Decimal(20, 6)
+  volume        Decimal?       @db.Decimal(28, 6)
+  source        MarkSource     @default(MASSIVE_S3)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@unique([instrumentKey, markDate])
+  @@index([symbol, markDate])
+  @@index([markDate])
+  @@map("historical_marks")
+}
+
+/// Materialized daily account value, split by asset class. One row per account/date.
+/// This is what GET /api/analysis/account-value-series reads.
+model AccountValueSnapshot {
+  id                    String              @id @default(cuid())
+  snapshotDate          DateTime            @map("snapshot_date") @db.Date
+  cashValue             Decimal             @map("cash_value") @db.Decimal(20, 6)
+  equityValue           Decimal             @map("equity_value") @db.Decimal(20, 6)
+  optionValue           Decimal             @map("option_value") @db.Decimal(20, 6)
+  totalValue            Decimal             @map("total_value") @db.Decimal(20, 6)
+  /// Broker-reported NLV for this date if available (for reconciliation only).
+  brokerNlv             Decimal?            @map("broker_nlv") @db.Decimal(20, 6)
+  /// brokerNlv - totalValue when both present; null otherwise.
+  reconcileDelta        Decimal?            @map("reconcile_delta") @db.Decimal(20, 6)
+  /// Count of held instruments with no mark on this date (data-quality signal).
+  unpricedPositionCount Int                 @default(0) @map("unpriced_position_count")
+  source                ValueSnapshotSource @default(RECONSTRUCTED)
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  accountId String  @map("account_id")
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, snapshotDate])
+  @@index([snapshotDate])
+  @@map("account_value_snapshots")
+}
+
+/// Per matched-lot maximum favorable / adverse excursion. Populated by story 08.
+model LotExcursion {
+  id           String    @id @default(cuid())
+  /// $ best unrealized gain during the holding window (>= 0 expected, but store raw).
+  mfe          Decimal   @db.Decimal(20, 6)
+  /// $ worst unrealized loss during the holding window (<= 0 expected, but store raw).
+  mae          Decimal   @db.Decimal(20, 6)
+  /// As a fraction of cost basis (e.g. 0.25 = +25%). Null if cost basis is 0.
+  mfePct       Decimal?  @map("mfe_pct") @db.Decimal(12, 6)
+  maePct       Decimal?  @map("mae_pct") @db.Decimal(12, 6)
+  mfeDate      DateTime? @map("mfe_date") @db.Date
+  maeDate      DateTime? @map("mae_date") @db.Date
+  /// Number of trading days in the window that had a usable mark.
+  pricedDays   Int       @default(0) @map("priced_days")
+  /// Number of trading days in the window with NO mark (data-quality signal).
+  unpricedDays Int       @default(0) @map("unpriced_days")
+  computedAt   DateTime  @default(now()) @map("computed_at")
+
+  matchedLotId String     @unique @map("matched_lot_id")
+  matchedLot   MatchedLot @relation(fields: [matchedLotId], references: [id], onDelete: Cascade)
+
+  @@map("lot_excursions")
 }
