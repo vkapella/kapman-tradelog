@@ -11,18 +11,20 @@ Local DB row types observed before implementing the backfill:
 | MONEY_MARKET_REDEEM | 9 | 27626.68 |
 | TRANSFER_IN | 1 | 52973.60 |
 
-Treatment for Story 04:
+Treatment for Story 04 after cash-reconstruction correction:
 
-- Include all persisted `CashEvent.amount` rows in the cumulative cash ledger:
-  `startingCapital + sum(CashEvent.amount where eventDate <= D)`.
+- Include trade cash flows derived from executions in the cumulative cash ledger:
+  buys reduce cash, sells increase cash, and options use a 100x multiplier.
+- Include external persisted `CashEvent.amount` rows in the cumulative cash ledger:
+  `startingCapital + trade cash + external CashEvent.amount where date <= D`.
 - Do not include `TRD` cash-balance rows here. The thinkorswim parser uses `TRD` rows as trade
   references/fee enrichment, not persisted `CashEvent` rows, so trade proceeds are not counted
   twice against reconstructed holdings.
 - `FND`, `DIVIDEND`, and `TRANSFER_IN` are direct cash movements.
-- `MONEY_MARKET_*` rows are kept because this app stores them as cash events, not valued
-  positions. If those rows prove to be pure sweep bookkeeping for a given account export, the
-  resulting mismatch remains visible as `reconcileDelta` against broker NLV instead of being
-  hidden.
+- `MONEY_MARKET_*` and `REDEMPTION` rows are internal cash-equivalent sweep bookkeeping for
+  the reconstructed value curve. They are excluded from `cashValue` because trade cash flows
+  already capture buying-power changes; including sweeps would double-count internal movement
+  between cash and money-market funds.
 
-This matches the locked story decision that `CashEvent` is the cash source of truth while
-`DailyAccountSnapshot.totalCash` and broker NLV are reconciliation checks.
+This keeps reconstructed cash from double-counting deployed capital while preserving
+`DailyAccountSnapshot.totalCash` and broker NLV as reconciliation checks.
