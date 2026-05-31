@@ -23,6 +23,7 @@ describe("parseFidelityCsv", () => {
     expect(extractAccountIdFromFilename(FIXTURE_FILENAME_8)).toBe(FIXTURE_ACCOUNT_ID);
     expect(extractAccountIdFromFilename(FIXTURE_FILENAME_9)).toBe(FIXTURE_ACCOUNT_ID);
     expect(extractAccountIdFromFilename(FIXTURE_FILENAME_10)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(`History_for_Account_${FIXTURE_ACCOUNT_ID}-20-2026-05-29.csv`)).toBe(FIXTURE_ACCOUNT_ID);
     expect(extractAccountIdFromFilename("unexpected.csv")).toBeNull();
   });
 

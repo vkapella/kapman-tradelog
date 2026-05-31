@@ -4,7 +4,7 @@ import type { RawFidelityRow } from "./types";
 const HEADER_ROW_INDEX = 2;
 const DATA_START_INDEX = 3;
 
-const ACCOUNT_ID_FILENAME_PATTERN = /History_for_Account_([A-Z0-9]+)-\d+\.csv$/;
+const ACCOUNT_ID_FILENAME_PATTERN = /History_for_Account_([A-Z0-9]+)-[^/\\]+\.csv$/;
 
 const RUN_DATE_COLUMN = "Run Date";
 const ACTION_COLUMN = "Action";
