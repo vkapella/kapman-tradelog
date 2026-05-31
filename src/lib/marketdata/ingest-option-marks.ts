@@ -16,6 +16,7 @@ interface LoggerLike {
 }
 
 export type OptionMarksIngestSource = "s3" | "rest";
+export const DEFAULT_POLYGON_HISTORICAL_LOOKBACK_YEARS = 2;
 
 export interface IngestOptionMarksInput {
   startDate?: Date;
@@ -33,6 +34,7 @@ export interface IngestOptionMarksSummary {
   source: OptionMarksIngestSource;
   startDate: string;
   endDate: string;
+  historicalAccessStartDate: string;
   contractsRequested: number;
   datesProcessed: number;
   datesSkippedMissing: number;
@@ -43,6 +45,8 @@ export interface IngestOptionMarksSummary {
 }
 
 interface IngestDefaults {
+  requestedStartDate: Date;
+  historicalAccessStartDate: Date;
   startDate: Date;
   endDate: Date;
   contracts: string[];
@@ -75,6 +79,55 @@ function utcDateLabel(date: Date): string {
 function getUtcYesterday(now: Date): Date {
   const todayUtc = startOfUtcDay(now);
   return new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  return new Date(startOfUtcDay(date).getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function subtractUtcYears(date: Date, years: number): Date {
+  return new Date(Date.UTC(date.getUTCFullYear() - years, date.getUTCMonth(), date.getUTCDate()));
+}
+
+function parseDateOnlyUtc(value: string, envName: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`Invalid ${envName} date format: ${value}. Expected YYYY-MM-DD.`);
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new Error(`Invalid ${envName} date value: ${value}.`);
+  }
+
+  return parsed;
+}
+
+function parsePositiveInteger(value: string, envName: string): number {
+  if (!/^\d+$/.test(value.trim())) {
+    throw new Error(`Invalid ${envName} value: ${value}. Expected a positive integer.`);
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${envName} value: ${value}. Expected a positive integer.`);
+  }
+
+  return parsed;
+}
+
+export function resolvePolygonHistoricalAccessStartDate(now: Date = new Date(), env: Record<string, string | undefined> = process.env): Date {
+  const explicitStartDate = env.POLYGON_HISTORICAL_MARKS_START_DATE?.trim();
+  if (explicitStartDate) {
+    return parseDateOnlyUtc(explicitStartDate, "POLYGON_HISTORICAL_MARKS_START_DATE");
+  }
+
+  const lookbackYearsRaw = env.POLYGON_HISTORICAL_LOOKBACK_YEARS?.trim();
+  const lookbackYears = lookbackYearsRaw
+    ? parsePositiveInteger(lookbackYearsRaw, "POLYGON_HISTORICAL_LOOKBACK_YEARS")
+    : DEFAULT_POLYGON_HISTORICAL_LOOKBACK_YEARS;
+
+  // Start one day after the rolling boundary to avoid out-of-contract boundary calls.
+  return addUtcDays(subtractUtcYears(startOfUtcDay(now), lookbackYears), 1);
 }
 
 function isWeekend(date: Date): boolean {
@@ -187,10 +240,14 @@ export async function resolveIngestOptionMarksDefaults(input: {
   const contracts = input.contracts ? normalizeContracts(input.contracts) : await loadDistinctOptionContracts(prismaClient);
   const fallbackEndDate = getUtcYesterday(now);
   const earliestTradeDate = await loadEarliestOptionTradeDate(prismaClient);
-  const startDate = startOfUtcDay(input.startDate ?? earliestTradeDate ?? fallbackEndDate);
+  const requestedStartDate = startOfUtcDay(input.startDate ?? earliestTradeDate ?? fallbackEndDate);
+  const historicalAccessStartDate = resolvePolygonHistoricalAccessStartDate(now);
+  const startDate = requestedStartDate.getTime() < historicalAccessStartDate.getTime() ? historicalAccessStartDate : requestedStartDate;
   const endDate = startOfUtcDay(input.endDate ?? fallbackEndDate);
 
   return {
+    requestedStartDate,
+    historicalAccessStartDate,
     startDate,
     endDate,
     contracts,
@@ -235,7 +292,7 @@ async function ingestOptionMarksFromS3(params: {
   s3Client?: S3LikeClient;
   logger: LoggerLike;
   defaults: IngestDefaults;
-}): Promise<Omit<IngestOptionMarksSummary, "source" | "startDate" | "endDate" | "contractsRequested">> {
+}): Promise<Omit<IngestOptionMarksSummary, "source" | "startDate" | "endDate" | "historicalAccessStartDate" | "contractsRequested">> {
   const s3Config = defaultS3FlatfilesConfig();
   const s3Client = params.s3Client ?? createS3FlatfilesClient(s3Config);
   const availableDates = await listAvailableDatesInRange(s3Client, {
@@ -378,7 +435,7 @@ async function ingestOptionMarksFromRest(params: {
   logger: LoggerLike;
   defaults: IngestDefaults;
   polygonApiKey?: string;
-}): Promise<Omit<IngestOptionMarksSummary, "source" | "startDate" | "endDate" | "contractsRequested">> {
+}): Promise<Omit<IngestOptionMarksSummary, "source" | "startDate" | "endDate" | "historicalAccessStartDate" | "contractsRequested">> {
   const apiKey = params.polygonApiKey ?? process.env.POLYGON_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error("Missing POLYGON_API_KEY for option mark REST fallback.");
@@ -440,7 +497,15 @@ export async function ingestOptionMarks(input: IngestOptionMarksInput = {}): Pro
   });
 
   if (defaults.startDate.getTime() > defaults.endDate.getTime()) {
-    throw new Error(`Invalid date range: start ${utcDateLabel(defaults.startDate)} is after end ${utcDateLabel(defaults.endDate)}.`);
+    throw new Error(
+      `Invalid date range after historical-access clamp: start ${utcDateLabel(defaults.startDate)} is after end ${utcDateLabel(defaults.endDate)}. Earliest configured access date is ${utcDateLabel(defaults.historicalAccessStartDate)}.`,
+    );
+  }
+
+  if (defaults.requestedStartDate.getTime() < defaults.historicalAccessStartDate.getTime()) {
+    logger.warn(
+      `[ingest:option-marks] requested start ${utcDateLabel(defaults.requestedStartDate)} is before Polygon historical access start ${utcDateLabel(defaults.historicalAccessStartDate)}; clamping to ${utcDateLabel(defaults.startDate)}.`,
+    );
   }
 
   if (defaults.contracts.length === 0) {
@@ -449,6 +514,7 @@ export async function ingestOptionMarks(input: IngestOptionMarksInput = {}): Pro
       source,
       startDate: utcDateLabel(defaults.startDate),
       endDate: utcDateLabel(defaults.endDate),
+      historicalAccessStartDate: utcDateLabel(defaults.historicalAccessStartDate),
       contractsRequested: 0,
       datesProcessed: 0,
       datesSkippedMissing: 0,
@@ -477,6 +543,7 @@ export async function ingestOptionMarks(input: IngestOptionMarksInput = {}): Pro
     source,
     startDate: utcDateLabel(defaults.startDate),
     endDate: utcDateLabel(defaults.endDate),
+    historicalAccessStartDate: utcDateLabel(defaults.historicalAccessStartDate),
     contractsRequested: defaults.contracts.length,
     ...ingested,
   };

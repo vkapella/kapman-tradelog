@@ -26,3 +26,7 @@ S3 object download returned HTTP 403 with the locally configured plan, so the OP
 - No full OPRA universe storage is performed. Both paths are filtered to explicit or discovered held option contracts.
 - REST fallback smoke succeeded for one recent held contract over `2026-05-28` to `2026-05-29`, upserting 2 local marks.
 - REST fallback for older `2024` option aggregate data returned a plan authorization error, so local historical coverage still depends on the configured Polygon plan.
+- After confirming the plan includes a two-year historical window, retries inside that window succeeded:
+  - REST fallback for `INTC|CALL|34|2024-07-19` over `2024-06-10` to `2024-06-14` upserted 5 marks.
+  - S3 download for `us_options_opra/day_aggs_v1/2024/06/2024-06-10.csv.gz` succeeded and returned the expected OPRA aggregate header.
+- Option mark ingestion now clamps requested/default start dates to the configured Polygon historical access floor. Defaults use a two-year rolling window and start one day after the boundary; override with `POLYGON_HISTORICAL_MARKS_START_DATE=YYYY-MM-DD` if Massive provides an account-specific fixed date.
