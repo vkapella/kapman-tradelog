@@ -317,6 +317,29 @@ export interface OverviewSummaryResponse {
   }>;
 }
 
+export interface AccountValueSeriesPoint {
+  date: string;
+  cash: string;
+  stockEtf: string;
+  options: string;
+  total: string;
+  brokerNlv: string | null;
+  reconcileDelta: string | null;
+  unpricedPositionCount: number;
+}
+
+export interface AccountValueSeriesResponse {
+  points: AccountValueSeriesPoint[];
+  meta: {
+    accountCount: number;
+    startDate: string | null;
+    endDate: string | null;
+    daysWithUnpriced: number;
+    firstTotal: string | null;
+    lastTotal: string | null;
+  };
+}
+
 export interface ReconciliationResponse {
   startingCapital: string;
   startingCapitalConfigured: boolean;
