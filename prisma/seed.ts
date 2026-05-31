@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { parseAccountMetadataFromCsv } from "../src/lib/accounts/parse-account-metadata";
+import { detectAdapter } from "../src/lib/adapters/registry";
 import { getBrokerDisplayName, getDefaultStartingCapital } from "../src/lib/accounts/defaults";
-import { parseThinkorswimTradeHistory } from "../src/lib/adapters/thinkorswim/trade-history";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
+import { hydrateFidelityCashSnapshots } from "../src/lib/imports/hydrate-fidelity-cash-snapshots";
 import { replaceImportCashEvents } from "../src/lib/imports/replace-import-cash-events";
 import { replaceImportExecutions } from "../src/lib/imports/replace-import-executions";
 import { replaceImportSnapshots } from "../src/lib/imports/replace-import-snapshots";
@@ -13,9 +13,11 @@ import { rebuildAccountLedger } from "../src/lib/ledger/rebuild-account-ledger";
 
 const prisma = new PrismaClient();
 
+// Seed the full fixture set committed in-repo for both brokers.
 const seedFiles = [
-  "fixtures/2026-04-06-AccountStatement.csv",
-  "fixtures/2026-04-06-AccountStatement-2.csv",
+  "fixtures/2026-05-29-AccountStatement53.csv",
+  "fixtures/2026-05-29-AccountStatement54.csv",
+  "fixtures/History_for_Account_X19467537-19.csv",
 ];
 
 async function seedCorporateActionAdjustments(accountInternalId: string, externalAccountId: string) {
@@ -73,28 +75,44 @@ async function seedCorporateActionAdjustments(accountInternalId: string, externa
 async function main() {
   for (const fixturePath of seedFiles) {
     const csvText = readFileSync(join(process.cwd(), fixturePath), "utf8");
-    const metadata = parseAccountMetadataFromCsv(csvText);
-    const parsedTradeHistory = parseThinkorswimTradeHistory(csvText);
+    const filename = fixturePath.split("/").pop() ?? fixturePath;
+    const matched = detectAdapter({
+      name: filename,
+      content: csvText,
+      mimeType: "text/csv",
+      size: csvText.length,
+    });
+    if (!matched) {
+      throw new Error(`No adapter matched fixture ${fixturePath}`);
+    }
+
+    const parsed = matched.adapter.parse({
+      name: filename,
+      content: csvText,
+      mimeType: "text/csv",
+      size: csvText.length,
+    });
+    const broker = matched.adapter.id === "fidelity" ? "FIDELITY" : "SCHWAB_THINKORSWIM";
+    const metadata = parsed.accountMetadata;
 
     const account = await prisma.account.upsert({
       where: { accountId: metadata.accountId },
       update: {
         label: metadata.label,
-        broker: metadata.broker,
+        broker,
         paperMoney: metadata.paperMoney,
       },
       create: {
         accountId: metadata.accountId,
         label: metadata.label,
         displayLabel: metadata.label,
-        broker: metadata.broker,
-        brokerName: getBrokerDisplayName(metadata.broker),
+        broker,
+        brokerName: getBrokerDisplayName(broker),
         paperMoney: metadata.paperMoney,
-        startingCapital: getDefaultStartingCapital(metadata.broker),
+        startingCapital: getDefaultStartingCapital(broker),
       },
     });
 
-    const filename = fixturePath.split("/").pop() ?? fixturePath;
     const existingSeedImports = await prisma.import.findMany({
       where: {
         accountId: account.id,
@@ -115,30 +133,30 @@ async function main() {
     const seededImport = await prisma.import.create({
       data: {
         filename,
-        broker: metadata.broker,
+        broker,
         status: "COMMITTED",
         parsedRows: 0,
         persistedRows: 0,
-        skippedRows: parsedTradeHistory.skippedRows,
+        skippedRows: parsed.skippedRows,
         skippedDuplicateRows: 0,
         failedRows: 0,
-        warnings: parsedTradeHistory.warnings as unknown as Prisma.InputJsonValue,
+        warnings: parsed.warnings as unknown as Prisma.InputJsonValue,
         sourceFileText: csvText,
         accountId: account.id,
       },
     });
 
     await prisma.$transaction(async (tx) => {
-      await replaceImportSnapshots(tx, seededImport.id, account.id, parsedTradeHistory.snapshots);
-      await replaceImportCashEvents(tx, seededImport.id, account.id, parsedTradeHistory.cashEvents);
+      await replaceImportSnapshots(tx, seededImport.id, account.id, parsed.snapshots);
+      await replaceImportCashEvents(tx, seededImport.id, account.id, parsed.cashEvents);
 
       const ingestResult = await replaceImportExecutions(
         tx,
         seededImport.id,
-        parsedTradeHistory.executions.map((execution) => ({
+        parsed.executions.map((execution) => ({
           importId: seededImport.id,
           accountId: account.id,
-          broker: metadata.broker,
+          broker,
           eventTimestamp: execution.eventTimestamp,
           tradeDate: execution.tradeDate,
           eventType: execution.eventType,
@@ -160,6 +178,9 @@ async function main() {
           rawRowJson: execution.rawRowJson,
         })),
       );
+      if (broker === "FIDELITY") {
+        await hydrateFidelityCashSnapshots(tx, account.id);
+      }
 
       const rebuilt = await rebuildAccountLedger(tx, account.id, new Date());
       const setupResult = await rebuildAccountSetups(tx, account.id);
@@ -168,11 +189,11 @@ async function main() {
         data: {
           parsedRows: ingestResult.parsed,
           persistedRows: ingestResult.inserted,
-          skippedRows: parsedTradeHistory.skippedRows,
+          skippedRows: parsed.skippedRows,
           skippedDuplicateRows: ingestResult.skipped_duplicate,
           failedRows: ingestResult.failed,
           warnings: [
-            ...parsedTradeHistory.warnings,
+            ...parsed.warnings,
             ...ingestResult.failures.map((message, index) => ({
               code: "INGEST_ROW_FAILED",
               message,
