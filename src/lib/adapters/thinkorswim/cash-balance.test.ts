@@ -69,6 +69,7 @@ describe("parseCashBalanceSnapshots", () => {
 
     const parsed = parseCashBalanceRows(csv);
 
+    expect(parsed.cashEvents).toHaveLength(0);
     expect(parsed.tradeReferences).toHaveLength(2);
     expect(parsed.tradeReferences.map((entry) => entry.refNumber)).toEqual(["5278319313", "5278319395"]);
     expect(parsed.tradeReferences.every((entry) => entry.symbol === "RKLB")).toBe(true);

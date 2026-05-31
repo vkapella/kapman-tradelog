@@ -73,6 +73,12 @@ function isOnOrBeforeDate(date: Date, snapshotDate: Date): boolean {
   return date.getTime() <= toEndOfDayUtcIso(dateKey(snapshotDate)).getTime();
 }
 
+export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decimal | number; rowType: string }): number {
+  // CashEvent is the ledger boundary: every persisted row type contributes.
+  // TRD cash-balance rows are trade references and should not be persisted here.
+  return Number(event.amount);
+}
+
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
   return {
     id: row.id,
@@ -293,6 +299,7 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
       select: {
         accountId: true,
         eventDate: true,
+        rowType: true,
         amount: true,
       },
     }),
@@ -356,7 +363,10 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
       const snapshotDate = startOfUtcDay(tradingDay.markDate);
 
       while (cashEventIndex < accountCashEvents.length && isOnOrBeforeDate(accountCashEvents[cashEventIndex]?.eventDate ?? new Date(0), snapshotDate)) {
-        cashValue += Number(accountCashEvents[cashEventIndex]?.amount ?? 0);
+        const cashEvent = accountCashEvents[cashEventIndex];
+        if (cashEvent) {
+          cashValue += cumulativeLedgerAmountForCashEvent(cashEvent);
+        }
         cashEventIndex += 1;
       }
 
