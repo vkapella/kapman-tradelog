@@ -6,6 +6,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { WinLossFlatChart } from "@/components/widgets/WinLossFlatChart";
 import { AccountValueCurveWidget } from "@/components/widgets/AccountValueCurveWidget";
+import { ExcursionWidget } from "@/components/widgets/ExcursionWidget";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams, isAccountInScope } from "@/lib/api/account-scope";
@@ -141,6 +142,7 @@ export default function Page() {
       </div>
 
       <AccountValueCurveWidget />
+      <ExcursionWidget />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-border bg-surface p-4">

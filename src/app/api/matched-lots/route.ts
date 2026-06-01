@@ -81,6 +81,7 @@ export async function GET(request: Request) {
       include: {
         openExecution: true,
         closeExecution: true,
+        excursion: true,
       },
       orderBy: [{ closeExecution: { tradeDate: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
@@ -103,6 +104,16 @@ export async function GET(request: Request) {
     outcome: row.outcome,
     openExecutionId: row.openExecutionId,
     closeExecutionId: row.closeExecutionId,
+    excursion: row.excursion
+      ? {
+          mfe: row.excursion.mfe.toString(),
+          mae: row.excursion.mae.toString(),
+          mfePct: row.excursion.mfePct?.toString() ?? null,
+          maePct: row.excursion.maePct?.toString() ?? null,
+          pricedDays: row.excursion.pricedDays,
+          unpricedDays: row.excursion.unpricedDays,
+        }
+      : null,
   }));
 
   return listResponse(data, { total, page, pageSize });

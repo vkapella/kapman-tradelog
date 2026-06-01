@@ -14,6 +14,7 @@
     "ingest:equity-marks": "tsx scripts/ingest-equity-marks.ts",
     "ingest:option-marks": "tsx scripts/ingest-option-marks.ts",
     "backfill:value-snapshots": "tsx scripts/backfill-value-snapshots.ts",
+    "backfill:lot-excursions": "tsx scripts/backfill-lot-excursions.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed"
