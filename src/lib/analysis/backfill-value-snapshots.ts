@@ -50,6 +50,11 @@ type ManualAdjustmentRow = Prisma.ManualAdjustmentGetPayload<{
   };
 }>;
 
+export interface AccountActivityDateRow {
+  accountId: string;
+  date: Date | null;
+}
+
 const FALLBACK_MARK_LOOKBACK_DAYS = 10;
 const UPSERT_BATCH_SIZE = 50;
 const INTERNAL_CASH_EQUIVALENT_ROW_TYPES = new Set([
@@ -81,6 +86,36 @@ function isOnOrBeforeDate(date: Date, snapshotDate: Date): boolean {
   return date.getTime() <= toEndOfDayUtcIso(dateKey(snapshotDate)).getTime();
 }
 
+function setEarliestAccountActivityDate(result: Map<string, Date>, row: AccountActivityDateRow): void {
+  if (!row.date) {
+    return;
+  }
+
+  const date = startOfUtcDay(row.date);
+  const existing = result.get(row.accountId);
+  if (!existing || date.getTime() < existing.getTime()) {
+    result.set(row.accountId, date);
+  }
+}
+
+export function buildFirstActivityDateByAccount(input: {
+  tradeDates: AccountActivityDateRow[];
+  cashEventDates: AccountActivityDateRow[];
+  brokerSnapshotDates: AccountActivityDateRow[];
+}): Map<string, Date> {
+  const result = new Map<string, Date>();
+  for (const row of input.tradeDates) {
+    setEarliestAccountActivityDate(result, row);
+  }
+  for (const row of input.cashEventDates) {
+    setEarliestAccountActivityDate(result, row);
+  }
+  for (const row of input.brokerSnapshotDates) {
+    setEarliestAccountActivityDate(result, row);
+  }
+  return result;
+}
+
 export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decimal | number; rowType: string }): number {
   // Money-market sweep rows move cash into/out of cash-equivalent funds. Trade
   // cash deltas already capture buying power changes, so including sweeps here
@@ -97,7 +132,12 @@ export function reconstructedTradeCashDelta(execution: {
   side: string | null;
   quantity: Prisma.Decimal | string | number;
   price: Prisma.Decimal | string | number | null;
+  rawRowJson?: Prisma.JsonValue | null;
 }): number {
+  if (isCashNeutralTransferReceive(execution.rawRowJson)) {
+    return 0;
+  }
+
   if (execution.side !== "BUY" && execution.side !== "SELL") {
     return 0;
   }
@@ -115,6 +155,24 @@ export function reconstructedTradeCashDelta(execution: {
   const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
   const grossCashFlow = quantity * price * multiplier;
   return execution.side === "BUY" ? grossCashFlow * -1 : grossCashFlow;
+}
+
+function isRecord(value: Prisma.JsonValue | null | undefined): value is Prisma.JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function jsonStringField(value: Prisma.JsonValue | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function isCashNeutralTransferReceive(rawRowJson: Prisma.JsonValue | null | undefined): boolean {
+  if (!isRecord(rawRowJson)) {
+    return false;
+  }
+
+  const action = jsonStringField(rawRowJson.action)?.toUpperCase() ?? "";
+  const rawAction = jsonStringField(rawRowJson.rawAction)?.toUpperCase() ?? "";
+  return action.includes("ACAT_RECEIVE") || rawAction.includes("ACAT RECEIVE");
 }
 
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
@@ -258,12 +316,28 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
     throw new Error(`Invalid date range: start ${dateKey(startDate)} is after end ${dateKey(endDate)}.`);
   }
 
-  const firstTradeRows = await prismaClient.execution.groupBy({
-    by: ["accountId"],
-    where: { accountId: { in: scopedAccountIds } },
-    _min: { tradeDate: true },
+  const [firstTradeRows, firstCashEventRows, firstBrokerSnapshotRows] = await Promise.all([
+    prismaClient.execution.groupBy({
+      by: ["accountId"],
+      where: { accountId: { in: scopedAccountIds } },
+      _min: { tradeDate: true },
+    }),
+    prismaClient.cashEvent.groupBy({
+      by: ["accountId"],
+      where: { accountId: { in: scopedAccountIds } },
+      _min: { eventDate: true },
+    }),
+    prismaClient.dailyAccountSnapshot.groupBy({
+      by: ["accountId"],
+      where: { accountId: { in: scopedAccountIds } },
+      _min: { snapshotDate: true },
+    }),
+  ]);
+  const firstActivityDateByAccount = buildFirstActivityDateByAccount({
+    tradeDates: firstTradeRows.map((row) => ({ accountId: row.accountId, date: row._min.tradeDate })),
+    cashEventDates: firstCashEventRows.map((row) => ({ accountId: row.accountId, date: row._min.eventDate })),
+    brokerSnapshotDates: firstBrokerSnapshotRows.map((row) => ({ accountId: row.accountId, date: row._min.snapshotDate })),
   });
-  const firstTradeDateByAccount = new Map(firstTradeRows.map((row) => [row.accountId, row._min.tradeDate ? startOfUtcDay(row._min.tradeDate) : null]));
 
   const tradingDays = await prismaClient.historicalMark.findMany({
     where: {
@@ -388,11 +462,12 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
   const upserts: Array<Prisma.PrismaPromise<unknown>> = [];
 
   for (const account of accounts) {
+    const accountExecutionRows = executionRows.filter((execution) => execution.accountId === account.id);
     const accountExecutions = executions.filter((execution) => execution.accountId === account.id);
     const accountMatchedLots = matchedLots.filter((lot) => lot.accountId === account.id);
     const accountAdjustments = adjustments.filter((adjustment) => adjustment.accountId === account.id);
     const accountCashEvents = cashEventRows.filter((event) => event.accountId === account.id);
-    const accountFirstTradeDate = firstTradeDateByAccount.get(account.id) ?? null;
+    const accountFirstActivityDate = firstActivityDateByAccount.get(account.id) ?? null;
     let executionCashIndex = 0;
     let cashEventIndex = 0;
     let cashValue = Number(account.startingCapital ?? 0);
@@ -401,8 +476,8 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
     for (const tradingDay of tradingDays) {
       const snapshotDate = startOfUtcDay(tradingDay.markDate);
 
-      while (executionCashIndex < accountExecutions.length && isOnOrBeforeDate(new Date(accountExecutions[executionCashIndex]?.tradeDate ?? 0), snapshotDate)) {
-        const execution = accountExecutions[executionCashIndex];
+      while (executionCashIndex < accountExecutionRows.length && isOnOrBeforeDate(accountExecutionRows[executionCashIndex]?.tradeDate ?? new Date(0), snapshotDate)) {
+        const execution = accountExecutionRows[executionCashIndex];
         if (execution) {
           cashValue += reconstructedTradeCashDelta(execution);
         }
@@ -417,7 +492,7 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
         cashEventIndex += 1;
       }
 
-      if (accountFirstTradeDate === null || snapshotDate.getTime() < accountFirstTradeDate.getTime()) {
+      if (accountFirstActivityDate === null || snapshotDate.getTime() < accountFirstActivityDate.getTime()) {
         continue;
       }
 

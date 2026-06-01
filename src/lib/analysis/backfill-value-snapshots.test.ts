@@ -1,6 +1,32 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import { cumulativeLedgerAmountForCashEvent, reconstructedTradeCashDelta } from "./backfill-value-snapshots";
+import { buildFirstActivityDateByAccount, cumulativeLedgerAmountForCashEvent, reconstructedTradeCashDelta } from "./backfill-value-snapshots";
+
+function dateOnly(value: Date | undefined): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+describe("buildFirstActivityDateByAccount", () => {
+  it("starts funded idle accounts from broker snapshots before their first trade", () => {
+    const result = buildFirstActivityDateByAccount({
+      tradeDates: [{ accountId: "schwab-idle", date: new Date("2025-12-05T15:00:00.000Z") }],
+      cashEventDates: [],
+      brokerSnapshotDates: [{ accountId: "schwab-idle", date: new Date("2025-09-02T00:00:00.000Z") }],
+    });
+
+    expect(dateOnly(result.get("schwab-idle"))).toBe("2025-09-02");
+  });
+
+  it("uses the earliest available execution, cash event, or broker snapshot date per account", () => {
+    const result = buildFirstActivityDateByAccount({
+      tradeDates: [{ accountId: "account-1", date: new Date("2025-03-10T00:00:00.000Z") }],
+      cashEventDates: [{ accountId: "account-1", date: new Date("2025-02-01T00:00:00.000Z") }],
+      brokerSnapshotDates: [{ accountId: "account-1", date: new Date("2025-04-01T00:00:00.000Z") }],
+    });
+
+    expect(dateOnly(result.get("account-1"))).toBe("2025-02-01");
+  });
+});
 
 describe("cumulativeLedgerAmountForCashEvent", () => {
   it("includes external cash-event row types in the reconstructed cash ledger", () => {
@@ -103,6 +129,21 @@ describe("reconstructedTradeCashDelta", () => {
         side: "BUY",
         quantity: new Prisma.Decimal("10"),
         price: null,
+      }),
+    ).toBe(0);
+  });
+
+  it("does not reduce cash for transferred-in ACAT receive executions", () => {
+    expect(
+      reconstructedTradeCashDelta({
+        assetClass: "EQUITY",
+        side: "BUY",
+        quantity: new Prisma.Decimal("100"),
+        price: new Prisma.Decimal("89.81"),
+        rawRowJson: {
+          action: "EXECUTION BUY OPEN EQUITY (ACAT_RECEIVE)",
+          rawAction: "TRANSFER OF ASSETS ACAT RECEIVE SELECT SECTOR SPDR TRUST STATE STREET (XLE)",
+        },
       }),
     ).toBe(0);
   });

@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 
 const DEFAULT_REGION = "us-east-1";
 export const DEFAULT_EQUITY_S3_PREFIX = "us_stocks_sip/day_aggs_v1";
+export const DEFAULT_OPTIONS_S3_PREFIX = "us_options_opra/day_aggs_v1";
 
 export interface S3FlatfilesConfig {
   endpointUrl: string;
@@ -11,6 +12,7 @@ export interface S3FlatfilesConfig {
   accessKeyId: string;
   secretAccessKey: string;
   equityPrefix: string;
+  optionsPrefix: string;
 }
 
 export interface S3LikeClient {
@@ -34,6 +36,7 @@ export function defaultS3FlatfilesConfig(env: NodeJS.ProcessEnv = process.env): 
     accessKeyId: env.AWS_ACCESS_KEY_ID as string,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY as string,
     equityPrefix: env.POLYGON_S3_EQUITY_PREFIX?.trim() || DEFAULT_EQUITY_S3_PREFIX,
+    optionsPrefix: env.POLYGON_S3_OPTIONS_PREFIX?.trim() || DEFAULT_OPTIONS_S3_PREFIX,
   };
 }
 
