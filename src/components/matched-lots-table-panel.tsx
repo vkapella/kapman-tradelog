@@ -12,7 +12,7 @@ import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
-import { formatCurrency, safeNumber } from "@/components/widgets/utils";
+import { formatCurrency, formatNullablePercent, safeNumber } from "@/components/widgets/utils";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -20,7 +20,7 @@ import { fetchAllPages } from "@/lib/api/fetch-all-pages";
 import { buildDiagnosticCaseHref } from "@/lib/diagnostics/case-file-link";
 import type { ImportRecord, MatchedLotRecord } from "@/types/api";
 
-const MATCHED_LOTS_COLUMN_TEMPLATE = "120px 110px 150px 340px 80px 130px 110px 110px 150px 150px 120px";
+const MATCHED_LOTS_COLUMN_TEMPLATE = "120px 110px 150px 340px 80px 130px 110px 110px 110px 110px 100px 100px 90px 150px 150px 120px";
 
 function displayMatchedLotSymbol(row: Pick<MatchedLotRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -28,6 +28,10 @@ function displayMatchedLotSymbol(row: Pick<MatchedLotRecord, "symbol" | "underly
 
 function shortId(value: string): string {
   return `${value.slice(0, 8)}...`;
+}
+
+function formatFractionPercent(value: string | null | undefined): string {
+  return value === null || value === undefined ? "N/A" : formatNullablePercent(safeNumber(value) * 100, 1);
 }
 
 const MatchedLotsTableRow = memo(function MatchedLotsTableRow({
@@ -58,6 +62,11 @@ const MatchedLotsTableRow = memo(function MatchedLotsTableRow({
       <div className="px-2 py-2">
         {row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}
       </div>
+      <div className="px-2 py-2 text-right text-pos">{row.excursion ? formatCurrency(safeNumber(row.excursion.mfe)) : "N/A"}</div>
+      <div className="px-2 py-2 text-right text-neg">{row.excursion ? formatCurrency(safeNumber(row.excursion.mae)) : "N/A"}</div>
+      <div className="px-2 py-2 text-right">{formatFractionPercent(row.excursion?.mfePct)}</div>
+      <div className="px-2 py-2 text-right">{formatFractionPercent(row.excursion?.maePct)}</div>
+      <div className={`px-2 py-2 text-right ${row.excursion && row.excursion.unpricedDays > 0 ? "text-warn" : ""}`}>{row.excursion?.unpricedDays ?? "N/A"}</div>
       <div className="px-2 py-2 font-mono">
         <Link href={`/trade-records?tab=executions&execution=${row.openExecutionId}&account=${row.accountId}`} className="text-accent underline">
           {shortId(row.openExecutionId)}
@@ -175,6 +184,11 @@ export function MatchedLotsTablePanel() {
     { id: "realizedPnl", label: "Realized P&L ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.realizedPnl, sortMode: "number", getSortValue: (row) => Number(row.realizedPnl) },
     { id: "holdingDays", label: "Hold Days", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.holdingDays), sortMode: "number", getSortValue: (row) => row.holdingDays },
     { id: "outcome", label: "Outcome", filterMode: "discrete", getFilterValues: (row) => row.outcome, sortMode: "string", getSortValue: (row) => row.outcome },
+    { id: "mfe", label: "MFE ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.excursion?.mfe ?? "N/A", sortMode: "number", getSortValue: (row) => safeNumber(row.excursion?.mfe) },
+    { id: "mae", label: "MAE ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.excursion?.mae ?? "N/A", sortMode: "number", getSortValue: (row) => safeNumber(row.excursion?.mae) },
+    { id: "mfePct", label: "MFE (%)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.excursion?.mfePct ?? "N/A", sortMode: "number", getSortValue: (row) => safeNumber(row.excursion?.mfePct) },
+    { id: "maePct", label: "MAE (%)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.excursion?.maePct ?? "N/A", sortMode: "number", getSortValue: (row) => safeNumber(row.excursion?.maePct) },
+    { id: "unpricedDays", label: "Unpriced", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.excursion?.unpricedDays ?? "N/A"), sortMode: "number", getSortValue: (row) => row.excursion?.unpricedDays ?? 0 },
     { id: "openExecutionId", label: "Open Execution", filterMode: "discrete", getFilterValues: (row) => row.openExecutionId, getFilterOptionLabel: (value) => shortId(value), sortMode: "string", getSortValue: (row) => row.openExecutionId, panelWidthClassName: "w-80" },
     { id: "closeExecutionId", label: "Close Execution", filterMode: "discrete", getFilterValues: (row) => row.closeExecutionId ?? "-", getFilterOptionLabel: (value) => (value === "-" ? value : shortId(value)), sortMode: "string", getSortValue: (row) => row.closeExecutionId ?? "-", panelWidthClassName: "w-80" },
     { id: "investigate", label: "Investigate", filterMode: "discrete", getFilterValues: () => "Case file", sortMode: "string", getSortValue: () => "Case file" },

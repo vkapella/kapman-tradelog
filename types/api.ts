@@ -217,6 +217,14 @@ export interface MatchedLotRecord {
   outcome: string;
   openExecutionId: string;
   closeExecutionId: string | null;
+  excursion?: {
+    mfe: string;
+    mae: string;
+    mfePct: string | null;
+    maePct: string | null;
+    pricedDays: number;
+    unpricedDays: number;
+  } | null;
 }
 
 export interface MatchedLotsListQuery {
@@ -338,6 +346,40 @@ export interface AccountValueSeriesResponse {
     firstTotal: string | null;
     lastTotal: string | null;
   };
+}
+
+export interface LotExcursionRecord {
+  id: string;
+  matchedLotId: string;
+  accountId: string;
+  symbol: string;
+  underlyingSymbol?: string | null;
+  setupId: string | null;
+  setupTag: string | null;
+  openTradeDate: string;
+  closeTradeDate: string | null;
+  quantity: string;
+  realizedPnl: string;
+  realizedReturnPct: string | null;
+  mfe: string;
+  mae: string;
+  mfePct: string | null;
+  maePct: string | null;
+  mfeDate: string | null;
+  maeDate: string | null;
+  pricedDays: number;
+  unpricedDays: number;
+  computedAt: string;
+}
+
+export interface LotExcursionsListQuery {
+  accountIds?: string;
+  symbol?: string;
+  setupId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface ReconciliationResponse {
