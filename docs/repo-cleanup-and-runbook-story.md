@@ -1,3 +1,117 @@
+# Story: Repo cleanup + consolidated operational RUNBOOK
+
+> **How to run this:** Hand this whole file to Codex in Windsurf using the
+> `docs/Codex_Kickoff Prompt_Durable_Template.md` wrapper (it tells Codex to read
+> `AGENTS.md` first and follow the autonomous git/PR workflow). This story is
+> docs-only — no application code, schema, or script logic changes.
+
+---
+
+## Goal
+
+Make operations discoverable and the repo root tidy:
+
+1. Replace the thin `RUNBOOK.md` (currently only the import/Prisma-stale-client
+   case) with the **single authoritative operations runbook** — Appendix A of
+   this story is the finished file; drop it in verbatim.
+2. Trim `README.md` down to a quickstart that **links** to `RUNBOOK.md` instead
+   of duplicating restart/recovery/Fly content.
+3. Archive stale root-level status markers into `docs/archived/`.
+4. Fix `docs/README.md` index gaps and the duplicate story-number collisions in
+   `docs/account-value-curve/`.
+
+## Out of scope
+
+- No changes to `src/`, `prisma/schema.prisma`, `prisma/migrations/`, or
+  `scripts/*.ts` logic.
+- No changes to npm script **definitions** in `package.json`.
+- No deletion of gitignored local data (`backups/`, `.next/`, fixtures).
+- No new features, endpoints, or behavior changes.
+
+## Files to change
+
+**Replace**
+- `RUNBOOK.md` — overwrite with Appendix A below (verbatim).
+
+**Trim**
+- `README.md` — keep: title/blurb, Prerequisites, Environment, a 4-step
+  quickstart (`cp .env.example .env` → `docker compose up --build` → health curl
+  → open `http://localhost:3002`), and the "UI target" line. Remove the
+  "After a system restart", "Common recovery commands", "Troubleshooting import
+  failures", "Scripts", and "Fly.io deployment" sections and replace them with a
+  single line: `For all operational procedures (restart, recovery, data
+  backfills, deployment), see [RUNBOOK.md](RUNBOOK.md).` Do not leave broken
+  anchors — remove the in-page cross-links that pointed at the deleted sections.
+
+**Archive (use `git mv` so history is preserved)**
+- `DONE.md` → `docs/archived/DONE.md`
+- `SPRINT1_DONE.md` → `docs/archived/SPRINT1_DONE.md`
+- `inventory.md` → `docs/archived/inventory.md`
+- `CHANGES.md` → `docs/archived/CHANGES.md`
+
+**Doc index + numbering**
+- `docs/README.md` — under a new "## Subsystems" (or extend existing lists),
+  add entries for `account-value-curve/`, `seed-data/`, `testing/`,
+  `reconciliation/`, and `Codex_Kickoff Prompt_Durable_Template.md`. Add a
+  pointer to the new root `RUNBOOK.md`.
+- `docs/account-value-curve/` — resolve the duplicate story numbers so build
+  order is unambiguous (these are sub-notes, not standalone stories):
+  - `git mv docs/account-value-curve/04-cash-rowtypes.md docs/account-value-curve/04a-cash-rowtypes.md`
+  - `git mv docs/account-value-curve/07-opra-findings.md docs/account-value-curve/07a-opra-findings.md`
+  - Update every reference to those two filenames (grep the repo) including the
+    table and prose in `docs/account-value-curve/README.md` and `00-overview.md`.
+
+## Delivery order
+
+1. `git mv` the four archived files; fix any links that pointed at them
+   (grep `DONE.md|SPRINT1_DONE.md|inventory.md|CHANGES.md`). Note: `CHANGES.md`
+   is referenced by `DONE.md` and by `docs/archived/kapman_build_spec_v7_2.md` —
+   keep those links valid after the move.
+2. `git mv` the two `account-value-curve` sub-notes; fix references.
+3. Overwrite `RUNBOOK.md` with Appendix A.
+4. Trim `README.md`; point it at `RUNBOOK.md`.
+5. Update `docs/README.md` index.
+6. Run the validation gate.
+
+## Acceptance criteria
+
+- `RUNBOOK.md` contains all seven sections (A–G) from Appendix A.
+- Every `npm run <script>` named in `RUNBOOK.md` exists in `package.json`
+  (`rebuild:pnl`, `ingest:equity-marks`, `ingest:option-marks`,
+  `backfill:value-snapshots`, `backfill:lot-excursions`, plus the lifecycle
+  scripts). Every documented CLI flag matches the script source
+  (`scripts/*.ts`): `ingest:equity-marks` → `--start/--end/--symbols`;
+  `ingest:option-marks` → `--start/--end/--contracts/--source`;
+  `backfill:value-snapshots` → `--accountIds/--start/--end`;
+  `backfill:lot-excursions` → `--accountIds/--start/--end/--include-open`.
+- The data-pipeline section documents the **ingest-marks-before-backfill**
+  ordering rule and the **unpriced-lot** troubleshooting note.
+- Repo root no longer contains `DONE.md`, `SPRINT1_DONE.md`, `inventory.md`,
+  `CHANGES.md`; each exists under `docs/archived/` and `git log --follow`
+  shows continuous history.
+- `README.md` ops sections are replaced by a link to `RUNBOOK.md`; no broken
+  relative links or dangling in-page anchors in `README.md` or `docs/README.md`.
+- `docs/account-value-curve/` has no duplicate `04-`/`07-` story numbers; all
+  references resolve.
+- `npm run typecheck && npm run lint && npm test -- --passWithNoTests` pass
+  (docs-only change → expected green).
+
+## Test plan
+
+- `grep -rn "npm run" RUNBOOK.md` and diff the script names against
+  `package.json`'s `scripts` block.
+- For each documented flag, confirm it appears in the matching `scripts/*.ts`
+  `parseArgs`.
+- Relative-link check on `README.md`, `RUNBOOK.md`, `docs/README.md`,
+  `docs/account-value-curve/README.md` (no 404 paths).
+- `git log --follow docs/archived/DONE.md` shows the pre-move history.
+- Run the validation gate above.
+
+---
+
+# Appendix A — finished `RUNBOOK.md` (drop in verbatim)
+
+````markdown
 # KapMan Operations Runbook
 
 Single source of truth for running, recovering, backfilling, and deploying the
@@ -345,3 +459,4 @@ npm run ingest:equity-marks && npm run backfill:value-snapshots
   `prisma:migrate`, `db:seed`.
 - **Local backups:** ad-hoc SQL dumps live in `backups/` (gitignored). Not
   required for normal operation.
+````

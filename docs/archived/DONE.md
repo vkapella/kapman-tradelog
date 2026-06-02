@@ -38,4 +38,4 @@ All 35 v7 issues are implemented:
 - KM-034
 - KM-035
 
-Assumptions and implementation notes are recorded in CHANGES.md.
+Assumptions and implementation notes are recorded in docs/archived/CHANGES.md.

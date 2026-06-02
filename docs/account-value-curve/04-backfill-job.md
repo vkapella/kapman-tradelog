@@ -38,7 +38,7 @@ For each account in scope and each trading day in range:
   `CashEvent.rowType` values in the DB and confirm which represent real cash movements
   (deposits, withdrawals, fees, trade cash flows). If trade proceeds are *already* implied by
   reconstructed positions, including them in cash would double-count. Document the rowType
-  treatment in a comment and a short note in this folder (`04-cash-rowtypes.md`) so reviewers
+  treatment in a comment and a short note in this folder (`04a-cash-rowtypes.md`) so reviewers
   can validate. If unclear, prefer the interpretation that makes `totalValue` reconcile most
   closely to `DailyAccountSnapshot.totalCash`/`brokerNlv` and log the delta.
 
@@ -73,7 +73,7 @@ For each holding from `computeHoldingsAsOf`:
 - `scripts/backfill-value-snapshots.ts` — `tsx` CLI (mirror `scripts/rebuild-pnl.ts`).
 - Tests: `value-snapshot-engine.test.ts`.
 - `package.json`: add `backfill:value-snapshots` script.
-- `04-cash-rowtypes.md` — short note documenting the `CashEvent.rowType` treatment (output of
+- `04a-cash-rowtypes.md` — short note documenting the `CashEvent.rowType` treatment (output of
   the sub-task above).
 
 ## Trading-day calendar
@@ -108,7 +108,7 @@ story 07 lands to fill option values.
 
 - [ ] Engine splits value into cash/equity/option/total and counts unpriced positions.
 - [ ] `cashValue` uses `startingCapital + cumulative CashEvent` with documented rowType
-      treatment (`04-cash-rowtypes.md`).
+      treatment (`04a-cash-rowtypes.md`).
 - [ ] `brokerNlv` + `reconcileDelta` populated when a `DailyAccountSnapshot` exists for the
       day; null otherwise.
 - [ ] Iterates only real trading days (from `HistoricalMark`), from first trade date forward.
