@@ -1,12 +1,13 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import type { LegendProps } from "recharts";
 import { Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
+import { ChartToggleLegend } from "@/components/widgets/ChartToggleLegend";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
+import { CATEGORY_LEGEND, getSeriesTagColor, toSeriesTag } from "@/components/widgets/setup-tag-colors";
 import { formatCurrency, safeNumber } from "@/components/widgets/utils";
 import type { SetupSummaryRecord } from "@/types/api";
 
@@ -26,41 +27,11 @@ interface ScatterTooltipProps {
   payload?: Array<{ payload: TooltipPayload }>;
 }
 
-const tagColors: Record<string, string> = {
-  long_call: "var(--accent)",
-  stock: "var(--pos)",
-  bull_vertical: "var(--warn)",
-  diagonal: "var(--neg)",
-  cash_secured_put: "var(--chart-purple)",
-};
-
 const INFO_LEGEND = [
   { label: "X axis: Average hold days", color: "var(--text-2)" },
   { label: "Y axis: Expectancy ($)", color: "var(--text)" },
   { label: "Bubble size: Realized P&L magnitude", color: "var(--border)" },
 ] as const;
-
-const CATEGORY_LEGEND = [
-  { tag: "long_call", color: tagColors.long_call },
-  { tag: "stock", color: tagColors.stock },
-  { tag: "bull_vertical", color: tagColors.bull_vertical },
-  { tag: "diagonal", color: tagColors.diagonal },
-  { tag: "cash_secured_put", color: tagColors.cash_secured_put },
-  { tag: "other", color: "var(--text-2)" },
-] as const;
-
-type KnownSeriesTag = "long_call" | "stock" | "bull_vertical" | "diagonal" | "cash_secured_put";
-const KNOWN_SERIES_TAGS: ReadonlySet<string> = new Set<string>([
-  "long_call",
-  "stock",
-  "bull_vertical",
-  "diagonal",
-  "cash_secured_put",
-]);
-
-function toSeriesTag(tag: string): KnownSeriesTag | "other" {
-  return KNOWN_SERIES_TAGS.has(tag) ? (tag as KnownSeriesTag) : "other";
-}
 
 function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -90,60 +61,6 @@ function ScatterTooltip({ active, payload }: ScatterTooltipProps) {
       <p>Hold: {safeNumber(row.averageHoldDays).toFixed(1)} days</p>
       {showExpectancy && <p>Expectancy: {formatCurrency(safeNumber(row.expectancy))} / lot</p>}
       <p>Realized P&L: {formatCurrency(safeNumber(row.realizedPnl))}</p>
-    </div>
-  );
-}
-
-interface ExpectancyLegendProps extends LegendProps {
-  hiddenTags: Set<string>;
-  onToggle: (tag: string) => void;
-  multiLotOnly: boolean;
-  onMultiLotToggle: () => void;
-}
-
-function ExpectancyLegend({ hiddenTags, onToggle, multiLotOnly, onMultiLotToggle }: ExpectancyLegendProps) {
-  return (
-    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-text-2">
-      <button
-        type="button"
-        onClick={onMultiLotToggle}
-        aria-pressed={multiLotOnly}
-        className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] transition-colors ${
-          multiLotOnly ? "border-accent text-accent" : "border-border text-text-2"
-        }`}
-      >
-        Multi-lot only
-      </button>
-      {INFO_LEGEND.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="h-2.5 w-2.5 rounded-full border border-border"
-            style={{ backgroundColor: item.color }}
-          />
-          <span>{item.label}</span>
-        </div>
-      ))}
-      {CATEGORY_LEGEND.map((item) => {
-        const hidden = hiddenTags.has(item.tag);
-        return (
-          <button
-            key={item.tag}
-            type="button"
-            onClick={() => onToggle(item.tag)}
-            className="flex items-center gap-2 transition-opacity"
-            style={{ opacity: hidden ? 0.35 : 1 }}
-            aria-pressed={!hidden}
-          >
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 rounded-full border border-border"
-              style={{ backgroundColor: item.color }}
-            />
-            <span>{item.tag}</span>
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -244,18 +161,30 @@ export function ExpectancyScatterWidget() {
               verticalAlign="bottom"
               align="left"
               content={
-                <ExpectancyLegend
-                  hiddenTags={hiddenTags}
+                <ChartToggleLegend
+                  hiddenItems={hiddenTags}
+                  items={CATEGORY_LEGEND}
                   onToggle={toggleTag}
-                  multiLotOnly={multiLotOnly}
-                  onMultiLotToggle={() => setMultiLotOnly((v) => !v)}
+                  infoItems={INFO_LEGEND}
+                  leadingContent={
+                    <button
+                      type="button"
+                      onClick={() => setMultiLotOnly((v) => !v)}
+                      aria-pressed={multiLotOnly}
+                      className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                        multiLotOnly ? "border-accent text-accent" : "border-border text-text-2"
+                      }`}
+                    >
+                      Multi-lot only
+                    </button>
+                  }
                 />
               }
             />
             {Array.from(grouped.entries())
               .filter(([tag]) => !hiddenTags.has(tag))
               .map(([tag, points]) => (
-              <Scatter key={tag} data={points} fill={tagColors[tag] ?? "var(--text-2)"} />
+                <Scatter key={tag} data={points} fill={getSeriesTagColor(tag)} />
               ))}
           </ScatterChart>
         </ResponsiveContainer>

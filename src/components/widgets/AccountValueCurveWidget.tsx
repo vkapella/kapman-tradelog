@@ -1,7 +1,8 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChartToggleLegend } from "@/components/widgets/ChartToggleLegend";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -26,14 +27,21 @@ interface ChartPoint {
 interface ChartTooltipProps {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
+  hiddenSeries: Set<string>;
 }
+
+const STACK_SERIES_LEGEND = [
+  { key: "cash", label: "Cash", color: "var(--accent)" },
+  { key: "stockEtf", label: "Stock / ETF", color: "var(--pos)" },
+  { key: "options", label: "Options", color: "var(--warn)" },
+] as const;
 
 function formatSignedCurrency(value: number): string {
   const sign = value >= 0 ? "+" : "-";
   return `${sign}${formatCurrency(Math.abs(value))}`;
 }
 
-function ChartTooltip({ active, payload }: ChartTooltipProps) {
+function ChartTooltip({ active, payload, hiddenSeries }: ChartTooltipProps) {
   if (!active || !payload?.length) {
     return null;
   }
@@ -43,10 +51,10 @@ function ChartTooltip({ active, payload }: ChartTooltipProps) {
   return (
     <div className="rounded border border-border bg-surface-2 px-3 py-2 text-xs text-text">
       <p className="font-semibold">{row.date}</p>
-      <p>Cash: {formatCurrency(row.cash)}</p>
-      <p>Stock / ETF: {formatCurrency(row.stockEtf)}</p>
-      <p>Options: {formatCurrency(row.options)}</p>
       <p>Total: {formatCurrency(row.total)}</p>
+      {hiddenSeries.has("options") ? null : <p>Options: {formatCurrency(row.options)}</p>}
+      {hiddenSeries.has("stockEtf") ? null : <p>Stock / ETF: {formatCurrency(row.stockEtf)}</p>}
+      {hiddenSeries.has("cash") ? null : <p>Cash: {formatCurrency(row.cash)}</p>}
       {row.brokerNlv === null ? null : <p>Broker NLV: {formatCurrency(row.brokerNlv)}</p>}
       {row.reconcileDelta === null ? null : <p>Broker vs reconstructed: {formatSignedCurrency(row.reconcileDelta)}</p>}
     </div>
@@ -66,17 +74,25 @@ function toChartPoint(point: AccountValueSeriesPoint): ChartPoint {
 }
 
 export function AccountValueCurveWidget() {
-  const { selectedAccounts } = useAccountFilterContext();
-  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
+  const { accountsLoading, selectedAccounts } = useAccountFilterContext();
+  const { range, applyRangeToSearchParams, isHydrated } = useContext(RangeFilterContext);
 
   const [data, setData] = useState<AccountValueSeriesResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const filtersReady = !accountsLoading && isHydrated;
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadSeries() {
+      if (!filtersReady) {
+        setIsLoading(true);
+        setError(null);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -115,11 +131,20 @@ export function AccountValueCurveWidget() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
+  }, [filtersReady, selectedAccounts, range.startDate, range.endDate, applyRangeToSearchParams]);
 
   const points = useMemo(() => data?.points.map(toChartPoint) ?? [], [data]);
   const daysWithUnpriced = data?.meta.daysWithUnpriced ?? 0;
   const hasBrokerNlvGaps = points.length > 0 && points.some((point) => point.brokerNlv === null);
+
+  function toggleSeries(key: string) {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   return (
     <WidgetCard title="Account Value Curve">
@@ -134,13 +159,18 @@ export function AccountValueCurveWidget() {
         <>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={points}>
+              <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 28, left: 8 }}>
                 <XAxis dataKey="date" tick={{ fill: "var(--text-2)", fontSize: 10 }} />
                 <YAxis tick={{ fill: "var(--text-2)", fontSize: 10 }} tickFormatter={(value) => formatCompactCurrency(Number(value))} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="cash" stackId="value" stroke="var(--accent)" fill="var(--accent-dim)" />
-                <Area type="monotone" dataKey="stockEtf" stackId="value" stroke="var(--pos)" fill="var(--pos-dim)" />
-                <Area type="monotone" dataKey="options" stackId="value" stroke="var(--warn)" fill="var(--warn-dim)" />
+                <Tooltip content={<ChartTooltip hiddenSeries={hiddenSeries} />} />
+                <Legend
+                  verticalAlign="bottom"
+                  align="left"
+                  content={<ChartToggleLegend hiddenItems={hiddenSeries} items={STACK_SERIES_LEGEND} onToggle={toggleSeries} />}
+                />
+                {hiddenSeries.has("cash") ? null : <Area type="monotone" dataKey="cash" stackId="value" stroke="var(--accent)" fill="var(--accent-dim)" />}
+                {hiddenSeries.has("stockEtf") ? null : <Area type="monotone" dataKey="stockEtf" stackId="value" stroke="var(--pos)" fill="var(--pos-dim)" />}
+                {hiddenSeries.has("options") ? null : <Area type="monotone" dataKey="options" stackId="value" stroke="var(--warn)" fill="var(--warn-dim)" />}
                 <Line type="monotone" dataKey="total" stroke="var(--text)" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="brokerNlv" stroke="var(--neg)" strokeWidth={2} dot={false} strokeDasharray="6 4" connectNulls={false} />
               </AreaChart>

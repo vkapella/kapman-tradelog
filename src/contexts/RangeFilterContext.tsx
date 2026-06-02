@@ -12,6 +12,7 @@ export interface RangeFilterState {
 
 export interface RangeFilterContextValue {
   range: RangeFilterState;
+  isHydrated: boolean;
   setPreset(preset: Exclude<RangePreset, "custom">): void;
   setCustomRange(startDate: string, endDate: string): void;
   displayText: string;
@@ -116,6 +117,7 @@ function getDisplayText(preset: RangePreset): string {
 
 export const RangeFilterContext = React.createContext<RangeFilterContextValue>({
   range: getDefaultRange(),
+  isHydrated: true,
   setPreset: () => {
     throw new Error("RangeFilterContext is not mounted.");
   },
@@ -130,15 +132,21 @@ export const RangeFilterContext = React.createContext<RangeFilterContextValue>({
 
 export function RangeFilterProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [range, setRange] = useState<RangeFilterState>(() => getDefaultRange());
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     const restored = parseStoredRange(window.localStorage.getItem(STORAGE_KEY));
     setRange(restored);
+    setIsHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(range));
-  }, [range]);
+  }, [range, isHydrated]);
 
   const setPreset = useCallback((preset: Exclude<RangePreset, "custom">) => {
     setRange(computePresetRange(preset));
@@ -167,12 +175,13 @@ export function RangeFilterProvider({ children }: { children: React.ReactNode })
   const value = useMemo<RangeFilterContextValue>(
     () => ({
       range,
+      isHydrated,
       setPreset,
       setCustomRange,
       displayText: getDisplayText(range.preset),
       applyRangeToSearchParams,
     }),
-    [range, setPreset, setCustomRange, applyRangeToSearchParams],
+    [range, isHydrated, setPreset, setCustomRange, applyRangeToSearchParams],
   );
 
   return <RangeFilterContext.Provider value={value}>{children}</RangeFilterContext.Provider>;
