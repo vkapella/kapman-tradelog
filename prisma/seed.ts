@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { detectAdapter } from "../src/lib/adapters/registry";
 import { getBrokerDisplayName, getDefaultStartingCapital } from "../src/lib/accounts/defaults";
+import { backfillLotExcursions } from "../src/lib/analysis/backfill-lot-excursions";
 import { rebuildAccountSetups } from "../src/lib/analytics/rebuild-account-setups";
 import { hydrateFidelityCashSnapshots } from "../src/lib/imports/hydrate-fidelity-cash-snapshots";
 import { replaceImportCashEvents } from "../src/lib/imports/replace-import-cash-events";
@@ -216,6 +217,16 @@ async function main() {
     });
 
     await seedCorporateActionAdjustments(account.id, metadata.accountId);
+  }
+
+  const historicalMarkCount = await prisma.historicalMark.count();
+  if (historicalMarkCount > 0) {
+    await backfillLotExcursions({
+      prismaClient: prisma,
+      logger: console,
+    });
+  } else {
+    console.log("[seed] skipping lot-excursion backfill; no historical marks are loaded.");
   }
 }
 
