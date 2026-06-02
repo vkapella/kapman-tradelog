@@ -26,7 +26,7 @@ Before committing to a full backfill, **spike against 5–10 real closed option 
    and OHLC columns.
 4. Verify a known contract's close on a known date is plausible vs the executed price.
 
-Write the spike findings into `07-opra-findings.md` (prefix, columns, coverage gaps observed)
+Write the spike findings into `07a-opra-findings.md` (prefix, columns, coverage gaps observed)
 before building the full ingester. If OPRA flat files are unavailable on the plan, fall back
 to Polygon REST `/v2/aggs/ticker/{occTicker}/range/1/day/{from}/{to}` per held contract
 (document the switch; it's more calls but bounded by the number of distinct contracts held).
@@ -69,7 +69,7 @@ export function canonicalToOcc(instrumentKey: string): string;
 - `.env.example`: add `POLYGON_S3_OPTIONS_PREFIX=us_options_opra/day_aggs_v1` (verify in
   spike) and, if using the REST fallback, `POLYGON_API_KEY`.
 - `package.json`: `ingest:option-marks` script.
-- `07-opra-findings.md` — spike output.
+- `07a-opra-findings.md` — spike output.
 
 ## Implementation notes
 
@@ -102,7 +102,7 @@ Re-run story 04 (`npm run backfill:value-snapshots`) — it is idempotent and wi
 - [ ] Reuses story-03 S3 module (no duplicated S3 client).
 - [ ] Filters OPRA day files to held contracts; upserts `HistoricalMark` (`OPTION`)
       idempotently.
-- [ ] Spike findings recorded in `07-opra-findings.md` (prefix, columns, coverage); REST
+- [ ] Spike findings recorded in `07a-opra-findings.md` (prefix, columns, coverage); REST
       fallback documented if used.
 - [ ] `npm run typecheck && npm run lint && npm test` pass.
 

@@ -48,8 +48,8 @@ until 07). Then 07 + re-run the story-04 backfill fills option values with no UI
 - Stories 03 and 07 cite exact reference files in the sibling **`kapman-trader`** repo — point
   Codex at those so it ports proven S3 flat-file logic instead of inventing it.
 - Two empirical sub-tasks are intentionally deferred to in-repo notes (do them with the live
-  DB/bucket in hand): `CashEvent.rowType` treatment → `04-cash-rowtypes.md`; OPRA
-  prefix/columns → `07-opra-findings.md`.
+  DB/bucket in hand): `CashEvent.rowType` treatment → `04a-cash-rowtypes.md`; OPRA
+  prefix/columns → `07a-opra-findings.md`.
 
 ---
 
