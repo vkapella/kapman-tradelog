@@ -1,8 +1,9 @@
 "use client";
 
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { Legend, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartToggleLegend } from "@/components/widgets/ChartToggleLegend";
+import { InfoTooltip, type InfoTooltipContent } from "@/components/widgets/InfoTooltip";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -31,6 +32,24 @@ interface ChartTooltipProps {
 }
 
 const EXCURSION_COLUMN_TEMPLATE = "120px 120px 130px 110px 110px 100px 100px 110px";
+
+const SUMMARY_HELP: Record<"lots" | "averageMfe" | "averageMae", InfoTooltipContent> = {
+  lots: {
+    formula: "Count of visible matched lots with persisted lot-excursion records.",
+    source: "/api/analysis/excursions, filtered by selected accounts, date range, and active setup-tag legend categories.",
+    interpretation: "Shows how many lots are included in the scatter, summary averages, and detail table after legend toggles.",
+  },
+  averageMfe: {
+    formula: "Average of lot MFE % across visible priced excursion rows.",
+    source: "LotExcursion.mfePct, computed from historical high marks during each lot's holding window.",
+    interpretation: "Higher values mean the visible lots offered more favorable unrealized upside before they closed.",
+  },
+  averageMae: {
+    formula: "Average of lot MAE % across visible priced excursion rows.",
+    source: "LotExcursion.maePct, computed from historical low marks during each lot's holding window.",
+    interpretation: "More negative values mean the visible lots experienced deeper adverse unrealized drawdowns before they closed.",
+  },
+};
 
 function displaySymbol(row: Pick<LotExcursionRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -165,6 +184,11 @@ export function ExcursionWidget() {
     return [-padded, padded];
   }, [chartPoints]);
 
+  const xAxisTicks = useMemo(() => {
+    const [min, max] = xAxisDomain;
+    return [min, min / 2, 0, max / 2, max];
+  }, [xAxisDomain]);
+
   const sortedRows = useMemo(() => {
     return [...visibleRows].sort((left, right) => {
       const leftValue = sortValue(left, sortColumn);
@@ -224,15 +248,24 @@ export function ExcursionWidget() {
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded border border-border bg-surface-2 px-3 py-2">
-              <p className="text-xs text-text-2">Lots</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-text-2">Lots</p>
+                <InfoTooltip label="MFE / MAE Lots" content={SUMMARY_HELP.lots} />
+              </div>
               <p className="text-lg font-semibold text-text">{visibleRows.length}</p>
             </div>
             <div className="rounded border border-border bg-surface-2 px-3 py-2">
-              <p className="text-xs text-text-2">Avg MFE</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-text-2">Avg MFE</p>
+                <InfoTooltip label="Average MFE" content={SUMMARY_HELP.averageMfe} />
+              </div>
               <p className="text-lg font-semibold text-pos">{formatNullablePercent(summary.averageMfePct === null ? null : summary.averageMfePct * 100, 1)}</p>
             </div>
             <div className="rounded border border-border bg-surface-2 px-3 py-2">
-              <p className="text-xs text-text-2">Avg MAE</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-text-2">Avg MAE</p>
+                <InfoTooltip label="Average MAE" content={SUMMARY_HELP.averageMae} />
+              </div>
               <p className="text-lg font-semibold text-neg">{formatNullablePercent(summary.averageMaePct === null ? null : summary.averageMaePct * 100, 1)}</p>
             </div>
           </div>
@@ -244,12 +277,14 @@ export function ExcursionWidget() {
                   dataKey="realizedReturnPct"
                   type="number"
                   domain={xAxisDomain}
+                  ticks={xAxisTicks}
                   tickCount={7}
                   name="Realized return"
                   label={{ value: "Realized return %", position: "insideBottom", offset: -4, fill: "var(--text-2)", fontSize: 10 }}
                   tick={{ fill: "var(--text-2)", fontSize: 10 }}
                   tickFormatter={(value) => formatNullablePercent(Number(value) * 100, 0)}
                 />
+                <ReferenceLine x={0} stroke="var(--border)" strokeDasharray="3 3" />
                 <YAxis
                   dataKey="mfePct"
                   type="number"
