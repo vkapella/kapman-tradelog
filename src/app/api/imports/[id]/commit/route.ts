@@ -7,6 +7,7 @@ import { replaceImportCashEvents } from "@/lib/imports/replace-import-cash-event
 import { replaceImportExecutions } from "@/lib/imports/replace-import-executions";
 import { hydrateFidelityCashSnapshots } from "@/lib/imports/hydrate-fidelity-cash-snapshots";
 import { replaceImportSnapshots } from "@/lib/imports/replace-import-snapshots";
+import { refreshDerivedAnalysisForAccounts } from "@/lib/analysis/refresh-derived-analysis";
 import { deriveInstrumentKeyFromNormalizedExecution } from "@/lib/ledger/instrument-key";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { CommitImportResponse } from "@/types/api";
@@ -99,6 +100,13 @@ function buildCashEventDedupKey(input: {
     normalizedSymbol,
     normalizeNumberKey(input.amount),
   ].join("|");
+}
+
+function derivedRefreshFailureWarning(error: unknown) {
+  return {
+    code: "DERIVED_ANALYSIS_REFRESH_FAILED",
+    message: error instanceof Error ? error.message : "Derived analysis refresh failed after import commit.",
+  };
 }
 
 export async function POST(request: Request, context: { params: { id: string } }) {
@@ -435,13 +443,29 @@ export async function POST(request: Request, context: { params: { id: string } }
     ]);
   }
 
+  const responseWarnings = [...transactionResult.combinedWarnings];
+  try {
+    await refreshDerivedAnalysisForAccounts({ accountIds: [existingImport.accountId] });
+  } catch (error) {
+    const warning = derivedRefreshFailureWarning(error);
+    responseWarnings.push(warning);
+    await prisma.import.update({
+      where: { id: transactionResult.updatedImport.id },
+      data: {
+        warnings: responseWarnings as unknown as Prisma.InputJsonValue,
+      },
+    }).catch((updateError) => {
+      console.warn("[imports] failed to persist derived analysis refresh warning", updateError);
+    });
+  }
+
   const payload: CommitImportResponse = {
     importId: transactionResult.updatedImport.id,
     parsedRows: transactionResult.updatedImport.parsedRows,
     inserted: transactionResult.inserted,
     skippedDuplicates: transactionResult.skippedDuplicates,
     failed: transactionResult.updatedImport.failedRows,
-    warnings: transactionResult.combinedWarnings.map((warning) => `${warning.code}: ${warning.message}`),
+    warnings: responseWarnings.map((warning) => `${warning.code}: ${warning.message}`),
   };
 
   void fetch(new URL("/api/positions/snapshot/compute", request.url), {

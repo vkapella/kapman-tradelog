@@ -240,7 +240,7 @@ export function ExcursionWidget() {
 
       {!isLoading && !error && rows.length === 0 ? (
         <div className="rounded border border-border bg-surface-2 px-3 py-3 text-xs text-text-2">
-          <p>No lot excursions yet. Run the lot-excursion backfill after historical marks are loaded.</p>
+          <p>No lot excursions match the selected accounts and date range. If imports or adjustments were just committed, refresh derived analysis.</p>
         </div>
       ) : null}
 

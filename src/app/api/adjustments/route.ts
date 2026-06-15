@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { detailResponse, errorResponse, listResponse, parsePagination } from "@/lib/api/responses";
 import { rebuildAccountSetups } from "@/lib/analytics/rebuild-account-setups";
+import { refreshDerivedAnalysisForAccounts } from "@/lib/analysis/refresh-derived-analysis";
 import { prisma } from "@/lib/db/prisma";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import { manualAdjustmentCreateSchema, parsePayloadByType } from "@/lib/adjustments/types";
@@ -166,6 +167,10 @@ export async function POST(request: Request) {
     await rebuildAccountLedger(tx, input.accountId, new Date());
     await rebuildAccountSetups(tx, input.accountId);
     return row;
+  });
+
+  await refreshDerivedAnalysisForAccounts({ accountIds: [input.accountId] }).catch((error) => {
+    console.warn("[adjustments] derived analysis refresh failed", error);
   });
 
   return detailResponse(mapRowToRecord(created));
