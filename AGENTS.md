@@ -20,11 +20,13 @@ Use `/docs/` as the source of truth for scope, sequencing, and acceptance criter
 - Before editing, inspect existing files and follow established patterns.
 - After each meaningful change, run the narrowest relevant validation step.
 
-## Git and GitHub workflow — FULLY AUTONOMOUS
+## Git and GitHub workflow — FULLY AUTONOMOUS (direct-to-main)
 
-For every fix or feature, execute ALL of the following steps without stopping
-for human input. Do not report steps as "manual" unless a true permission
-blocker prevents execution.
+Work is delivered **directly to `main`** — no feature branch, no PR. Still create
+a GitHub issue before the change and close it after, reference the issue in the
+commit, and run the full validation suite before pushing. Execute ALL steps
+without stopping for human input; do not report steps as "manual" unless a true
+permission blocker prevents execution.
 
 ### Step 1 — Create a GitHub issue before writing any code
 
@@ -32,22 +34,18 @@ blocker prevents execution.
 gh issue create --title "<short title>" --body "<acceptance criteria>"
 ```
 
-Note the issue number returned. All subsequent commits and the PR must
-reference this issue number.
+Note the issue number; the commit must reference it.
 
-### Step 2 — Create a feature branch named after the issue
+### Step 2 — Implement on `main`, then commit with the issue reference
 
-```bash
-git checkout -b fix/KM-NNN-short-description
-```
-
-### Step 3 — Implement, then commit with issue reference in every commit message
+Ensure the working tree is on an up-to-date `main` first
+(`git switch main && git pull --ff-only origin main`), then:
 
 ```bash
 git commit -m "fix: <description> (closes #NNN)"
 ```
 
-### Step 4 — Run the full validation suite yourself — do not skip any step
+### Step 3 — Run the full validation suite yourself — do not skip any step
 
 ```bash
 npm run typecheck
@@ -55,39 +53,22 @@ npm run lint
 npm test -- --passWithNoTests
 ```
 
-If any command exits non-zero, fix all failures before proceeding.
-Do not proceed with a broken build. Do not report failures to the human
-and ask what to do — fix them.
+If any command exits non-zero, fix all failures before pushing.
+Do not push a broken build. Do not report failures to the human and ask what to
+do — fix them.
 
-### Step 5 — Push the branch
-
-```bash
-git push -u origin fix/KM-NNN-short-description
-```
-
-### Step 6 — Open a PR and enable auto-merge in a single pipeline
+### Step 4 — Push to `main`
 
 ```bash
-gh pr create --title "<title>" --body "Closes #NNN" --base main
-gh pr merge --auto --squash
+git push origin main
 ```
 
-Both commands must succeed before continuing.
+The `closes #NNN` trailer auto-closes the issue on push.
 
-### Step 7 — Verify auto-merge was accepted
+### Step 5 — Run smoke tests yourself using curl
 
-```bash
-gh pr view --json autoMergeRequest
-```
-
-If `autoMergeRequest` is null, report the exact blocker and the exact
-`gh` command the human must run to unblock it. Do not say "please merge
-manually" without providing the specific unblocking command.
-
-### Step 8 — Run smoke tests yourself using curl
-
-After `docker compose up` succeeds, execute these yourself — do not give
-the human commands to run:
+After `docker compose up` succeeds (or against the deployed app), execute these
+yourself — do not give the human commands to run:
 
 ```bash
 curl -sf http://localhost:3002/api/health | grep ok
@@ -96,44 +77,29 @@ curl -sf http://localhost:3002/api/overview/summary | grep netPnl
 
 If either fails, fix the failure before marking the issue closed.
 
-### Step 9 — Close the GitHub issue with PR reference
+### Step 6 — Confirm the issue is closed
 
 ```bash
-gh issue close NNN --comment "Resolved in PR #<pr-number>"
+gh issue view NNN --json state    # ensure CLOSED; close explicitly if the push trailer did not
 ```
-
-### Step 10 — Clean up the local checkout after merge
-
-After the PR is merged or auto-merge completes, return the local workspace to
-`main` before reporting completion:
-
-```bash
-git switch main
-git pull --ff-only origin main
-git status -sb
-```
-
-The final status must show `main` tracking `origin/main` with no uncommitted
-changes. Do not leave the local checkout on a closed PR branch.
 
 ### Definition of done — automated checklist
 
 Work on an issue is NOT complete unless ALL of the following are confirmed
 by you, not reported to the human for confirmation:
 
-- [ ] GitHub issue exists and is linked to the PR
+- [ ] GitHub issue exists and is referenced by the commit
 - [ ] `npm run typecheck` exits 0
 - [ ] `npm run lint` exits 0
 - [ ] `npm test -- --passWithNoTests` exits 0
-- [ ] PR is open and auto-merge is enabled (verified via `gh pr view --json autoMergeRequest`)
+- [ ] Change is committed and pushed to `main` (`git status -sb` shows `main` clean, tracking `origin/main`)
 - [ ] Smoke test curl commands return expected output
-- [ ] GitHub issue is closed with PR reference
-- [ ] Local checkout is back on `main`, fast-forwarded from `origin/main`, with a clean `git status -sb`
+- [ ] GitHub issue is closed
 
 Only after all checklist items are confirmed should you report completion to the human.
 
-Do not push directly to `main` unless the user explicitly requests
-direct-to-main delivery.
+Deployment to Fly is a separate, explicitly-authorized step (see Deployment) —
+pushing to `main` does not deploy.
 
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router
@@ -377,8 +343,8 @@ by you, not reported to the human for confirmation:
 - uploading a thinkorswim CSV results in visible executions
 - matched lots are generated and viewable
 - setups render with analytics fields populated where data exists
-- GitHub issue is open, linked to the PR, and closed on completion
-- PR auto-merge is enabled and confirmed via `gh pr view --json autoMergeRequest`
+- GitHub issue is created before the change and closed on completion
+- Change is committed and pushed directly to `main`; validation suite green before push
 
 ## Off-limits
 - No raw SQL
