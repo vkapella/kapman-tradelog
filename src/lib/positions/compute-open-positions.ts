@@ -10,7 +10,7 @@ function signedQuantity(side: string | null, quantity: number): number {
   return side === "SELL" ? quantity * -1 : quantity;
 }
 
-function fallbackInstrumentKey(execution: ExecutionRecord): string {
+export function fallbackInstrumentKey(execution: ExecutionRecord): string {
   const expiration = execution.expirationDate ? execution.expirationDate.slice(0, 10) : "";
   return [
     execution.accountId,

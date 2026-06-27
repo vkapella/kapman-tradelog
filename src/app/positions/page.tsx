@@ -65,6 +65,7 @@ export default function Page() {
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const snapshot = openPositionsStore.getSnapshot(selectedAccounts);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
+  const [snapshotCopyStatus, setSnapshotCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredPositions = useMemo(() => positions.filter((position) => isAccountInScope(selectedAccounts, position.accountId)), [positions, selectedAccounts]);
@@ -108,6 +109,22 @@ export default function Page() {
 
   async function handleRefreshQuotes() { await openPositionsStore.refresh(selectedAccounts); }
 
+  async function handleCopySnapshot() {
+    try {
+      const params = new URLSearchParams();
+      if (selectedAccounts.length > 0) params.set("accountIds", selectedAccounts.join(","));
+      const query = params.toString();
+      const response = await fetch(`/api/export/portfolio-snapshot${query ? `?${query}` : ""}`);
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+      const body = (await response.json()) as { data: unknown };
+      await navigator.clipboard.writeText(JSON.stringify(body.data, null, 2));
+      setSnapshotCopyStatus("copied");
+    } catch {
+      setSnapshotCopyStatus("failed");
+    }
+    setTimeout(() => setSnapshotCopyStatus("idle"), 2000);
+  }
+
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
     table.setColumnFilter(columnId, values);
     if (direction) table.setSort({ columnId, direction });
@@ -122,7 +139,10 @@ export default function Page() {
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-2">{table.sortedRows.length} positions</span>
           <span className="text-xs text-text-2">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
         </div>
-        <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Quotes"}</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Quotes"}</button>
+        </div>
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
