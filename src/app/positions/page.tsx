@@ -36,6 +36,10 @@ function getDte(expirationDate: string | null): number | null {
   const expiration = new Date(expirationDate);
   return Math.ceil((expiration.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 }
+// expirationDate is a UTC-midnight date-only value; format in UTC so it doesn't shift a day back in local time.
+function formatExpiry(value: string): string {
+  return new Date(value).toLocaleDateString("en-US", { timeZone: "UTC" });
+}
 function formatQuoteTimestamp(value: Date | null): string {
   if (!value) return "—";
   return value.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "medium" });
@@ -47,7 +51,7 @@ const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenP
       <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>
       <div className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge variant="stub">EQUITY</Badge>}</div>
       <div className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</div>
-      <div className="px-2 py-2">{row.expirationDate ? new Date(row.expirationDate).toLocaleDateString() : "—"}</div>
+      <div className="px-2 py-2">{row.expirationDate ? formatExpiry(row.expirationDate) : "—"}</div>
       <div className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text"].join(" ")}>{row.dte ?? "—"}</div>
       <div className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</div>
       <div className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</div>
@@ -86,7 +90,7 @@ export default function Page() {
     { id: "symbol", label: "Symbol", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
     { id: "assetClass", label: "Type", filterMode: "discrete", getFilterValues: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"), sortMode: "string", getSortValue: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY") },
     { id: "strike", label: "Strike", align: "right", filterMode: "discrete", getFilterValues: (row) => row.strike ?? "—", sortMode: "number", getSortValue: (row) => (row.strike === null ? null : Number(row.strike)) },
-    { id: "expirationDate", label: "Expiry", filterMode: "discrete", getFilterValues: (row) => row.expirationDate ?? "—", getFilterOptionLabel: (value) => (value === "—" ? value : new Date(value).toLocaleDateString()), sortMode: "date", getSortValue: (row) => row.expirationDate, defaultSortDirection: "asc" },
+    { id: "expirationDate", label: "Expiry", filterMode: "discrete", getFilterValues: (row) => row.expirationDate ?? "—", getFilterOptionLabel: (value) => (value === "—" ? value : formatExpiry(value)), sortMode: "date", getSortValue: (row) => row.expirationDate, defaultSortDirection: "asc" },
     { id: "dte", label: "DTE", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.dte === null ? "—" : String(row.dte)), sortMode: "number", getSortValue: (row) => row.dte },
     { id: "netQty", label: "Qty", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.netQty), sortMode: "number", getSortValue: (row) => row.netQty },
     { id: "costBasis", label: "Cost Basis", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.costBasis), sortMode: "number", getSortValue: (row) => row.costBasis },
