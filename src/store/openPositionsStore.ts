@@ -3,6 +3,7 @@
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type {
   OpenPosition,
+  PositionExcursion,
   PositionSnapshotApiResponse,
   PositionSnapshotComputeApiResponse,
   PositionSnapshotOpenPosition,
@@ -11,6 +12,8 @@ import type {
 export interface AccountSnapshot {
   positions: OpenPosition[];
   quotes: Record<string, number>;
+  // Open-leg MAE/MFE keyed by instrumentKey; mirrors `quotes`. In-memory only (repopulated on sync).
+  excursions: Record<string, PositionExcursion>;
   lastRefreshedAt: number | null;
   isLoading: boolean;
   error: string | null;
@@ -33,6 +36,7 @@ interface PersistedAccountSnapshot {
 const EMPTY_ACCOUNT_SNAPSHOT: AccountSnapshot = {
   positions: [],
   quotes: {},
+  excursions: {},
   lastRefreshedAt: null,
   isLoading: false,
   error: null,
@@ -51,6 +55,7 @@ function cloneEmptySnapshot(): AccountSnapshot {
   return {
     positions: [],
     quotes: {},
+    excursions: {},
     lastRefreshedAt: null,
     isLoading: false,
     error: null,
@@ -113,6 +118,7 @@ function splitSnapshotByAccount(positions: PositionSnapshotOpenPosition[], accou
     grouped.set(accountId, {
       positions: [],
       quotes: {},
+      excursions: {},
       lastRefreshedAt: Date.parse(snapshotAt),
       isLoading: false,
       error: null,
@@ -135,6 +141,16 @@ function splitSnapshotByAccount(positions: PositionSnapshotOpenPosition[], accou
     });
     if (typeof position.mark === "number") {
       current.quotes[position.instrumentKey] = position.mark;
+    }
+    if (position.maePct !== undefined || position.mfePct !== undefined) {
+      // Keyed by accountId::instrumentKey — excursions are account-dependent (entry differs), unlike marks.
+      current.excursions[position.accountId + "::" + position.instrumentKey] = {
+        maePct: position.maePct ?? null,
+        mfePct: position.mfePct ?? null,
+        pricedDays: position.pricedDays ?? 0,
+        unpricedDays: position.unpricedDays ?? 0,
+        excursionAsOf: position.excursionAsOf ?? null,
+      };
     }
     grouped.set(position.accountId, current);
   }
@@ -223,6 +239,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
       const apiSnapshot = grouped.get(accountId) ?? {
         positions: [],
         quotes: {},
+        excursions: {},
         lastRefreshedAt: Date.parse(snapshotAt),
         isLoading: false,
         error: null,
@@ -271,6 +288,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
           ? {
               positions: persisted.positions,
               quotes: persisted.quotes,
+              excursions: current.excursions,
               lastRefreshedAt: persisted.lastRefreshedAt,
               isLoading: current.isLoading,
               error: current.error,
@@ -305,6 +323,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
         writeAccountSnapshot(accountId, {
           positions: current.positions,
           quotes: current.quotes,
+          excursions: current.excursions,
           lastRefreshedAt: current.lastRefreshedAt,
           isLoading: true,
           error: null,
@@ -362,6 +381,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
           writeAccountSnapshot(accountId, {
             positions: current.positions,
             quotes: current.quotes,
+            excursions: current.excursions,
             lastRefreshedAt: current.lastRefreshedAt,
             isLoading: false,
             error: message,
@@ -376,6 +396,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
         writeAccountSnapshot(accountId, {
           positions: current.positions,
           quotes: current.quotes,
+          excursions: current.excursions,
           lastRefreshedAt: current.lastRefreshedAt,
           isLoading: false,
           error: null,
@@ -420,6 +441,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
       const snapshot: AccountSnapshot = {
         positions: accountSnapshots.flatMap((accountSnapshot) => accountSnapshot.positions).sort(sortOpenPositions),
         quotes: Object.assign({}, ...accountSnapshots.map((accountSnapshot) => accountSnapshot.quotes)),
+        excursions: Object.assign({}, ...accountSnapshots.map((accountSnapshot) => accountSnapshot.excursions)),
         lastRefreshedAt: accountSnapshots.reduce<number | null>(
           (latest, accountSnapshot) =>
             accountSnapshot.lastRefreshedAt !== null && (latest === null || accountSnapshot.lastRefreshedAt > latest)

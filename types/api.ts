@@ -598,6 +598,21 @@ export type PositionSnapshotStatus = "PENDING" | "COMPLETE" | "FAILED";
 
 export interface PositionSnapshotOpenPosition extends OpenPosition {
   mark: number | null;
+  // Open-leg excursion (daily-mark, since entry). Optional: older persisted snapshots predate it.
+  maePct?: number | null;
+  mfePct?: number | null;
+  pricedDays?: number;
+  unpricedDays?: number;
+  excursionAsOf?: string | null;
+}
+
+// Client-safe per-position excursion (no prisma); carried in the store's excursions map.
+export interface PositionExcursion {
+  maePct: number | null;
+  mfePct: number | null;
+  pricedDays: number;
+  unpricedDays: number;
+  excursionAsOf: string | null;
 }
 
 export interface PositionSnapshotComputeResponse {
@@ -845,9 +860,9 @@ export interface PortfolioSnapshotOpenLeg {
   mark: number | null;
   unrealized_pnl: number | null; // mark*net_qty*mult - cost_basis; null when mark unavailable
   // Open-leg excursions are not available in tradelog (LotExcursion is 1:1 with a closed MatchedLot).
-  mae_pct: null;
-  mfe_pct: null;
-  excursion_as_of: null;
+  mae_pct: number | null; // fraction of entry (≤ 0); daily-mark excursion since entry; null when no coverage
+  mfe_pct: number | null; // fraction of entry (≥ 0)
+  excursion_as_of: string | null; // last priced mark date in the window
 }
 
 export interface PortfolioSnapshot {
@@ -857,6 +872,6 @@ export interface PortfolioSnapshot {
   tradelog_schema_version: string;
   account_ids: string[]; // resolved external account ids in scope; [] = all accounts
   as_of: string; // ISO; instant open positions were computed/priced
-  open_excursions_available: false; // open-leg MAE/MFE deferred (see PortfolioSnapshotOpenLeg)
+  open_excursions_available: boolean; // true when open-leg MAE/MFE is computed from HistoricalMark
   open_positions: PortfolioSnapshotOpenLeg[];
 }

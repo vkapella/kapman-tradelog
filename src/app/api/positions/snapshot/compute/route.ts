@@ -6,6 +6,7 @@ import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
+import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type {
   EquityQuoteRecord,
@@ -332,11 +333,27 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const totalGain = currentNlv - startingCapital;
     const unexplainedDelta = totalGain - unrealizedPnl - cashAdjustments - realizedPnl - manualAdjustmentsTotal;
 
+    // Open-leg MAE/MFE from HistoricalMark daily high/low over entry->now (advisory display).
+    const openLegExcursions = await computeOpenLegExcursions(prisma, buildExcursionLegs(pricedPositions, executions), new Date());
+    const persistedPositions: PositionSnapshotOpenPosition[] = pricedPositions.map((position) => {
+      const excursion = openLegExcursions.get(position.accountId + "::" + position.instrumentKey);
+      return excursion
+        ? {
+            ...position,
+            maePct: excursion.maePct,
+            mfePct: excursion.mfePct,
+            pricedDays: excursion.pricedDays,
+            unpricedDays: excursion.unpricedDays,
+            excursionAsOf: excursion.excursionAsOf,
+          }
+        : position;
+    });
+
     await prisma.positionSnapshot.update({
       where: { id: snapshotId },
       data: {
         status: "COMPLETE",
-        positionsJson: JSON.stringify(pricedPositions),
+        positionsJson: JSON.stringify(persistedPositions),
         unrealizedPnl: toMoneyDecimal(unrealizedPnl),
         realizedPnl: toMoneyDecimal(realizedPnl),
         cashAdjustments: toMoneyDecimal(cashAdjustments),

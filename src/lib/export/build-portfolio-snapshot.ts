@@ -4,6 +4,7 @@ import type {
   OpenPosition,
   PortfolioSnapshot,
   PortfolioSnapshotOpenLeg,
+  PositionExcursion,
 } from "@/types/api";
 
 export const TRADELOG_SCHEMA_VERSION = "1.0" as const;
@@ -21,6 +22,8 @@ export interface BuildPortfolioSnapshotInput {
   pricedOpenPositions: PricedOpenPosition[];
   /** All executions in scope; the builder filters opening executions itself for the entry-join. */
   executions: ExecutionRecord[];
+  /** Open-leg excursions keyed by `${accountId}::${instrumentKey}`. When provided, open_excursions_available is true. */
+  excursionsByKey?: Map<string, PositionExcursion>;
 }
 
 function contractMultiplier(assetClass: OpenPosition["assetClass"]): number {
@@ -114,6 +117,7 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     const multiplier = contractMultiplier(position.assetClass);
     const groupKey = position.accountId + "::" + position.instrumentKey;
     const entryInfo = entryInfoByGroupKey.get(groupKey) ?? { entryDate: null, spreadGroupId: null };
+    const excursion = input.excursionsByKey?.get(groupKey) ?? null;
 
     const entryPrice =
       position.netQty !== 0 ? round4(position.costBasis / (position.netQty * multiplier)) : null;
@@ -138,9 +142,9 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
       entry_price: entryPrice,
       mark: position.mark,
       unrealized_pnl: unrealizedPnl,
-      mae_pct: null,
-      mfe_pct: null,
-      excursion_as_of: null,
+      mae_pct: excursion?.maePct ?? null,
+      mfe_pct: excursion?.mfePct ?? null,
+      excursion_as_of: excursion?.excursionAsOf ?? null,
     };
   });
 
@@ -151,7 +155,7 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     tradelog_schema_version: TRADELOG_SCHEMA_VERSION,
     account_ids: input.accountExternalIds,
     as_of: input.asOf,
-    open_excursions_available: false,
+    open_excursions_available: input.excursionsByKey !== undefined,
     open_positions,
   };
 }

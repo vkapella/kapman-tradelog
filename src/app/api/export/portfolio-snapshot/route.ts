@@ -6,6 +6,7 @@ import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import { buildPortfolioSnapshot, type PricedOpenPosition } from "@/lib/export/build-portfolio-snapshot";
+import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
 import type {
   EquityQuoteRecord,
   ExecutionRecord,
@@ -165,6 +166,12 @@ export async function GET(request: Request) {
   const accountExternalIds =
     requestedAccountIds.length > 0 ? accountRows.map((row) => row.accountId) : [];
 
+  const excursionsByKey = await computeOpenLegExcursions(
+    prisma,
+    buildExcursionLegs(pricedOpenPositions, executions),
+    new Date(now),
+  );
+
   const snapshot = buildPortfolioSnapshot({
     exportedAt: now,
     asOf: now,
@@ -172,6 +179,7 @@ export async function GET(request: Request) {
     accountExternalIdByInternal,
     pricedOpenPositions,
     executions,
+    excursionsByKey,
   });
 
   return detailResponse(snapshot);

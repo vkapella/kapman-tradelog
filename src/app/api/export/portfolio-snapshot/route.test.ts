@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   execution: { findMany: vi.fn() },
   matchedLot: { findMany: vi.fn() },
   manualAdjustment: { findMany: vi.fn() },
+  historicalMark: { findMany: vi.fn() },
   getEquityQuotes: vi.fn(),
   getOptionQuotesBatch: vi.fn(),
 }));
@@ -16,6 +17,7 @@ vi.mock("@/lib/db/prisma", () => ({
     execution: mocks.execution,
     matchedLot: mocks.matchedLot,
     manualAdjustment: mocks.manualAdjustment,
+    historicalMark: mocks.historicalMark,
   },
 }));
 
@@ -39,6 +41,7 @@ describe("GET /api/export/portfolio-snapshot", () => {
     mocks.execution.findMany.mockResolvedValue([]);
     mocks.matchedLot.findMany.mockResolvedValue([]);
     mocks.manualAdjustment.findMany.mockResolvedValue([]);
+    mocks.historicalMark.findMany.mockResolvedValue([]);
     mocks.getEquityQuotes.mockResolvedValue(null);
     mocks.getOptionQuotesBatch.mockResolvedValue(new Map());
   });
@@ -48,12 +51,12 @@ describe("GET /api/export/portfolio-snapshot", () => {
     expect(data.kind).toBe("portfolio_snapshot");
     expect(data.source).toBe("kapman-tradelog");
     expect(data.tradelog_schema_version).toBe("1.0");
-    expect(data.open_excursions_available).toBe(false);
+    expect(data.open_excursions_available).toBe(true);
     expect(data.open_positions).toEqual([]);
     expect(data).not.toHaveProperty("closed_lots");
   });
 
-  it("emits an open option leg with a computed mark and unrealized P&L, open-leg excursions null", async () => {
+  it("emits an open option leg with a computed mark, unrealized P&L, and MAE/MFE from HistoricalMark", async () => {
     mocks.account.findMany.mockResolvedValue([{ id: "acc1", accountId: "D-123" }]);
     mocks.execution.findMany.mockResolvedValue([
       {
@@ -79,10 +82,14 @@ describe("GET /api/export/portfolio-snapshot", () => {
       },
     ]);
     mocks.getOptionQuotesBatch.mockResolvedValue(new Map([["AAPL_K", 7.85]]));
+    mocks.historicalMark.findMany.mockResolvedValue([
+      { instrumentKey: "AAPL_K", markDate: new Date("2026-06-01T00:00:00.000Z"), high: 9, low: 5 },
+    ]);
 
     const data = await callGet();
 
     expect(mocks.getOptionQuotesBatch).toHaveBeenCalledTimes(1);
+    expect(data.open_excursions_available).toBe(true);
     expect(data.open_positions).toHaveLength(1);
     const leg = data.open_positions[0];
     expect(leg.instrument_key).toBe("AAPL_K");
@@ -95,8 +102,9 @@ describe("GET /api/export/portfolio-snapshot", () => {
     expect(leg.entry_price).toBeCloseTo(6.2, 6);
     expect(leg.entry_date).toBe("2026-05-20T00:00:00.000Z");
     expect(leg.spread_group_id).toBe("SG1");
-    expect(leg.mae_pct).toBeNull();
-    expect(leg.mfe_pct).toBeNull();
+    expect(leg.mfe_pct).toBeCloseTo(0.4516, 3); // (9 - 6.20) / 6.20
+    expect(leg.mae_pct).toBeCloseTo(-0.1935, 3); // (5 - 6.20) / 6.20
+    expect(typeof leg.excursion_as_of).toBe("string");
   });
 
   it("nets fully-closed quantity out of open positions and emits no closed_lots", async () => {

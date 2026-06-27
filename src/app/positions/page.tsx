@@ -16,7 +16,7 @@ import { isAccountInScope } from "@/lib/api/account-scope";
 import { openPositionsStore } from "@/store/openPositionsStore";
 import type { OpenPosition } from "@/types/api";
 
-const POSITIONS_COLUMN_TEMPLATE = "120px 100px 100px 130px 80px 90px 140px 110px 140px 150px 110px 160px";
+const POSITIONS_COLUMN_TEMPLATE = "120px 100px 100px 130px 80px 90px 140px 110px 140px 150px 110px 90px 90px 160px";
 
 function positionKey(position: OpenPosition): string {
   return position.accountId + "::" + position.instrumentKey;
@@ -30,6 +30,11 @@ function formatSignedCurrency(value: number): string {
 }
 function formatPercent(value: number): string {
   return value.toFixed(2) + "%";
+}
+function formatExcursionPct(value: number | null): string {
+  if (value === null) return "—";
+  const pct = value * 100;
+  return (pct > 0 ? "+" : "") + pct.toFixed(1) + "%";
 }
 function getDte(expirationDate: string | null): number | null {
   if (!expirationDate) return null;
@@ -45,7 +50,7 @@ function formatQuoteTimestamp(value: Date | null): string {
   return value.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "medium" });
 }
 
-const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenPosition & { key: string; dte: number | null; mark: number | null; marketValue: number | null; unrealizedPnl: number | null; pnlPct: number | null }; markLoading: boolean; }) {
+const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenPosition & { key: string; dte: number | null; mark: number | null; marketValue: number | null; unrealizedPnl: number | null; pnlPct: number | null; maePct: number | null; mfePct: number | null }; markLoading: boolean; }) {
   return (
     <>
       <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>
@@ -59,6 +64,8 @@ const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenP
       <div className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</div>
       <div className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</div>
       <div className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</div>
+      <div className={row.maePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-red-300"}>{formatExcursionPct(row.maePct)}</div>
+      <div className={row.mfePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-green-300"}>{formatExcursionPct(row.mfePct)}</div>
       <div className="px-2 py-2 text-text-2"><AccountLabel accountId={row.accountId} /></div>
     </>
   );
@@ -83,8 +90,9 @@ export default function Page() {
     const marketValue = mark === null ? null : mark * position.netQty * multiplier;
     const unrealizedPnl = marketValue === null ? null : marketValue - position.costBasis;
     const pnlPct = unrealizedPnl === null || position.costBasis === 0 ? null : (unrealizedPnl / Math.abs(position.costBasis)) * 100;
-    return { ...position, key, dte: getDte(position.expirationDate), mark, marketValue, unrealizedPnl, pnlPct };
-  }), [filteredPositions, snapshot.quotes]);
+    const excursion = snapshot.excursions[position.accountId + "::" + position.instrumentKey];
+    return { ...position, key, dte: getDte(position.expirationDate), mark, marketValue, unrealizedPnl, pnlPct, maePct: excursion?.maePct ?? null, mfePct: excursion?.mfePct ?? null };
+  }), [filteredPositions, snapshot.quotes, snapshot.excursions]);
 
   const columns = useMemo<DataTableColumnDefinition<(typeof rows)[number]>[]>(() => [
     { id: "symbol", label: "Symbol", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
@@ -98,6 +106,8 @@ export default function Page() {
     { id: "marketValue", label: "Mkt Value", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.marketValue === null ? "—" : String(row.marketValue)), sortMode: "number", getSortValue: (row) => row.marketValue },
     { id: "unrealizedPnl", label: "Unrealized P&L", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.unrealizedPnl === null ? "—" : String(row.unrealizedPnl)), sortMode: "number", getSortValue: (row) => row.unrealizedPnl },
     { id: "pnlPct", label: "P&L %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.pnlPct === null ? "—" : String(row.pnlPct)), sortMode: "number", getSortValue: (row) => row.pnlPct },
+    { id: "maePct", label: "MAE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.maePct === null ? "—" : String(row.maePct)), sortMode: "number", getSortValue: (row) => row.maePct },
+    { id: "mfePct", label: "MFE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.mfePct === null ? "—" : String(row.mfePct)), sortMode: "number", getSortValue: (row) => row.mfePct },
     { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },
   ], [getAccountDisplayText]);
 
