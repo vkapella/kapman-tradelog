@@ -827,7 +827,8 @@ export type PeriodReturnApiResponse = ApiDetailResponse<PeriodReturnResponse> | 
 // written by the KB at Pass 2, not by tradelog.
 
 export interface PortfolioSnapshotOpenLeg {
-  symbol: string;
+  symbol: string; // broker-raw execution symbol (may be an OCC-style option symbol)
+  underlying_symbol: string; // clean underlying ticker for display (raw symbol is broker-formatted)
   instrument_key: string;
   account_id: string; // external account id (human-facing label)
   asset_class: "OPTION" | "EQUITY";
@@ -849,18 +850,6 @@ export interface PortfolioSnapshotOpenLeg {
   excursion_as_of: null;
 }
 
-export interface PortfolioSnapshotClosedLot {
-  symbol: string;
-  account_id: string; // external account id
-  realized_pnl: number;
-  exit_date: string | null; // ISO
-  exit_price: number | null; // effectiveClosePrice (raw close price; strike for assignment/exercise; 0 for synthetic expiration)
-  outcome: string; // WIN|LOSS|FLAT
-  holding_days: number;
-  mae_pct: number | null; // fraction of cost basis (e.g. -0.18); from MatchedLot.excursion
-  mfe_pct: number | null;
-}
-
 export interface PortfolioSnapshot {
   kind: "portfolio_snapshot";
   source: "kapman-tradelog";
@@ -870,5 +859,4 @@ export interface PortfolioSnapshot {
   as_of: string; // ISO; instant open positions were computed/priced
   open_excursions_available: false; // open-leg MAE/MFE deferred (see PortfolioSnapshotOpenLeg)
   open_positions: PortfolioSnapshotOpenLeg[];
-  closed_lots: PortfolioSnapshotClosedLot[];
 }

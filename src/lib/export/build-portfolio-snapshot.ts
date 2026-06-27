@@ -3,7 +3,6 @@ import type {
   ExecutionRecord,
   OpenPosition,
   PortfolioSnapshot,
-  PortfolioSnapshotClosedLot,
   PortfolioSnapshotOpenLeg,
 } from "@/types/api";
 
@@ -11,21 +10,6 @@ export const TRADELOG_SCHEMA_VERSION = "1.0" as const;
 
 /** OpenPosition with the per-leg mark resolved at compute time. */
 export type PricedOpenPosition = OpenPosition & { mark: number | null };
-
-/** Pre-shaped closed-lot input assembled by the route from MatchedLot + its relations. */
-export interface ClosedLotInput {
-  accountId: string; // internal account id
-  symbol: string;
-  realizedPnl: number;
-  exitDate: string | null;
-  closePrice: number | null;
-  closeEventType: string | null;
-  closeStrike: number | null;
-  outcome: string;
-  holdingDays: number;
-  maePct: number | null;
-  mfePct: number | null;
-}
 
 export interface BuildPortfolioSnapshotInput {
   exportedAt: string;
@@ -37,7 +21,6 @@ export interface BuildPortfolioSnapshotInput {
   pricedOpenPositions: PricedOpenPosition[];
   /** All executions in scope; the builder filters opening executions itself for the entry-join. */
   executions: ExecutionRecord[];
-  closedLots: ClosedLotInput[];
 }
 
 function contractMultiplier(assetClass: OpenPosition["assetClass"]): number {
@@ -63,25 +46,6 @@ export function deriveStructure(position: Pick<OpenPosition, "assetClass" | "opt
   }
 
   return "uncategorized";
-}
-
-/**
- * Mirrors effectiveClosePrice in src/lib/ledger/fifo-matcher.ts (the price the
- * realized-P&L math actually used): raw close price when present (0 for a
- * synthetic expiration), else the strike for assignment/exercise, else null.
- */
-export function effectiveClosePrice(
-  closePrice: number | null,
-  closeEventType: string | null,
-  closeStrike: number | null,
-): number | null {
-  if (closePrice !== null) {
-    return closePrice;
-  }
-  if ((closeEventType === "ASSIGNMENT" || closeEventType === "EXERCISE") && closeStrike !== null) {
-    return closeStrike;
-  }
-  return null;
 }
 
 interface EntryInfo {
@@ -148,6 +112,7 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
 
     return {
       symbol: position.symbol,
+      underlying_symbol: position.underlyingSymbol,
       instrument_key: position.instrumentKey,
       account_id: input.accountExternalIdByInternal.get(position.accountId) ?? position.accountId,
       asset_class: position.assetClass,
@@ -169,18 +134,6 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     };
   });
 
-  const closed_lots: PortfolioSnapshotClosedLot[] = input.closedLots.map((lot) => ({
-    symbol: lot.symbol,
-    account_id: input.accountExternalIdByInternal.get(lot.accountId) ?? lot.accountId,
-    realized_pnl: lot.realizedPnl,
-    exit_date: lot.exitDate,
-    exit_price: effectiveClosePrice(lot.closePrice, lot.closeEventType, lot.closeStrike),
-    outcome: lot.outcome,
-    holding_days: lot.holdingDays,
-    mae_pct: lot.maePct,
-    mfe_pct: lot.mfePct,
-  }));
-
   return {
     kind: "portfolio_snapshot",
     source: "kapman-tradelog",
@@ -190,6 +143,5 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     as_of: input.asOf,
     open_excursions_available: false,
     open_positions,
-    closed_lots,
   };
 }

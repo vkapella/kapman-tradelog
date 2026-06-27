@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { detailResponse } from "@/lib/api/responses";
 import { parseAccountIds } from "@/lib/api/account-scope";
 import { parsePayloadByType } from "@/lib/adjustments/types";
@@ -6,17 +5,13 @@ import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
-import { buildPortfolioSnapshot, type ClosedLotInput, type PricedOpenPosition } from "@/lib/export/build-portfolio-snapshot";
+import { buildPortfolioSnapshot, type PricedOpenPosition } from "@/lib/export/build-portfolio-snapshot";
 import type {
   EquityQuoteRecord,
   ExecutionRecord,
   ManualAdjustmentRecord,
   MatchedLotRecord,
 } from "@/types/api";
-
-function decimalToNumber(value: Prisma.Decimal | null | undefined): number | null {
-  return value === null || value === undefined ? null : Number(value);
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -54,12 +49,11 @@ export async function GET(request: Request) {
         importId: true,
       },
     }),
+    // Loaded only so computeOpenPositions can net closed quantity out of the open legs; not serialized.
     prisma.matchedLot.findMany({
       where: accountScope,
       include: {
         openExecution: { select: { symbol: true, tradeDate: true, importId: true } },
-        closeExecution: { select: { tradeDate: true, price: true, eventType: true, strike: true } },
-        excursion: { select: { maePct: true, mfePct: true } },
       },
     }),
     prisma.manualAdjustment.findMany({
@@ -96,7 +90,7 @@ export async function GET(request: Request) {
     accountId: row.accountId,
     symbol: row.openExecution.symbol,
     openTradeDate: row.openExecution.tradeDate.toISOString(),
-    closeTradeDate: row.closeExecution?.tradeDate.toISOString() ?? null,
+    closeTradeDate: null,
     openImportId: row.openExecution.importId,
     closeImportId: null,
     quantity: row.quantity.toString(),
@@ -166,22 +160,6 @@ export async function GET(request: Request) {
     return { ...position, mark };
   });
 
-  const closedLots: ClosedLotInput[] = matchedLotRows
-    .filter((row) => row.closeExecution !== null)
-    .map((row) => ({
-      accountId: row.accountId,
-      symbol: row.openExecution.symbol,
-      realizedPnl: Number(row.realizedPnl),
-      exitDate: row.closeExecution?.tradeDate.toISOString() ?? null,
-      closePrice: decimalToNumber(row.closeExecution?.price ?? null),
-      closeEventType: row.closeExecution?.eventType ?? null,
-      closeStrike: decimalToNumber(row.closeExecution?.strike ?? null),
-      outcome: row.outcome,
-      holdingDays: row.holdingDays,
-      maePct: decimalToNumber(row.excursion?.maePct ?? null),
-      mfePct: decimalToNumber(row.excursion?.mfePct ?? null),
-    }));
-
   const accountExternalIdByInternal = new Map(accountRows.map((row) => [row.id, row.accountId]));
   // Empty array signals "all accounts" (no ?accountIds= filter); otherwise the resolved scope.
   const accountExternalIds =
@@ -194,7 +172,6 @@ export async function GET(request: Request) {
     accountExternalIdByInternal,
     pricedOpenPositions,
     executions,
-    closedLots,
   });
 
   return detailResponse(snapshot);
