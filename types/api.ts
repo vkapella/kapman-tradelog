@@ -819,3 +819,56 @@ export interface PeriodReturnResponse {
 }
 
 export type PeriodReturnApiResponse = ApiDetailResponse<PeriodReturnResponse> | ApiErrorResponse;
+
+// --- Portfolio snapshot export (KapMan KB §A2 ingest contract) ---
+// Emitted by GET /api/export/portfolio-snapshot as a copy-pasteable handoff the
+// KapMan KB Portfolio mode consumes 1:1. Entry-time Wyckoff/DGPI/IV-HV context and
+// SIGNAL alert levels are intentionally NOT here — those are journal-owned (positions.md),
+// written by the KB at Pass 2, not by tradelog.
+
+export interface PortfolioSnapshotOpenLeg {
+  symbol: string;
+  instrument_key: string;
+  account_id: string; // external account id (human-facing label)
+  asset_class: "OPTION" | "EQUITY";
+  option_type: "CALL" | "PUT" | null;
+  structure: string; // single-leg label (stock|long_call|short_call|long_put|short_put|uncategorized); spreads grouped by spread_group_id
+  direction: "LONG" | "SHORT";
+  spread_group_id: string | null;
+  strike: string | null;
+  expiration: string | null; // ISO date
+  net_qty: number; // signed
+  cost_basis: number; // multiplier-inclusive
+  entry_date: string | null; // ISO; earliest opening execution among the leg's opens
+  entry_price: number | null; // weighted avg = cost_basis / (net_qty * multiplier)
+  mark: number | null;
+  unrealized_pnl: number | null; // mark*net_qty*mult - cost_basis; null when mark unavailable
+  // Open-leg excursions are not available in tradelog (LotExcursion is 1:1 with a closed MatchedLot).
+  mae_pct: null;
+  mfe_pct: null;
+  excursion_as_of: null;
+}
+
+export interface PortfolioSnapshotClosedLot {
+  symbol: string;
+  account_id: string; // external account id
+  realized_pnl: number;
+  exit_date: string | null; // ISO
+  exit_price: number | null; // effectiveClosePrice (raw close price; strike for assignment/exercise; 0 for synthetic expiration)
+  outcome: string; // WIN|LOSS|FLAT
+  holding_days: number;
+  mae_pct: number | null; // fraction of cost basis (e.g. -0.18); from MatchedLot.excursion
+  mfe_pct: number | null;
+}
+
+export interface PortfolioSnapshot {
+  kind: "portfolio_snapshot";
+  source: "kapman-tradelog";
+  exported_at: string; // ISO; lineage clock for the §A2 handoff
+  tradelog_schema_version: string;
+  account_ids: string[]; // resolved external account ids in scope; [] = all accounts
+  as_of: string; // ISO; instant open positions were computed/priced
+  open_excursions_available: false; // open-leg MAE/MFE deferred (see PortfolioSnapshotOpenLeg)
+  open_positions: PortfolioSnapshotOpenLeg[];
+  closed_lots: PortfolioSnapshotClosedLot[];
+}
