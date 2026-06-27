@@ -128,4 +128,19 @@ describe("buildPortfolioSnapshot", () => {
     expect(snapshot.open_positions[0].unrealized_pnl).toBeNull();
     expect(snapshot.open_positions[0].entry_date).toBeNull(); // no executions to join
   });
+
+  it("rounds money fields to clear floating-point noise", () => {
+    const snapshot = buildPortfolioSnapshot({
+      exportedAt: "t",
+      asOf: "t",
+      accountExternalIds: [],
+      accountExternalIdByInternal: accountMap,
+      pricedOpenPositions: [optionLeg({ netQty: 2, costBasis: 3979.9999999999995, mark: 19.55 })],
+      executions: [],
+    });
+    const leg = snapshot.open_positions[0];
+    expect(leg.cost_basis).toBe(3980); // was 3979.9999999999995
+    expect(leg.entry_price).toBe(19.9); // 3980 / (2 * 100)
+    expect(leg.unrealized_pnl).toBe(-70); // was -69.99999999999955
+  });
 });

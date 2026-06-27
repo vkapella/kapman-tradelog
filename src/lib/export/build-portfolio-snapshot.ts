@@ -27,6 +27,16 @@ function contractMultiplier(assetClass: OpenPosition["assetClass"]): number {
   return assetClass === "OPTION" ? 100 : 1;
 }
 
+/** Round computed money values to cents, clearing floating-point artifacts. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Round a blended-average price; 4 dp preserves the average without FP noise. */
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
 /**
  * Single-leg structure label using the canonical SetupTag vocabulary
  * (src/lib/analytics/setup-inference.ts). Spreads are NOT collapsed here — each
@@ -106,9 +116,9 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     const entryInfo = entryInfoByGroupKey.get(groupKey) ?? { entryDate: null, spreadGroupId: null };
 
     const entryPrice =
-      position.netQty !== 0 ? position.costBasis / (position.netQty * multiplier) : null;
+      position.netQty !== 0 ? round4(position.costBasis / (position.netQty * multiplier)) : null;
     const unrealizedPnl =
-      position.mark === null ? null : position.mark * position.netQty * multiplier - position.costBasis;
+      position.mark === null ? null : round2(position.mark * position.netQty * multiplier - position.costBasis);
 
     return {
       symbol: position.symbol,
@@ -123,7 +133,7 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
       strike: position.strike,
       expiration: position.expirationDate,
       net_qty: position.netQty,
-      cost_basis: position.costBasis,
+      cost_basis: round2(position.costBasis),
       entry_date: entryInfo.entryDate,
       entry_price: entryPrice,
       mark: position.mark,
