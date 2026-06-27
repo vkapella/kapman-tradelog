@@ -50,7 +50,7 @@ describe("GET /api/export/portfolio-snapshot", () => {
     expect(data.tradelog_schema_version).toBe("1.0");
     expect(data.open_excursions_available).toBe(false);
     expect(data.open_positions).toEqual([]);
-    expect(data.closed_lots).toEqual([]);
+    expect(data).not.toHaveProperty("closed_lots");
   });
 
   it("emits an open option leg with a computed mark and unrealized P&L, open-leg excursions null", async () => {
@@ -86,6 +86,7 @@ describe("GET /api/export/portfolio-snapshot", () => {
     expect(data.open_positions).toHaveLength(1);
     const leg = data.open_positions[0];
     expect(leg.instrument_key).toBe("AAPL_K");
+    expect(leg.underlying_symbol).toBe("AAPL");
     expect(leg.account_id).toBe("D-123");
     expect(leg.structure).toBe("long_call");
     expect(leg.direction).toBe("LONG");
@@ -98,40 +99,49 @@ describe("GET /api/export/portfolio-snapshot", () => {
     expect(leg.mfe_pct).toBeNull();
   });
 
-  it("emits a closed lot with effectiveClosePrice and excursions", async () => {
+  it("nets fully-closed quantity out of open positions and emits no closed_lots", async () => {
     mocks.account.findMany.mockResolvedValue([{ id: "acc1", accountId: "D-123" }]);
+    // One opening equity execution fully matched by a closed lot -> no open position remains.
+    mocks.execution.findMany.mockResolvedValue([
+      {
+        id: "open-msft",
+        accountId: "acc1",
+        broker: "SCHWAB_THINKORSWIM",
+        symbol: "MSFT",
+        tradeDate: new Date("2026-05-27T00:00:00.000Z"),
+        eventTimestamp: new Date("2026-05-27T14:30:00.000Z"),
+        eventType: "TRADE",
+        assetClass: "EQUITY",
+        side: "BUY",
+        quantity: { toString: () => "10" },
+        price: { toString: () => "100" },
+        openingClosingEffect: "TO_OPEN",
+        instrumentKey: "MSFT",
+        underlyingSymbol: "MSFT",
+        optionType: null,
+        strike: null,
+        expirationDate: null,
+        spreadGroupId: null,
+        importId: "imp-2",
+      },
+    ]);
     mocks.matchedLot.findMany.mockResolvedValue([
       {
         id: "ml1",
         accountId: "acc1",
-        quantity: { toString: () => "1" },
+        quantity: { toString: () => "10" },
         realizedPnl: { toString: () => "412" },
         holdingDays: 22,
         outcome: "WIN",
         openExecutionId: "open-msft",
         closeExecutionId: "close-msft",
         openExecution: { symbol: "MSFT", tradeDate: new Date("2026-05-27T00:00:00.000Z"), importId: "imp-2" },
-        closeExecution: {
-          tradeDate: new Date("2026-06-18T00:00:00.000Z"),
-          price: null,
-          eventType: "ASSIGNMENT",
-          strike: { toString: () => "190" },
-        },
-        excursion: { maePct: { toString: () => "-0.18" }, mfePct: { toString: () => "0.41" } },
       },
     ]);
 
     const data = await callGet();
 
-    expect(data.open_positions).toEqual([]);
-    expect(data.closed_lots).toHaveLength(1);
-    const lot = data.closed_lots[0];
-    expect(lot.symbol).toBe("MSFT");
-    expect(lot.account_id).toBe("D-123");
-    expect(lot.realized_pnl).toBe(412);
-    expect(lot.exit_date).toBe("2026-06-18T00:00:00.000Z");
-    expect(lot.exit_price).toBe(190); // assignment, price null -> strike
-    expect(lot.mae_pct).toBeCloseTo(-0.18, 6);
-    expect(lot.mfe_pct).toBeCloseTo(0.41, 6);
+    expect(data.open_positions).toEqual([]); // fully matched -> not open
+    expect(data).not.toHaveProperty("closed_lots");
   });
 });

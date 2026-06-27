@@ -4,8 +4,6 @@ import {
   buildEntryInfoByGroupKey,
   buildPortfolioSnapshot,
   deriveStructure,
-  effectiveClosePrice,
-  type ClosedLotInput,
   type PricedOpenPosition,
 } from "./build-portfolio-snapshot";
 
@@ -67,23 +65,6 @@ describe("deriveStructure", () => {
   });
 });
 
-describe("effectiveClosePrice", () => {
-  it("returns the raw close price when present, including a synthetic-expiration 0", () => {
-    expect(effectiveClosePrice(9.1, "TRADE", null)).toBe(9.1);
-    expect(effectiveClosePrice(0, "EXPIRATION_INFERRED", 190)).toBe(0);
-  });
-
-  it("uses the strike for assignment/exercise when price is null", () => {
-    expect(effectiveClosePrice(null, "ASSIGNMENT", 190)).toBe(190);
-    expect(effectiveClosePrice(null, "EXERCISE", 95)).toBe(95);
-  });
-
-  it("returns null when price is null and not an assignment/exercise with a strike", () => {
-    expect(effectiveClosePrice(null, "TRADE", 190)).toBeNull();
-    expect(effectiveClosePrice(null, "ASSIGNMENT", null)).toBeNull();
-  });
-});
-
 describe("buildEntryInfoByGroupKey", () => {
   it("keeps the earliest opening execution and carries its spread group", () => {
     const info = buildEntryInfoByGroupKey([
@@ -112,7 +93,6 @@ describe("buildPortfolioSnapshot", () => {
       accountExternalIdByInternal: accountMap,
       pricedOpenPositions: [optionLeg({})],
       executions: [execution({ spreadGroupId: "SG1" })],
-      closedLots: [],
     });
 
     expect(snapshot.kind).toBe("portfolio_snapshot");
@@ -120,9 +100,11 @@ describe("buildPortfolioSnapshot", () => {
     expect(snapshot.tradelog_schema_version).toBe("1.0");
     expect(snapshot.open_excursions_available).toBe(false);
     expect(snapshot.account_ids).toEqual(["D-123"]);
+    expect(snapshot).not.toHaveProperty("closed_lots");
 
     const leg = snapshot.open_positions[0];
     expect(leg.account_id).toBe("D-123");
+    expect(leg.underlying_symbol).toBe("AAPL");
     expect(leg.structure).toBe("long_call");
     expect(leg.direction).toBe("LONG");
     expect(leg.entry_price).toBeCloseTo(6.2, 6); // 1240 / (2 * 100)
@@ -142,40 +124,8 @@ describe("buildPortfolioSnapshot", () => {
       accountExternalIdByInternal: accountMap,
       pricedOpenPositions: [optionLeg({ mark: null })],
       executions: [],
-      closedLots: [],
     });
     expect(snapshot.open_positions[0].unrealized_pnl).toBeNull();
     expect(snapshot.open_positions[0].entry_date).toBeNull(); // no executions to join
-  });
-
-  it("maps closed lots with effectiveClosePrice and passthrough excursions", () => {
-    const closed: ClosedLotInput = {
-      accountId: "acc1",
-      symbol: "MSFT",
-      realizedPnl: 412,
-      exitDate: "2026-06-18T00:00:00.000Z",
-      closePrice: null,
-      closeEventType: "ASSIGNMENT",
-      closeStrike: 190,
-      outcome: "WIN",
-      holdingDays: 22,
-      maePct: -0.18,
-      mfePct: 0.41,
-    };
-    const snapshot = buildPortfolioSnapshot({
-      exportedAt: "t",
-      asOf: "t",
-      accountExternalIds: [],
-      accountExternalIdByInternal: accountMap,
-      pricedOpenPositions: [],
-      executions: [],
-      closedLots: [closed],
-    });
-    const lot = snapshot.closed_lots[0];
-    expect(lot.account_id).toBe("D-123");
-    expect(lot.exit_price).toBe(190); // assignment -> strike
-    expect(lot.realized_pnl).toBe(412);
-    expect(lot.mae_pct).toBe(-0.18);
-    expect(lot.mfe_pct).toBe(0.41);
   });
 });
