@@ -22,6 +22,7 @@ export interface AccountSnapshot {
 export interface OpenPositionsStore {
   hydrate(accountIds: string[]): void;
   refresh(accountIds: string[]): Promise<void>;
+  followSnapshot(accountIds: string[], snapshotId: string): Promise<void>;
   invalidateAccount(accountId: string): void;
   getSnapshot(accountIds: string | string[]): AccountSnapshot;
   subscribe(listener: () => void): () => void;
@@ -403,6 +404,69 @@ function createOpenPositionsStore(): OpenPositionsStore {
         });
       }
       emitChange();
+    },
+
+    async followSnapshot(accountIds, snapshotId) {
+      const scopedAccountIds = normalizeAccountIds(accountIds);
+      const normalizedSnapshotId = snapshotId.trim();
+      if (scopedAccountIds.length === 0 || normalizedSnapshotId.length === 0) {
+        return;
+      }
+
+      for (const accountId of scopedAccountIds) {
+        const current = readAccountSnapshot(accountId);
+        writeAccountSnapshot(accountId, {
+          positions: current.positions,
+          quotes: current.quotes,
+          excursions: current.excursions,
+          lastRefreshedAt: current.lastRefreshedAt,
+          isLoading: true,
+          error: null,
+        });
+      }
+      emitChange();
+
+      try {
+        let attemptsRemaining = 60;
+        while (attemptsRemaining > 0) {
+          const payload = await fetchSnapshot(scopedAccountIds, normalizedSnapshotId);
+          if ("error" in payload) {
+            throw new Error(payload.error.message);
+          }
+
+          if (!payload.data) {
+            throw new Error("Position snapshot was not found.");
+          }
+
+          if (payload.data.status === "FAILED") {
+            throw new Error(payload.data.errorMessage ?? "Position snapshot failed.");
+          }
+
+          if (payload.data.status === "COMPLETE") {
+            applySnapshot(scopedAccountIds, payload.data.positions, payload.data.snapshotAt);
+            return;
+          }
+
+          attemptsRemaining -= 1;
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        }
+
+        throw new Error("Position snapshot did not complete in time.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to refresh open positions.";
+        for (const accountId of scopedAccountIds) {
+          const current = readAccountSnapshot(accountId);
+          writeAccountSnapshot(accountId, {
+            positions: current.positions,
+            quotes: current.quotes,
+            excursions: current.excursions,
+            lastRefreshedAt: current.lastRefreshedAt,
+            isLoading: false,
+            error: message,
+          });
+        }
+        emitChange();
+      }
     },
 
     invalidateAccount(accountId) {

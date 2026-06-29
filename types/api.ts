@@ -82,6 +82,8 @@ export interface ImportResult {
 
 export interface CommitImportResponse extends ImportResult {
   importId: string;
+  accountId: string;
+  positionSnapshot: PositionSnapshotComputeResponse | null;
   warnings: string[];
 }
 

@@ -155,7 +155,7 @@ export default function Page() {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
-          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Quotes"}</button>
+          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
         </div>
       </header>
 

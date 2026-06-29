@@ -143,4 +143,61 @@ describe("openPositionsStore.invalidateAccount", () => {
     expect(snapshot.quotes).toEqual({ AAPL: 101 });
     expect(snapshot.lastRefreshedAt).toBe(previousTimestamp);
   });
+
+  it("follows an import-triggered snapshot and replaces stale open positions without starting another compute", async () => {
+    const accountId = "account-import-refresh";
+    const stalePosition = {
+      symbol: "VIX",
+      underlyingSymbol: "VIX",
+      assetClass: "OPTION" as const,
+      optionType: "CALL" as const,
+      strike: "22",
+      expirationDate: "2026-07-22T00:00:00.000Z",
+      instrumentKey: "VIX|CALL|22|2026-07-22",
+      netQty: 6,
+      costBasis: 1920,
+      accountId,
+    };
+
+    window.localStorage.setItem(
+      buildStorageKey(accountId),
+      JSON.stringify({
+        positions: [stalePosition],
+        quotes: { [stalePosition.instrumentKey]: 1.01 },
+        lastRefreshedAt: Date.parse("2026-05-29T20:51:50.645Z"),
+      }),
+    );
+    openPositionsStore.hydrate([accountId]);
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "snapshot-from-import",
+          snapshotAt: "2026-06-29T20:06:20.000Z",
+          status: "COMPLETE",
+          positions: [],
+          unrealizedPnl: "0.00",
+          realizedPnl: "0.00",
+          cashAdjustments: "0.00",
+          manualAdjustments: "0.00",
+          currentNlv: "0.00",
+          startingCapital: "0.00",
+          totalGain: "0.00",
+          unexplainedDelta: "0.00",
+        },
+        meta: { snapshotExists: true, snapshotAge: 0 },
+      }),
+    } as Response);
+
+    await openPositionsStore.followSnapshot([accountId], "snapshot-from-import");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/positions/snapshot?snapshotId=snapshot-from-import",
+      { cache: "no-store" },
+    );
+    expect(openPositionsStore.getSnapshot(accountId).positions).toEqual([]);
+    expect(JSON.parse(window.localStorage.getItem(buildStorageKey(accountId)) ?? "{}").positions).toEqual([]);
+  });
 });

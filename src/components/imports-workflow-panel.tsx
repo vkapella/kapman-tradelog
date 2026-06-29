@@ -238,9 +238,9 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       if (isMountedRef.current) {
         setCommitResult(payload.data);
       }
-      const committedImport = history.find((row) => row.id === uploadResult.importId);
-      if (committedImport) {
-        openPositionsStore.invalidateAccount(committedImport.accountId);
+      openPositionsStore.invalidateAccount(payload.data.accountId);
+      if (payload.data.positionSnapshot) {
+        void openPositionsStore.followSnapshot([payload.data.accountId], payload.data.positionSnapshot.snapshotId);
       }
       await loadHistory();
     } finally {
