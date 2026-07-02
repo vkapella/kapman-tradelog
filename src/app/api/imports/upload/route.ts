@@ -48,6 +48,10 @@ export async function POST(request: Request) {
     }
 
     const broker = matched.adapter.id === "fidelity" ? "FIDELITY" : "SCHWAB_THINKORSWIM";
+    const existingAccount = await prisma.account.findUnique({
+      where: { accountId: parsed.accountMetadata.accountId },
+      select: { id: true },
+    });
     const account = await prisma.account.upsert({
       where: { accountId: parsed.accountMetadata.accountId },
       update: {
@@ -100,6 +104,11 @@ export async function POST(request: Request) {
 
     const payload: UploadImportResponse = {
       importId: createdImport.id,
+      account: {
+        accountId: account.accountId,
+        label: account.displayLabel ?? account.label,
+        isNew: !existingAccount,
+      },
       detection: {
         adapterId: matched.adapter.id,
         broker: matched.adapter.id,

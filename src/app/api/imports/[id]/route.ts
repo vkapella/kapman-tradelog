@@ -109,6 +109,23 @@ export async function DELETE(_request: Request, context: { params: { id: string 
       where: { id: importId },
     });
 
+    // Discarding an upload that never committed can leave behind an account that
+    // was auto-created for it; remove the account when it holds no other data.
+    let deletedAccounts = 0;
+    if (existingImport.status !== "COMMITTED") {
+      const [remainingImports, remainingExecutions, remainingCashEvents, remainingAdjustments] = await Promise.all([
+        tx.import.count({ where: { accountId: existingImport.accountId } }),
+        tx.execution.count({ where: { accountId: existingImport.accountId } }),
+        tx.cashEvent.count({ where: { accountId: existingImport.accountId } }),
+        tx.manualAdjustment.count({ where: { accountId: existingImport.accountId } }),
+      ]);
+
+      if (remainingImports + remainingExecutions + remainingCashEvents + remainingAdjustments === 0) {
+        await tx.account.delete({ where: { id: existingImport.accountId } });
+        deletedAccounts = 1;
+      }
+    }
+
     let rebuildRan = false;
     let matchedLotsPersisted = 0;
     let syntheticExecutionsPersisted = 0;
@@ -140,6 +157,7 @@ export async function DELETE(_request: Request, context: { params: { id: string 
         setupGroups: deletedSetupGroups,
         snapshots: deletedSnapshots.count,
         cashEvents: deletedCashEvents.count,
+        accounts: deletedAccounts,
       },
       reassignedExecutions: released.reassignedExecutionIds.length,
       manualAdjustmentsPreserved,

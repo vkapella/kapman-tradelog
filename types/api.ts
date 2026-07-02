@@ -55,6 +55,11 @@ export interface ImportRecord {
 
 export interface UploadImportResponse {
   importId: string;
+  account: {
+    accountId: string;
+    label: string;
+    isNew: boolean;
+  };
   detection: {
     adapterId: BrokerId;
     broker: BrokerId;
@@ -99,6 +104,7 @@ export interface DeleteImportResponse {
     setupGroups: number;
     snapshots: number;
     cashEvents: number;
+    accounts: number;
   };
   reassignedExecutions: number;
   manualAdjustmentsPreserved: number;

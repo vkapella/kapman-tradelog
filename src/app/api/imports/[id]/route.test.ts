@@ -7,6 +7,7 @@ const importDeleteRouteMocks = vi.hoisted(() => {
     },
     cashEvent: {
       deleteMany: vi.fn(),
+      count: vi.fn(),
     },
     matchedLot: {
       findMany: vi.fn(),
@@ -28,12 +29,17 @@ const importDeleteRouteMocks = vi.hoisted(() => {
       findMany: vi.fn(),
       update: vi.fn(),
       deleteMany: vi.fn(),
+      count: vi.fn(),
     },
     manualAdjustment: {
       count: vi.fn(),
       deleteMany: vi.fn(),
     },
     import: {
+      delete: vi.fn(),
+      count: vi.fn(),
+    },
+    account: {
       delete: vi.fn(),
     },
   };
@@ -93,6 +99,10 @@ describe("DELETE /api/imports/[id]", () => {
     importDeleteRouteMocks.tx.setupGroup.deleteMany.mockResolvedValue({ count: 0 });
     importDeleteRouteMocks.tx.manualAdjustment.count.mockResolvedValue(0);
     importDeleteRouteMocks.tx.import.delete.mockResolvedValue({ id: "import-1" });
+    importDeleteRouteMocks.tx.import.count.mockResolvedValue(0);
+    importDeleteRouteMocks.tx.execution.count.mockResolvedValue(0);
+    importDeleteRouteMocks.tx.cashEvent.count.mockResolvedValue(0);
+    importDeleteRouteMocks.tx.account.delete.mockResolvedValue({ id: "account-1" });
 
     importDeleteRouteMocks.rebuildAccountLedger.mockResolvedValue({
       matchedLotsPersisted: 0,
@@ -117,12 +127,69 @@ describe("DELETE /api/imports/[id]", () => {
       params: { id: "import-1" },
     });
 
-    const payload = (await response.json()) as { data: { rebuild: { ran: boolean }; deleted: { importRows: number } } };
+    const payload = (await response.json()) as {
+      data: { rebuild: { ran: boolean }; deleted: { importRows: number; accounts: number } };
+    };
 
     expect(payload.data.deleted.importRows).toBe(1);
     expect(payload.data.rebuild.ran).toBe(false);
     expect(importDeleteRouteMocks.rebuildAccountLedger).not.toHaveBeenCalled();
     expect(importDeleteRouteMocks.rebuildAccountSetups).not.toHaveBeenCalled();
+  });
+
+  it("removes the account when discarding an uncommitted upload leaves it empty", async () => {
+    importDeleteRouteMocks.prisma.import.findUnique.mockResolvedValueOnce({
+      id: "import-1",
+      accountId: "account-1",
+      status: "UPLOADED",
+    });
+
+    const { DELETE } = await import("./route");
+    const response = await DELETE(new Request("http://localhost/api/imports/import-1", { method: "DELETE" }), {
+      params: { id: "import-1" },
+    });
+
+    const payload = (await response.json()) as { data: { deleted: { accounts: number } } };
+
+    expect(payload.data.deleted.accounts).toBe(1);
+    expect(importDeleteRouteMocks.tx.account.delete).toHaveBeenCalledWith({ where: { id: "account-1" } });
+  });
+
+  it("keeps the account when discarding an uncommitted upload but other data remains", async () => {
+    importDeleteRouteMocks.prisma.import.findUnique.mockResolvedValueOnce({
+      id: "import-1",
+      accountId: "account-1",
+      status: "UPLOADED",
+    });
+    importDeleteRouteMocks.tx.import.count.mockResolvedValueOnce(2);
+
+    const { DELETE } = await import("./route");
+    const response = await DELETE(new Request("http://localhost/api/imports/import-1", { method: "DELETE" }), {
+      params: { id: "import-1" },
+    });
+
+    const payload = (await response.json()) as { data: { deleted: { accounts: number } } };
+
+    expect(payload.data.deleted.accounts).toBe(0);
+    expect(importDeleteRouteMocks.tx.account.delete).not.toHaveBeenCalled();
+  });
+
+  it("never deletes the account when removing a committed import", async () => {
+    importDeleteRouteMocks.prisma.import.findUnique.mockResolvedValueOnce({
+      id: "import-1",
+      accountId: "account-1",
+      status: "COMMITTED",
+    });
+
+    const { DELETE } = await import("./route");
+    const response = await DELETE(new Request("http://localhost/api/imports/import-1", { method: "DELETE" }), {
+      params: { id: "import-1" },
+    });
+
+    const payload = (await response.json()) as { data: { deleted: { accounts: number } } };
+
+    expect(payload.data.deleted.accounts).toBe(0);
+    expect(importDeleteRouteMocks.tx.account.delete).not.toHaveBeenCalled();
   });
 
   it("deletes committed import data and removes orphaned executions", async () => {

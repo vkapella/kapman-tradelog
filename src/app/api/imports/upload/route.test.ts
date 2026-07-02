@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const uploadRouteMocks = vi.hoisted(() => {
   return {
     account: {
+      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
     import: {
@@ -53,12 +54,19 @@ describe("POST /api/imports/upload", () => {
   });
 
   it("accepts iOS-renamed filenames that still contain the account id", async () => {
-    uploadRouteMocks.account.upsert.mockResolvedValueOnce({ id: "acct-1" });
+    uploadRouteMocks.account.findUnique.mockResolvedValueOnce(null);
+    uploadRouteMocks.account.upsert.mockResolvedValueOnce({
+      id: "acct-1",
+      accountId: "X19467537",
+      label: "Fidelity X19467537",
+      displayLabel: null,
+    });
     uploadRouteMocks.import.create.mockResolvedValueOnce({ id: "import-1" });
 
     const { POST } = await import("./route");
 
     const response = await POST(buildUploadRequest("History_for_Account_X19467537 (1).csv"));
+    const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(uploadRouteMocks.account.upsert).toHaveBeenCalledWith(
@@ -66,5 +74,33 @@ describe("POST /api/imports/upload", () => {
         where: { accountId: "X19467537" },
       }),
     );
+    expect(body.data.account).toEqual({
+      accountId: "X19467537",
+      label: "Fidelity X19467537",
+      isNew: true,
+    });
+  });
+
+  it("reports an existing account as not new", async () => {
+    uploadRouteMocks.account.findUnique.mockResolvedValueOnce({ id: "acct-1" });
+    uploadRouteMocks.account.upsert.mockResolvedValueOnce({
+      id: "acct-1",
+      accountId: "X19467537",
+      label: "Fidelity X19467537",
+      displayLabel: "Fidelity Brokerage",
+    });
+    uploadRouteMocks.import.create.mockResolvedValueOnce({ id: "import-1" });
+
+    const { POST } = await import("./route");
+
+    const response = await POST(buildUploadRequest("History_for_Account_X19467537-26.csv"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.account).toEqual({
+      accountId: "X19467537",
+      label: "Fidelity Brokerage",
+      isNew: false,
+    });
   });
 });

@@ -92,6 +92,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
   const [uploadResult, setUploadResult] = useState<UploadImportResponse | null>(null);
   const [commitResult, setCommitResult] = useState<CommitImportResponse | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const [history, setHistory] = useState<ImportRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     };
   }, []);
 
-  const canCommit = Boolean(uploadResult && !uploading && !committing && !commitResult);
+  const canCommit = Boolean(uploadResult && !uploading && !committing && !discarding && !commitResult);
 
   const loadHistory = useCallback(async () => {
     if (!showHistory) {
@@ -246,6 +247,39 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
     } finally {
       if (isMountedRef.current) {
         setCommitting(false);
+      }
+    }
+  }
+
+  async function handleDiscardUpload() {
+    if (!uploadResult || committing || commitResult || discarding) {
+      return;
+    }
+
+    setError(null);
+    setDiscarding(true);
+
+    try {
+      const response = await fetch(`/api/imports/${uploadResult.importId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        if (isMountedRef.current) {
+          setError("Discard failed. The uploaded import was not removed.");
+        }
+        return;
+      }
+
+      await response.json();
+      if (isMountedRef.current) {
+        setUploadResult(null);
+        setSelectedFile(null);
+      }
+      await loadHistory();
+    } finally {
+      if (isMountedRef.current) {
+        setDiscarding(false);
       }
     }
   }
@@ -502,6 +536,22 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                 </p>
               </div>
 
+              {uploadResult.account ? (
+                <div>
+                  <p className="text-sm font-medium text-text">Target Account</p>
+                  <p className="mt-1 text-sm text-text">
+                    Records will be associated with <span className="font-semibold">{uploadResult.account.label}</span>
+                    <span className="ml-1 text-xs text-text-2">({uploadResult.account.accountId})</span>
+                  </p>
+                  {uploadResult.account.isNew ? (
+                    <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+                      This account does not exist yet — committing will create it. If that is unexpected (for example a renamed or
+                      mis-detected file), choose Discard Upload below and no records will be kept.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div>
                 <p className="text-sm font-medium text-text">Parse Preview</p>
                 <div className="mt-2 overflow-auto rounded border border-border">
@@ -518,6 +568,16 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                 >
                   {committing ? "Committing..." : commitResult ? "Committed" : "Commit Import"}
                 </button>
+                {!commitResult ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDiscardUpload()}
+                    disabled={committing || discarding}
+                    className="rounded-lg border border-[color:var(--neg)] bg-[color:var(--neg-dim)] px-4 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {discarding ? "Discarding..." : "Discard Upload"}
+                  </button>
+                ) : null}
                 {commitSummary && <p className="text-xs text-text">{commitSummary}</p>}
               </div>
 
