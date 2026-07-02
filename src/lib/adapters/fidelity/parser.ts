@@ -4,7 +4,10 @@ import type { RawFidelityRow } from "./types";
 const HEADER_ROW_INDEX = 2;
 const DATA_START_INDEX = 3;
 
-const ACCOUNT_ID_FILENAME_PATTERN = /History_for_Account_([A-Z0-9]+)-[^/\\]+\.csv$/;
+// Tolerates renames applied by iOS/browser downloads: a missing "-NN" suffix,
+// copy markers like " (1)" or " 2", but never an alphanumeric continuation of
+// the account id itself.
+const ACCOUNT_ID_FILENAME_PATTERN = /History_for_Account_([A-Z0-9]+)(?:[^A-Za-z0-9/\\][^/\\]*)?\.csv$/i;
 
 const RUN_DATE_COLUMN = "Run Date";
 const ACTION_COLUMN = "Action";
@@ -132,7 +135,7 @@ function readColumn(columns: string[], indexes: Map<string, number>, columnName:
 
 export function extractAccountIdFromFilename(filename: string): string | null {
   const match = filename.match(ACCOUNT_ID_FILENAME_PATTERN);
-  return match ? match[1] : null;
+  return match ? match[1].toUpperCase() : null;
 }
 
 export function parseFidelityCsv(buffer: Buffer, _filename: string): RawFidelityRow[] {

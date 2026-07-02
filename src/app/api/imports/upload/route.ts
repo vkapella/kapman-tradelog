@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { detectAdapter } from "@/lib/adapters/registry";
+import { FALLBACK_ACCOUNT_ID } from "@/lib/adapters/fidelity";
 import { getBrokerDisplayName, getDefaultStartingCapital } from "@/lib/accounts/defaults";
 import { prisma } from "@/lib/db/prisma";
 import type { UploadImportResponse } from "@/types/api";
@@ -34,6 +35,17 @@ export async function POST(request: Request) {
       mimeType: file.type || "text/csv",
       size: file.size,
     });
+
+    if (parsed.accountMetadata.accountId === FALLBACK_ACCOUNT_ID) {
+      return errorResponse(
+        "ACCOUNT_ID_MISSING",
+        "The account number could not be determined from the filename, so this upload was rejected.",
+        [
+          `Filename '${file.name}' does not contain a Fidelity account id.`,
+          "Rename the file to match 'History_for_Account_<ACCOUNT_ID>-<suffix>.csv' (as downloaded from Fidelity) and upload it again.",
+        ],
+      );
+    }
 
     const broker = matched.adapter.id === "fidelity" ? "FIDELITY" : "SCHWAB_THINKORSWIM";
     const account = await prisma.account.upsert({

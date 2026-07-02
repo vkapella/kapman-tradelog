@@ -35,9 +35,10 @@ export function classifyAction(rawAction: string): ActionClassification {
     return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_EXCHANGE_IN" };
   }
 
-  if (normalized.includes("YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER")) {
-    return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_BUY" };
-  }
+  // "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER" covers any security bought under a
+  // prospectus (money-market sweeps, but also IPO/prospectus equity purchases), so it
+  // falls through to the generic YOU BOUGHT equity rule; money-market symbols are
+  // converted to MONEY_MARKET_BUY cash events by normalizeMoneyMarketClassification.
 
   if (normalized.includes("YOU SOLD EXCHANGE")) {
     return { kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_EXCHANGE_OUT" };

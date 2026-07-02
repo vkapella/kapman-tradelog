@@ -27,6 +27,13 @@ describe("parseFidelityCsv", () => {
     expect(extractAccountIdFromFilename("unexpected.csv")).toBeNull();
   });
 
+  it("extracts account id from iOS-renamed filename variants", () => {
+    expect(extractAccountIdFromFilename(`History_for_Account_${FIXTURE_ACCOUNT_ID}.csv`)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(`History_for_Account_${FIXTURE_ACCOUNT_ID}-25 (1).csv`)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(`History_for_Account_${FIXTURE_ACCOUNT_ID} 2.csv`)).toBe(FIXTURE_ACCOUNT_ID);
+    expect(extractAccountIdFromFilename(`history_for_account_${FIXTURE_ACCOUNT_ID.toLowerCase()}-25.csv`)).toBe(FIXTURE_ACCOUNT_ID);
+  });
+
   it("parses numbers and dates, and strips the leading symbol space", () => {
     const rows = parseFidelityCsv(loadFixtureBuffer(FIXTURE_FILENAME_8), FIXTURE_FILENAME_8);
 

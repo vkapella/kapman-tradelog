@@ -6,7 +6,7 @@ import type { CashEventImportRecord, ExecutionImportRecord, FidelityPreviewRow }
 const FIDELITY_HEADER =
   "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date";
 
-const FALLBACK_ACCOUNT_ID = "UNKNOWN_FIDELITY_ACCOUNT";
+export const FALLBACK_ACCOUNT_ID = "UNKNOWN_FIDELITY_ACCOUNT";
 
 const fidelityV8Adapter = new FidelityV8Adapter();
 
@@ -15,7 +15,7 @@ function detectFidelity(file: UploadedFile): DetectionResult {
   const lines = text.split(/\r?\n/);
   const headerLine = (lines[2] ?? "").trim();
 
-  const filenameMatch = /History_for_Account_[A-Z0-9]+-[^/\\]+\.csv$/.test(file.name);
+  const filenameMatch = /History_for_Account_[A-Z0-9]+(?:[^A-Za-z0-9/\\][^/\\]*)?\.csv$/i.test(file.name);
   const headerMatch = headerLine === FIDELITY_HEADER;
   const bodyHintMatch = text.includes("Run Date,Action,Symbol,Description") && text.includes("Settlement Date");
 

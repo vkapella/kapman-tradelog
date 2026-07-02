@@ -66,8 +66,10 @@ describe("classifyAction", () => {
       assetClass: "EQUITY",
     });
     expect(classifyAction(pickAction(actions, "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER"))).toEqual({
-      kind: "CASH_EVENT",
-      cashEventType: "MONEY_MARKET_BUY",
+      kind: "EXECUTION",
+      side: "BUY",
+      openClose: null,
+      assetClass: "EQUITY",
     });
     expect(classifyAction(pickAction(actions, "DIVIDEND RECEIVED"))).toEqual({ kind: "CASH_EVENT", cashEventType: "DIVIDEND" });
     expect(classifyAction(pickAction(actions, "REINVESTMENT"))).toEqual({ kind: "CASH_EVENT", cashEventType: "REINVESTMENT" });
@@ -95,7 +97,6 @@ describe("classifyAction", () => {
 
   it("prioritizes specific rules before generic YOU BOUGHT", () => {
     const assigned = pickAction(actions, "YOU BOUGHT ASSIGNED");
-    const moneyMarket = pickAction(actions, "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER");
 
     expect(classifyAction(assigned)).toEqual({
       kind: "EXECUTION",
@@ -103,7 +104,29 @@ describe("classifyAction", () => {
       openClose: null,
       assetClass: "EQUITY",
     });
-    expect(classifyAction(moneyMarket)).toEqual({ kind: "CASH_EVENT", cashEventType: "MONEY_MARKET_BUY" });
+  });
+
+  it("classifies prospectus purchases as equity executions (money-market conversion is symbol-gated downstream)", () => {
+    expect(
+      classifyAction(
+        "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER SOLICITED ORDER SPACE EXPL TECHNOLOGIES CORP CL A (SPCX) (Cash)",
+      ),
+    ).toEqual({
+      kind: "EXECUTION",
+      side: "BUY",
+      openClose: null,
+      assetClass: "EQUITY",
+    });
+    expect(classifyAction("YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER FIMM TREASURY ONLY PORTFOLIO: CL I (FSIXX) (Cash)")).toEqual({
+      kind: "EXECUTION",
+      side: "BUY",
+      openClose: null,
+      assetClass: "EQUITY",
+    });
+    expect(classifyAction("YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER EXCHANGE FIMM TREASURY ONLY PORTFOLIO: CL I (FSIXX) (Cash)")).toEqual({
+      kind: "CASH_EVENT",
+      cashEventType: "MONEY_MARKET_EXCHANGE_IN",
+    });
   });
 
   it("classifies SELL CANCEL rows as cancelled actions", () => {

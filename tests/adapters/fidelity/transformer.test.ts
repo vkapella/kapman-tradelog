@@ -87,6 +87,60 @@ describe("transformFidelityRows", () => {
     }
   });
 
+  it("emits prospectus equity purchases as executions while money-market prospectus buys stay cash events", () => {
+    const syntheticRows: RawFidelityRow[] = [
+      {
+        runDate: new Date("2026-06-12T00:00:00.000Z"),
+        rawAction: "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER SOLICITED ORDER SPACE EXPL TECHNOLOGIES CORP CL A (SPCX) (Cash)",
+        symbol: "SPCX",
+        description: "SPACE EXPL TECHNOLOGIES CORP CL A",
+        marginType: "Cash",
+        price: 135,
+        quantity: 100,
+        commission: null,
+        fees: null,
+        accruedInterest: null,
+        amount: -13500,
+        cashBalance: -13500,
+        settlementDate: new Date("2026-06-15T00:00:00.000Z"),
+      },
+      {
+        runDate: new Date("2026-04-23T00:00:00.000Z"),
+        rawAction: "YOU BOUGHT PROSPECTUS UNDER SEPARATE COVER FIMM TREASURY ONLY PORTFOLIO: CL I (FSIXX) (Cash)",
+        symbol: "FSIXX",
+        description: "FIMM TREASURY ONLY PORTFOLIO: CL I",
+        marginType: "Cash",
+        price: 1,
+        quantity: 17395,
+        commission: null,
+        fees: null,
+        accruedInterest: null,
+        amount: -17395,
+        cashBalance: 0.23,
+        settlementDate: new Date("2026-04-23T00:00:00.000Z"),
+      },
+    ];
+
+    const transformed = transformFidelityRows(syntheticRows, FIXTURE_ACCOUNT_ID);
+
+    expect(transformed.records).toHaveLength(2);
+
+    const spcx = transformed.records.find((record) => record.symbol === "SPCX");
+    if (!spcx || spcx.kind !== "EXECUTION") {
+      throw new Error("Expected SPCX prospectus purchase to be an execution record.");
+    }
+    expect(spcx.side).toBe("BUY");
+    expect(spcx.assetClass).toBe("EQUITY");
+    expect(spcx.quantity).toBe(100);
+    expect(spcx.price).toBe(135);
+
+    const fsixx = transformed.records.find((record) => record.symbol === "FSIXX");
+    if (!fsixx || fsixx.kind !== "CASH_EVENT") {
+      throw new Error("Expected FSIXX prospectus purchase to remain a cash event.");
+    }
+    expect(fsixx.cashEventType).toBe("MONEY_MARKET_BUY");
+  });
+
   it("links assignment option/equity pairs with shared assignmentLinkId", () => {
     const rows8 = loadRows(FIXTURE_FILENAME_8);
     const rows9 = loadRows(FIXTURE_FILENAME_9);
