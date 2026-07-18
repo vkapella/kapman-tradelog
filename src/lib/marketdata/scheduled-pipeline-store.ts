@@ -25,6 +25,37 @@ export interface ScheduledPipelineStore {
   loadActiveLease(now: Date): Promise<ScheduledPipelineLease | null>;
 }
 
+interface AccountSnapshotProgressRow {
+  accountId: string;
+  _max: {
+    snapshotDate: Date | null;
+  };
+}
+
+export function resolveLatestCompleteValueSnapshotDate(
+  activeAccountIds: string[],
+  rows: AccountSnapshotProgressRow[],
+): Date | null {
+  if (activeAccountIds.length === 0) {
+    return null;
+  }
+
+  const latestByAccount = new Map(rows.map((row) => [row.accountId, row._max.snapshotDate]));
+  let latestCompleteDate: Date | null = null;
+
+  for (const accountId of activeAccountIds) {
+    const accountLatestDate = latestByAccount.get(accountId) ?? null;
+    if (!accountLatestDate) {
+      return null;
+    }
+    if (!latestCompleteDate || accountLatestDate.getTime() < latestCompleteDate.getTime()) {
+      latestCompleteDate = accountLatestDate;
+    }
+  }
+
+  return latestCompleteDate;
+}
+
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
@@ -75,11 +106,11 @@ export class PrismaScheduledPipelineStore implements ScheduledPipelineStore {
     const [
       equityExecution,
       optionExecution,
+      activeAccounts,
       earliestEquityMark,
       earliestOptionMark,
       latestEquityMark,
       latestOptionMark,
-      latestValueSnapshot,
     ] = await Promise.all([
       this.prismaClient.execution.findFirst({
         where: { assetClass: "EQUITY" },
@@ -89,6 +120,17 @@ export class PrismaScheduledPipelineStore implements ScheduledPipelineStore {
         where: { assetClass: "OPTION" },
         select: { id: true },
       }),
+      this.prismaClient.account.findMany({
+        where: {
+          OR: [
+            { executions: { some: {} } },
+            { cashEvents: { some: {} } },
+            { snapshots: { some: {} } },
+          ],
+        },
+        select: { id: true },
+        orderBy: { id: "asc" },
+      }),
       this.prismaClient.historicalMark.findFirst({
         where: { assetClass: MarkAssetClass.EQUITY },
         orderBy: { markDate: "asc" },
@@ -108,12 +150,18 @@ export class PrismaScheduledPipelineStore implements ScheduledPipelineStore {
         where: { assetClass: MarkAssetClass.OPTION },
         orderBy: { markDate: "desc" },
         select: { markDate: true },
-      }),
-      this.prismaClient.accountValueSnapshot.findFirst({
-        orderBy: { snapshotDate: "desc" },
-        select: { snapshotDate: true },
       }),
     ]);
+
+    const activeAccountIds = activeAccounts.map((account) => account.id);
+    const valueSnapshotProgress = activeAccountIds.length === 0
+      ? []
+      : await this.prismaClient.accountValueSnapshot.groupBy({
+          by: ["accountId"],
+          where: { accountId: { in: activeAccountIds } },
+          _max: { snapshotDate: true },
+          orderBy: { accountId: "asc" },
+        });
 
     return {
       hasEquityExecutions: equityExecution !== null,
@@ -122,7 +170,7 @@ export class PrismaScheduledPipelineStore implements ScheduledPipelineStore {
       earliestOptionMarkDate: earliestOptionMark?.markDate ?? null,
       latestEquityMarkDate: latestEquityMark?.markDate ?? null,
       latestOptionMarkDate: latestOptionMark?.markDate ?? null,
-      latestValueSnapshotDate: latestValueSnapshot?.snapshotDate ?? null,
+      latestValueSnapshotDate: resolveLatestCompleteValueSnapshotDate(activeAccountIds, valueSnapshotProgress),
     };
   }
 
