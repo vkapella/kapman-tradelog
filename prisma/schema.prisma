@@ -385,6 +385,19 @@ model AccountValueSnapshot {
   @@map("account_value_snapshots")
 }
 
+/// Short-lived ownership record preventing overlapping scheduled pipeline runs.
+/// Durable run history belongs to follow-up issue #310, not this lease table.
+model ScheduledJobLease {
+  jobName        String   @id @map("job_name")
+  leaseOwner     String   @map("lease_owner")
+  leaseExpiresAt DateTime @map("lease_expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([leaseExpiresAt])
+  @@map("scheduled_job_leases")
+}
+
 /// Per matched-lot maximum favorable / adverse excursion. Populated by story 08.
 model LotExcursion {
   id           String    @id @default(cuid())

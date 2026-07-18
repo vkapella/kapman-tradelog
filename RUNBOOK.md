@@ -127,8 +127,9 @@ curl -sf http://localhost:3002/api/overview/summary | grep netPnl
 
 ## D. Data pipeline — historical marks → value snapshots → excursions
 
-These power the Analysis page (account-value curve + MFE/MAE). They are **manual
-jobs**, not part of the web deploy. Background:
+These power the Analysis page (account-value curve + MFE/MAE). Production runs
+them automatically in the dedicated `market-data-daily` Fly Scheduled Machine.
+The individual commands remain available for bounded recovery. Background:
 [docs/account-value-curve/README.md](docs/account-value-curve/README.md).
 
 ### Prerequisites
@@ -138,6 +139,13 @@ Marks ingestion needs the Massive/Polygon S3 credentials in `.env` (see
 `AWS_SECRET_ACCESS_KEY`, `POLYGON_S3_EQUITY_PREFIX`, `POLYGON_S3_OPTIONS_PREFIX`
 (and optionally `POLYGON_API_KEY` for the option REST fallback). The rest of the
 app works without them.
+
+The scheduled job also accepts these optional settings:
+
+- `MARKET_DATA_PUBLICATION_LAG_DAYS` — UTC calendar-day delay before a provider
+  date is eligible; defaults to `2`, avoiding still-unpublished current-day files.
+- `MARKET_DATA_PIPELINE_LEASE_MINUTES` — database lease duration preventing
+  overlapping runs; defaults to `60`.
 
 ### Mandatory order
 
@@ -171,6 +179,49 @@ npm run backfill:lot-excursions -- [--accountIds D-68011053,...] [--start YYYY-M
 ```
 
 With Docker up, run these from the repo root, then **refresh the Analysis page**.
+
+### Automatic production job
+
+The finite orchestration command calculates independent equity and option
+catch-up ranges, loads both mark sources, advances account values only through
+the latest date covered by both required sources, rebuilds excursions, and exits:
+
+```bash
+npm run scheduled:market-data
+```
+
+The production Machine has no HTTP service, uses restart policy `never`, and is
+started approximately once per day by Fly. A database lease prevents overlap.
+Structured stage summaries are written to Fly logs; secrets are never logged.
+
+Create the Machine once, and update it to the current production image after
+every deploy:
+
+```bash
+npm run deploy:market-data-scheduler -- kapman-tradelog
+```
+
+The command is idempotent: it creates the named `market-data-daily` Machine when
+absent and otherwise updates its image, command, resource limits, schedule, and
+non-secret environment. App-level Fly secrets are inherited by the Machine.
+
+Verify source and derived freshness without changing data:
+
+```bash
+fly ssh console -a kapman-tradelog
+# inside a web Machine:
+npm run verify:market-data
+```
+
+For a bounded manual recovery, run the same orchestration command inside Fly:
+
+```bash
+npm run scheduled:market-data -- --start YYYY-MM-DD --end YYYY-MM-DD
+```
+
+The explicit end is still capped by the configured publication lag. If a run is
+terminated, its lease expires automatically; wait for the reported expiry or
+adjust the lease only after confirming no other pipeline process is active.
 
 ### Recipes
 
@@ -297,10 +348,14 @@ fly checks list -a kapman-tradelog
 ```bash
 npm run typecheck && npm run lint && npm test -- --passWithNoTests
 fly deploy -a kapman-tradelog
+npm run deploy:market-data-scheduler -- kapman-tradelog
 curl -sf https://kapman-tradelog.fly.dev/api/health | grep ok
 ```
 
-Reuse the existing Fly secrets; only rerun `fly secrets set` to rotate.
+The scheduler is deliberately unmanaged by `fly deploy`, so the scheduler update
+command is mandatory after every deploy. Reuse the existing Fly secrets; only
+rerun `fly secrets set` to rotate. Massive credentials should be read-only for
+the flat-file bucket.
 
 ### Backfill against prod data
 

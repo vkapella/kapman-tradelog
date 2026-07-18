@@ -66,7 +66,7 @@ until 07). Then 07 + re-run the story-04 backfill fills option values with no UI
 | New tables (`HistoricalMark`, `AccountValueSnapshot`, `LotExcursion`) | 01 | A Prisma **migration** — applied automatically (see below) |
 | New npm dep `@aws-sdk/client-s3` | 03 | Baked into the Docker image at build (`npm ci`) — no action |
 | New env vars (S3/Polygon creds + prefixes) | 03, 07 | **Must be set as Fly secrets** before the backfill jobs can run |
-| Ingestion + backfill CLI scripts (`tsx`) | 03, 04, 07, 08 | **Run manually** — not part of the web deploy |
+| Ingestion + backfill CLI scripts (`tsx`) | 03, 04, 07, 08 | Daily in production via `market-data-daily`; manual commands remain for recovery |
 
 ### How migrations run here (already configured)
 
@@ -145,9 +145,10 @@ backfill:
   Fine for incremental/daily runs; for the heavy first backfill prefer Option A or a one-off
   machine so you don't disrupt the running web service.
 
-**6 — Keep it current (later).** The same jobs are idempotent; schedule a daily incremental
-(yesterday's marks + a one-day valuation/excursion update). Wire it via a Fly scheduled
-machine / cron once the one-time backfill looks right. Re-running story 04 after story 07 lands
+**6 — Keep it current.** `npm run scheduled:market-data` performs an idempotent, locked
+incremental catch-up in the mandatory order. Production runs it in the dedicated Fly
+Scheduled Machine named `market-data-daily`; `npm run deploy:market-data-scheduler` creates
+or updates that Machine to the current production image. Re-running story 04 after story 07 lands
 is the mechanism that fills option values in.
 
 ### Gotchas to remember
