@@ -1,8 +1,14 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { buildAccountIdWhere } from "@/lib/api/account-scope";
+import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromPersistedExecution } from "@/lib/ledger/instrument-key";
 import { computeLotExcursion, type LotExcursionDirection, type LotExcursionMark } from "./compute-lot-excursion";
+import {
+  normalizeHistoricalMarksForSplits,
+  resolveMatchedLotPriceBasis,
+  type SplitPriceAdjustment,
+} from "./matched-lot-price-basis";
 
 interface LoggerLike {
   log(message: string): void;
@@ -209,7 +215,7 @@ export async function backfillLotExcursions(input: BackfillLotExcursionsInput = 
   }
 
   const instrumentKeys = Array.from(new Set(lotWindows.map((entry) => entry.instrumentKey)));
-  const [markRows, tradingDayRows] = await Promise.all([
+  const [markRows, tradingDayRows, splitRows] = await Promise.all([
     instrumentKeys.length === 0
       ? Promise.resolve([])
       : prismaClient.historicalMark.findMany({
@@ -239,9 +245,37 @@ export async function backfillLotExcursions(input: BackfillLotExcursionsInput = 
       distinct: ["markDate"],
       orderBy: { markDate: "asc" },
     }),
+    prismaClient.manualAdjustment.findMany({
+      where: {
+        accountId: { in: scopedAccountIds },
+        status: "ACTIVE",
+        adjustmentType: "SPLIT",
+      },
+      select: {
+        accountId: true,
+        symbol: true,
+        effectiveDate: true,
+        payloadJson: true,
+      },
+      orderBy: [{ effectiveDate: "asc" }, { id: "asc" }],
+    }),
   ]);
 
   const marksByInstrument = buildMarksByInstrument(markRows);
+  const splitAdjustments: SplitPriceAdjustment[] = splitRows.flatMap((row) => {
+    try {
+      const payload = parsePayloadByType("SPLIT", row.payloadJson);
+      return [{
+        accountId: row.accountId,
+        symbol: row.symbol,
+        effectiveDate: row.effectiveDate,
+        from: payload.from,
+        to: payload.to,
+      }];
+    } catch {
+      return [];
+    }
+  });
   const evaluationDateKeys = tradingDayRows.map((row) => dateKey(row.markDate));
   const upserts: Array<Prisma.PrismaPromise<unknown>> = [];
   let excursionsUpserted = 0;
@@ -250,14 +284,37 @@ export async function backfillLotExcursions(input: BackfillLotExcursionsInput = 
   let noMarkLotCount = 0;
 
   for (const entry of lotWindows) {
-    const entryPrice = entry.lot.openExecution.price === null ? null : Number(entry.lot.openExecution.price);
-    const marksByDate = entryPrice === null
+    const priceBasis = resolveMatchedLotPriceBasis({
+      direction: entry.direction,
+      assetClass: entry.lot.openExecution.assetClass,
+      quantity: Number(entry.lot.quantity),
+      realizedPnl: Number(entry.lot.realizedPnl),
+      persistedEntryPrice: entry.lot.openExecution.price === null ? null : Number(entry.lot.openExecution.price),
+      persistedClosePrice: entry.lot.closeExecution?.price === null || entry.lot.closeExecution?.price === undefined
+        ? null
+        : Number(entry.lot.closeExecution.price),
+      closeEventType: entry.lot.closeExecution?.eventType ?? null,
+      closeStrike: entry.lot.closeExecution?.strike === null || entry.lot.closeExecution?.strike === undefined
+        ? null
+        : Number(entry.lot.closeExecution.strike),
+      multiplier: entry.lot.openExecution.multiplier,
+      isClosed: entry.lot.closeExecution !== null,
+    });
+    const entryPrice = priceBasis.entryPrice;
+    const rawMarksByDate = entryPrice === null
       ? new Map<string, LotExcursionMark>()
       : marksByInstrument.get(entry.instrumentKey) ?? new Map<string, LotExcursionMark>();
+    const marksByDate = normalizeHistoricalMarksForSplits(
+      rawMarksByDate,
+      entry.lot.accountId,
+      entry.lot.openExecution.underlyingSymbol ?? entry.lot.openExecution.symbol,
+      splitAdjustments,
+    );
     const result = computeLotExcursion({
       openTradeDate: entry.lot.openExecution.tradeDate,
       closeTradeDate: entry.closeTradeDate,
       entryPrice: entryPrice ?? 0,
+      closePrice: priceBasis.closePrice,
       quantity: Number(entry.lot.quantity),
       direction: entry.direction,
       assetClass: entry.lot.openExecution.assetClass,

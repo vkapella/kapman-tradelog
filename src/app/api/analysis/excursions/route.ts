@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { buildAccountScopeWhere, parseAccountIds, parseDateRangeParams } from "@/lib/api/account-scope";
 import { buildMatchedLotOpenDateWhere } from "@/lib/api/strategy-date-range";
 import { listResponse, parsePagination } from "@/lib/api/responses";
+import { resolveMatchedLotPriceBasis } from "@/lib/analysis/matched-lot-price-basis";
 import { prisma } from "@/lib/db/prisma";
 import type { LotExcursionRecord } from "@/types/api";
 
@@ -16,16 +17,16 @@ function decimalString(value: Prisma.Decimal | null | undefined): string | null 
 function realizedReturnPct(input: {
   realizedPnl: Prisma.Decimal;
   quantity: Prisma.Decimal;
-  price: Prisma.Decimal | null;
+  entryPrice: number | null;
   assetClass: string;
   multiplier: number | null;
 }): string | null {
-  if (input.price === null) {
+  if (input.entryPrice === null) {
     return null;
   }
 
   const multiplier = input.multiplier ?? (input.assetClass === "OPTION" ? 100 : 1);
-  const costBasis = Math.abs(Number(input.price) * Math.abs(Number(input.quantity)) * multiplier);
+  const costBasis = Math.abs(input.entryPrice * Math.abs(Number(input.quantity)) * multiplier);
   if (costBasis === 0) {
     return null;
   }
@@ -100,6 +101,23 @@ export async function GET(request: Request) {
     .filter((row) => row.excursion !== null)
     .map((row) => {
       const setup = row.setupGroupLots[0]?.setupGroup ?? null;
+      const direction = row.openExecution.side === "SELL" ? "SHORT" : "LONG";
+      const priceBasis = resolveMatchedLotPriceBasis({
+        direction,
+        assetClass: row.openExecution.assetClass,
+        quantity: Number(row.quantity),
+        realizedPnl: Number(row.realizedPnl),
+        persistedEntryPrice: row.openExecution.price === null ? null : Number(row.openExecution.price),
+        persistedClosePrice: row.closeExecution?.price === null || row.closeExecution?.price === undefined
+          ? null
+          : Number(row.closeExecution.price),
+        closeEventType: row.closeExecution?.eventType ?? null,
+        closeStrike: row.closeExecution?.strike === null || row.closeExecution?.strike === undefined
+          ? null
+          : Number(row.closeExecution.strike),
+        multiplier: row.openExecution.multiplier,
+        isClosed: row.closeExecution !== null,
+      });
       return {
         id: row.excursion?.id ?? "",
         matchedLotId: row.id,
@@ -115,7 +133,7 @@ export async function GET(request: Request) {
         realizedReturnPct: realizedReturnPct({
           realizedPnl: row.realizedPnl,
           quantity: row.quantity,
-          price: row.openExecution.price,
+          entryPrice: priceBasis.entryPrice,
           assetClass: row.openExecution.assetClass,
           multiplier: row.openExecution.multiplier,
         }),

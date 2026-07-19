@@ -11,6 +11,7 @@ export interface ComputeLotExcursionInput {
   openTradeDate: Date;
   closeTradeDate: Date;
   entryPrice: number;
+  closePrice?: number | null;
   quantity: number;
   direction: LotExcursionDirection;
   assetClass: string;
@@ -60,7 +61,7 @@ function buildWindowDateKeys(input: ComputeLotExcursionInput): string[] {
     return enumerateCalendarDateKeys(startDate, endDate);
   }
 
-  return Array.from(new Set(input.evaluationDateKeys))
+  return Array.from(new Set([...input.evaluationDateKeys, startKey, endKey]))
     .filter((key) => key >= startKey && key <= endKey)
     .sort();
 }
@@ -99,21 +100,13 @@ export function computeLotExcursion(input: ComputeLotExcursionInput): ComputedLo
   let pricedDays = 0;
   let unpricedDays = 0;
 
-  for (const key of windowDateKeys) {
-    const mark = getMark(input.marksByDate, key);
-    if (!isUsableMark(mark)) {
-      unpricedDays += 1;
-      continue;
-    }
-
-    pricedDays += 1;
-
+  function observeRange(high: number, low: number, key: string): void {
     const favorable = input.direction === "LONG"
-      ? (mark.high - input.entryPrice) * quantity * multiplier
-      : (input.entryPrice - mark.low) * quantity * multiplier;
+      ? (high - input.entryPrice) * quantity * multiplier
+      : (input.entryPrice - low) * quantity * multiplier;
     const adverse = input.direction === "LONG"
-      ? (mark.low - input.entryPrice) * quantity * multiplier
-      : (input.entryPrice - mark.high) * quantity * multiplier;
+      ? (low - input.entryPrice) * quantity * multiplier
+      : (input.entryPrice - high) * quantity * multiplier;
 
     if (mfe === null || favorable > mfe) {
       mfe = favorable;
@@ -126,17 +119,25 @@ export function computeLotExcursion(input: ComputeLotExcursionInput): ComputedLo
     }
   }
 
-  if (pricedDays === 0) {
-    return {
-      mfe: 0,
-      mae: 0,
-      mfePct: costBasis === 0 ? null : 0,
-      maePct: costBasis === 0 ? null : 0,
-      mfeDate: null,
-      maeDate: null,
-      pricedDays,
-      unpricedDays,
-    };
+  // Executions are observed prices inside the holding window even when provider bars lag.
+  // They affect extrema without being counted as complete historical-mark coverage.
+  if (Number.isFinite(input.entryPrice)) {
+    observeRange(input.entryPrice, input.entryPrice, dateKey(input.openTradeDate));
+  }
+
+  for (const key of windowDateKeys) {
+    const mark = getMark(input.marksByDate, key);
+    if (!isUsableMark(mark)) {
+      unpricedDays += 1;
+      continue;
+    }
+
+    pricedDays += 1;
+    observeRange(mark.high, mark.low, key);
+  }
+
+  if (input.closePrice !== null && input.closePrice !== undefined && Number.isFinite(input.closePrice)) {
+    observeRange(input.closePrice, input.closePrice, dateKey(input.closeTradeDate));
   }
 
   return {

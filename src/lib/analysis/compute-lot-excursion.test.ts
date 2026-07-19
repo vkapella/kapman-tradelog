@@ -96,7 +96,7 @@ describe("computeLotExcursion", () => {
     expect(result.maePct).toBeNull();
   });
 
-  it("writes zeros and unpriced counts when no marks are priced", () => {
+  it("uses the entry execution as a zero floor when no marks are priced", () => {
     const result = computeLotExcursion({
       openTradeDate: new Date("2026-05-01T00:00:00.000Z"),
       closeTradeDate: new Date("2026-05-05T00:00:00.000Z"),
@@ -113,10 +113,148 @@ describe("computeLotExcursion", () => {
       mae: 0,
       mfePct: 0,
       maePct: 0,
-      mfeDate: null,
-      maeDate: null,
+      mfeDate: "2026-05-01",
+      maeDate: "2026-05-01",
       pricedDays: 0,
       unpricedDays: 3,
     });
+  });
+
+  it("uses the SPCX close execution when the provider close-day bar is missing", () => {
+    const result = computeLotExcursion({
+      openTradeDate: new Date("2026-06-18T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-07-17T00:00:00.000Z"),
+      entryPrice: 16.1,
+      closePrice: 55.62,
+      quantity: 1,
+      direction: "LONG",
+      assetClass: "OPTION",
+      evaluationDateKeys: ["2026-06-18", "2026-07-16"],
+      marksByDate: {
+        "2026-06-18": { high: 18.2, low: 13.2 },
+        "2026-07-16": { high: 48.9, low: 42.52 },
+      },
+    });
+
+    expect(result.mfe).toBeCloseTo(3952);
+    expect(result.mfePct).toBeCloseTo(2.454658, 6);
+    expect(result.mfeDate).toBe("2026-07-17");
+    expect(result.pricedDays).toBe(2);
+    expect(result.unpricedDays).toBe(1);
+  });
+
+  it("keeps a close-day historical high above the exit as the true MFE", () => {
+    const result = computeLotExcursion({
+      openTradeDate: new Date("2026-06-18T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-07-17T00:00:00.000Z"),
+      entryPrice: 16.1,
+      closePrice: 55.62,
+      quantity: 1,
+      direction: "LONG",
+      assetClass: "OPTION",
+      evaluationDateKeys: ["2026-06-18", "2026-07-17"],
+      marksByDate: {
+        "2026-06-18": { high: 18.2, low: 13.2 },
+        "2026-07-17": { high: 60, low: 47 },
+      },
+    });
+
+    expect(result.mfe).toBeCloseTo(4390);
+    expect(result.mfePct).toBeCloseTo(2.726708, 6);
+    expect(result.mfeDate).toBe("2026-07-17");
+    expect(result.unpricedDays).toBe(0);
+  });
+
+  it("uses a short-option buyback as a favorable execution observation", () => {
+    const result = computeLotExcursion({
+      openTradeDate: new Date("2026-07-09T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-07-17T00:00:00.000Z"),
+      entryPrice: 12,
+      closePrice: 3.99,
+      quantity: 1,
+      direction: "SHORT",
+      assetClass: "OPTION",
+      evaluationDateKeys: ["2026-07-09", "2026-07-16"],
+      marksByDate: {
+        "2026-07-09": { high: 13.02, low: 10.8 },
+        "2026-07-16": { high: 7.5, low: 5.07 },
+      },
+    });
+
+    expect(result.mfe).toBeCloseTo(801);
+    expect(result.mfePct).toBeCloseTo(0.6675);
+    expect(result.mfeDate).toBe("2026-07-17");
+    expect(result.unpricedDays).toBe(1);
+  });
+
+  it("supports stock quantities and partial FIFO lot closures", () => {
+    const result = computeLotExcursion({
+      openTradeDate: new Date("2026-01-02T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-01-05T00:00:00.000Z"),
+      entryPrice: 100,
+      closePrice: 120,
+      quantity: 40,
+      direction: "LONG",
+      assetClass: "EQUITY",
+      evaluationDateKeys: ["2026-01-02"],
+      marksByDate: {
+        "2026-01-02": { high: 110, low: 98 },
+      },
+    });
+
+    expect(result.mfe).toBe(800);
+    expect(result.mfePct).toBe(0.2);
+    expect(result.mfeDate).toBe("2026-01-05");
+    expect(result.unpricedDays).toBe(1);
+  });
+
+  it("handles same-day executions without a historical bar", () => {
+    const result = computeLotExcursion({
+      openTradeDate: new Date("2026-02-10T14:30:00.000Z"),
+      closeTradeDate: new Date("2026-02-10T19:30:00.000Z"),
+      entryPrice: 10,
+      closePrice: 12,
+      quantity: 5,
+      direction: "LONG",
+      assetClass: "EQUITY",
+      evaluationDateKeys: [],
+      marksByDate: {},
+    });
+
+    expect(result.mfe).toBe(10);
+    expect(result.mfePct).toBe(0.2);
+    expect(result.mae).toBe(0);
+    expect(result.pricedDays).toBe(0);
+    expect(result.unpricedDays).toBe(1);
+  });
+
+  it("uses an inferred zero-price expiration as the closing observation", () => {
+    const longExpiration = computeLotExcursion({
+      openTradeDate: new Date("2026-01-02T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-01-16T00:00:00.000Z"),
+      entryPrice: 2,
+      closePrice: 0,
+      quantity: 1,
+      direction: "LONG",
+      assetClass: "OPTION",
+      evaluationDateKeys: ["2026-01-02"],
+      marksByDate: { "2026-01-02": { high: 2, low: 2 } },
+    });
+    const shortExpiration = computeLotExcursion({
+      openTradeDate: new Date("2026-01-02T00:00:00.000Z"),
+      closeTradeDate: new Date("2026-01-16T00:00:00.000Z"),
+      entryPrice: 2,
+      closePrice: 0,
+      quantity: 1,
+      direction: "SHORT",
+      assetClass: "OPTION",
+      evaluationDateKeys: ["2026-01-02"],
+      marksByDate: { "2026-01-02": { high: 2, low: 2 } },
+    });
+
+    expect(longExpiration.mfe).toBe(0);
+    expect(longExpiration.mae).toBe(-200);
+    expect(shortExpiration.mfe).toBe(200);
+    expect(shortExpiration.mfePct).toBe(1);
   });
 });
