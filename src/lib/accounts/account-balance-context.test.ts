@@ -43,6 +43,7 @@ describe("loadAccountBalanceContext", () => {
         balance: { toString: () => "12345.67" },
         totalCash: { toString: () => "2345.67" },
         brokerNetLiquidationValue: null,
+        brokerNlvAsOf: null,
         id: "snapshot-1",
       },
     ]);
@@ -56,6 +57,7 @@ describe("loadAccountBalanceContext", () => {
       {
         accountExternalId: "acct-external-1",
         brokerNetLiquidationValue: null,
+        brokerNlvAsOf: null,
         cash: 2345.67,
         cashAsOf: "2026-04-13T00:00:00.000Z",
         cashSource: "snapshot",
@@ -96,6 +98,7 @@ describe("loadAccountBalanceContext", () => {
       {
         accountExternalId: "X19467537",
         brokerNetLiquidationValue: null,
+        brokerNlvAsOf: null,
         cash: 6000,
         cashAsOf: "2026-04-10T00:00:00.000Z",
         cashSource: "heuristic_fallback",

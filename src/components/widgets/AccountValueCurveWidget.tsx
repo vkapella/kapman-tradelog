@@ -147,7 +147,7 @@ export function AccountValueCurveWidget() {
   }
 
   return (
-    <WidgetCard title="Account Value Curve">
+    <WidgetCard title="Historical Closing Account Value">
       {isLoading ? <p className="text-xs text-text-2">Loading value history...</p> : null}
       {error ? <p className="text-xs text-neg">{error}</p> : null}
 
@@ -157,6 +157,9 @@ export function AccountValueCurveWidget() {
 
       {!isLoading && !error && points.length > 0 ? (
         <>
+          <p className="mb-2 text-[11px] text-text-2">
+            Historical closes through {points[points.length - 1]?.date}. This series follows published daily marks and is not the live NLV shown on Dashboard.
+          </p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 28, left: 8 }}>

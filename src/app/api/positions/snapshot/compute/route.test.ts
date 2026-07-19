@@ -145,8 +145,18 @@ describe("POST /api/positions/snapshot/compute", () => {
 
     expect(completedUpdate).toBeDefined();
     expect(completedUpdate.where).toEqual({ id: "snapshot-1" });
-    expect(completedUpdate.data.currentNlv).toBeDefined();
+    expect(completedUpdate.data.currentNlv.toString()).toBe("3365.67");
     expect(completedUpdate.data.unrealizedPnl).toBeDefined();
+    expect(JSON.parse(completedUpdate.data.accountValuesJson)).toEqual([
+      expect.objectContaining({
+        accountId: "acct-internal-1",
+        cashAndEquivalents: "2345.67",
+        equityMarketValue: "1020.00",
+        reconstructedNlv: "3365.67",
+        brokerReportedNlv: "12345.67",
+        reconciliationDelta: "-8980.00",
+      }),
+    ]);
     expect(JSON.parse(completedUpdate.data.positionsJson)).toEqual([
       expect.objectContaining({
         instrumentKey: "SPY",

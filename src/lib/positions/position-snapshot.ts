@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { buildAccountIdWhere } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
-import type { PositionSnapshotOpenPosition } from "@/types/api";
+import type { LiveAccountValue, PositionSnapshotOpenPosition } from "@/types/api";
 
 export function normalizePositionSnapshotAccountIds(accountIds: string[]): string[] {
   return Array.from(new Set(accountIds.map((value) => value.trim()).filter((value) => value.length > 0))).sort((left, right) =>
@@ -29,6 +29,18 @@ export function parsePositionSnapshotPositionsJson(raw: string): PositionSnapsho
   try {
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? (parsed as PositionSnapshotOpenPosition[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function parsePositionSnapshotAccountValuesJson(raw: string | null | undefined): LiveAccountValue[] {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as LiveAccountValue[]) : [];
   } catch {
     return [];
   }

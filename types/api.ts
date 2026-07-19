@@ -309,7 +309,7 @@ export interface OverviewSummaryResponse {
   expectancy: string | null;
   maxDrawdown: string | null;
   startingCapital: string;
-  currentNlv: string;
+  currentNlv: string | null;
   snapshotCount: number;
   importQuality: {
     totalImports: number;
@@ -614,6 +614,28 @@ export interface PositionSnapshotOpenPosition extends OpenPosition {
   excursionAsOf?: string | null;
 }
 
+export type LiveAccountValueStatus = "CURRENT" | "MIXED_AS_OF" | "INCOMPLETE_MARKS";
+
+export interface LiveAccountValue {
+  accountId: string;
+  accountExternalId: string;
+  cashAndEquivalents: string;
+  equityMarketValue: string;
+  optionMarketValue: string;
+  securitiesMarketValue: string;
+  reconstructedNlv: string | null;
+  brokerReportedNlv: string | null;
+  /** Reconstructed NLV minus broker-reported NLV. */
+  reconciliationDelta: string | null;
+  cashAsOf: string | null;
+  marksAsOf: string;
+  brokerNlvAsOf: string | null;
+  missingMarkCount: number;
+  status: LiveAccountValueStatus;
+  valuationBasis: "MARK";
+  cashSource: "snapshot" | "heuristic_fallback";
+}
+
 // Client-safe per-position excursion (no prisma); carried in the store's excursions map.
 export interface PositionExcursion {
   maePct: number | null;
@@ -634,11 +656,12 @@ export interface PositionSnapshotResponseData {
   status: PositionSnapshotStatus;
   errorMessage?: string;
   positions: PositionSnapshotOpenPosition[];
+  accountValues: LiveAccountValue[];
   unrealizedPnl: string;
   realizedPnl: string;
   cashAdjustments: string;
   manualAdjustments: string;
-  currentNlv: string;
+  currentNlv: string | null;
   startingCapital: string;
   totalGain: string;
   unexplainedDelta: string;

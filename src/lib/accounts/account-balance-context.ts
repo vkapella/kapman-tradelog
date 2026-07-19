@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 export interface AccountBalanceContextRecord {
   accountExternalId: string;
   brokerNetLiquidationValue: number | null;
+  brokerNlvAsOf: string | null;
   cash: number;
   cashAsOf: string | null;
   cashSource: "snapshot" | "heuristic_fallback";
@@ -136,6 +137,8 @@ export async function loadAccountBalanceContext(accountIds: string[]): Promise<A
       cashSource: hasSnapshot ? "snapshot" : "heuristic_fallback",
       brokerNetLiquidationValue:
         latestSnapshot?.brokerNetLiquidationValue != null ? Number(latestSnapshot.brokerNetLiquidationValue) : null,
+      brokerNlvAsOf:
+        latestSnapshot?.brokerNetLiquidationValue != null ? latestSnapshot.snapshotDate.toISOString() : null,
     };
   });
 }

@@ -1,215 +1,88 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
-import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { usePositionSnapshot } from "@/hooks/usePositionSnapshot";
 import { WidgetCard } from "@/components/widgets/WidgetCard";
-import { formatCurrency, safeNumber } from "@/components/widgets/utils";
-import type { AccountStartingCapitalSummary, OverviewSummaryResponse, PositionSnapshotOpenPosition } from "@/types/api";
+import { formatCurrency } from "@/components/widgets/utils";
+import type { LiveAccountValue } from "@/types/api";
 
-interface OverviewPayload {
-  data: OverviewSummaryResponse;
-}
-
-interface StartingCapitalPayload {
-  data: AccountStartingCapitalSummary;
-}
-
-interface AccountBalanceMetrics {
-  brokerNlv: number | null;
-  cash: number;
-  cashAsOf: Date | null;
-  marksAsOf: Date | null;
-  progressReference: number | null;
-  nlv: number | null;
-  loading: boolean;
-}
-
-function toDateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function formatTime(value: Date | null): string {
+function formatTimestamp(value: string | null): string {
   if (!value) {
     return "unavailable";
   }
-
-  return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "unavailable";
 }
 
-function deriveAccountMetrics(
-  accountId: string,
-  externalAccountId: string,
-  snapshotPositions: PositionSnapshotOpenPosition[],
-  snapshotAt: string | null,
-  summary: OverviewSummaryResponse | null,
-  startingCapital: AccountStartingCapitalSummary | null,
-  loading: boolean,
-): AccountBalanceMetrics {
-  const marksAsOf = snapshotAt ? new Date(snapshotAt) : null;
-  const positions = snapshotPositions.filter((position) => position.accountId === accountId);
-  const accountBalance = summary?.accountBalances.find((entry) => entry.accountId === externalAccountId) ?? null;
+function formatSignedCurrency(value: string): string {
+  const number = Number(value);
+  return `${number >= 0 ? "+" : "-"}${formatCurrency(Math.abs(number))}`;
+}
 
-  const accountSnapshots = [...(summary?.snapshotSeries ?? [])]
-    .filter((entry) => entry.accountId === externalAccountId)
-    .sort((left, right) => new Date(right.snapshotDate).getTime() - new Date(left.snapshotDate).getTime());
-  const earliestSnapshot = accountSnapshots[accountSnapshots.length - 1];
-  const configuredStartingCapital = startingCapital?.byAccount[externalAccountId] ?? 0;
-
-  const cash = Number(accountBalance?.cash ?? 0);
-  const cashAsOfIso = accountBalance?.cashAsOf ?? null;
-  const cashAsOf = cashAsOfIso ? new Date(cashAsOfIso) : null;
-  const baselineValue = Number(earliestSnapshot?.totalCash ?? earliestSnapshot?.balance ?? 0);
-  const progressReference =
-    Number.isFinite(configuredStartingCapital) && configuredStartingCapital > 0
-      ? configuredStartingCapital
-      : Number.isFinite(baselineValue) && baselineValue > 0
-        ? baselineValue
-        : null;
-  const brokerNlv = accountBalance?.brokerNetLiquidationValue === null || accountBalance?.brokerNetLiquidationValue === undefined
-    ? null
-    : Number(accountBalance.brokerNetLiquidationValue);
-
-  let markedValue: number | null = null;
-  if (marksAsOf) {
-    markedValue = 0;
-    for (const position of positions) {
-      if (typeof position.mark !== "number") {
-        markedValue = null;
-        break;
-      }
-
-      markedValue += position.mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1);
-    }
+function statusMessage(value: LiveAccountValue): string | null {
+  if (value.status === "INCOMPLETE_MARKS") {
+    return `${value.missingMarkCount} open ${value.missingMarkCount === 1 ? "position is" : "positions are"} missing a market mark.`;
   }
-
-  const nlv = brokerNlv ?? (positions.length === 0 ? cash : markedValue === null ? null : cash + markedValue);
-
-  return {
-    brokerNlv,
-    cash,
-    cashAsOf,
-    marksAsOf,
-    progressReference,
-    nlv,
-    loading,
-  };
+  if (value.status === "MIXED_AS_OF") {
+    return "Cash and market marks have different effective dates.";
+  }
+  return null;
 }
 
-function AccountBalanceRow({ accountId, metrics }: { accountId: string; metrics: AccountBalanceMetrics }) {
-  const { brokerNlv, nlv, cash, cashAsOf, marksAsOf, progressReference, loading } = metrics;
-  const value = nlv ?? cash;
-  const base = progressReference ?? Math.max(Math.abs(value), 1);
-  const progress = Math.max(0, Math.min(100, (value / base) * 100));
-  const staleCash = cashAsOf && marksAsOf ? toDateKey(cashAsOf) !== toDateKey(marksAsOf) : false;
+function AccountBalanceRow({ accountId, value, loading }: { accountId: string; value: LiveAccountValue | null; loading: boolean }) {
+  const warning = value ? statusMessage(value) : null;
 
   return (
-    <div className={["rounded-lg border bg-surface-2 p-3", staleCash ? "border-amber-400/70" : "border-border"].join(" ")}>
+    <div className={["rounded-lg border bg-surface-2 p-3", warning ? "border-amber-400/70" : "border-border"].join(" ")}>
       <div className="flex items-center justify-between">
         <p className="text-xs text-text">
           <AccountLabel accountId={accountId} />
         </p>
-        <p className="text-[11px] text-text-2">{loading ? "Updating..." : marksAsOf ? formatTime(marksAsOf) : "Snapshot unavailable"}</p>
+        <p className="text-[11px] text-text-2">{loading ? "Updating..." : value ? formatTimestamp(value.marksAsOf) : "Snapshot unavailable"}</p>
       </div>
-      <p className="mt-1 text-xs text-text-2">Cash: {formatCurrency(cash)}</p>
-      <p className="text-[11px] text-text-2">Cash as of: {cashAsOf ? cashAsOf.toISOString().slice(0, 10) : "unknown"}</p>
-      <p className="text-[11px] text-text-2">Marks as of: {formatTime(marksAsOf)}</p>
-      {staleCash ? (
+      {!value ? <p className="mt-2 text-xs text-text-2">Refresh to compute a live account value.</p> : null}
+      {value ? (
+        <>
+          <p className="mt-2 text-sm font-semibold text-text">
+            {value.reconstructedNlv === null ? "Live NLV unavailable" : `Live NLV: ${formatCurrency(Number(value.reconstructedNlv))}`}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-text-2">
+            <span>Cash and equivalents</span><span className="text-right text-text">{formatCurrency(Number(value.cashAndEquivalents))}</span>
+            <span>Equities</span><span className="text-right text-text">{formatCurrency(Number(value.equityMarketValue))}</span>
+            <span>Options</span><span className="text-right text-text">{formatCurrency(Number(value.optionMarketValue))}</span>
+            <span>Securities total</span><span className="text-right text-text">{formatCurrency(Number(value.securitiesMarketValue))}</span>
+          </div>
+          <div className="mt-2 border-t border-border pt-2 text-[10px] text-text-2">
+            <p>Cash as of: {formatTimestamp(value.cashAsOf)}</p>
+            <p>Marks as of: {formatTimestamp(value.marksAsOf)}</p>
+            <p>Valuation basis: Market mark</p>
+          </div>
+          {value.brokerReportedNlv === null ? (
+            <p className="mt-2 text-[10px] text-text-2">Broker-reported NLV unavailable.</p>
+          ) : (
+            <div className="mt-2 rounded border border-border px-2 py-1 text-[10px] text-text-2">
+              <div className="flex justify-between"><span>Broker NLV</span><span className="text-text">{formatCurrency(Number(value.brokerReportedNlv))}</span></div>
+              <div className="flex justify-between"><span>Reconstructed − broker</span><span className="text-text">{formatSignedCurrency(value.reconciliationDelta ?? "0")}</span></div>
+              <p>Broker as of: {formatTimestamp(value.brokerNlvAsOf)}</p>
+            </div>
+          )}
+        </>
+      ) : null}
+      {warning ? (
         <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
-          Cash snapshot date differs from marks date.
+          {warning}
         </p>
       ) : null}
-      <p className="text-sm font-semibold text-text">{nlv === null ? "NLV unavailable" : "NLV: " + formatCurrency(nlv)}</p>
-      {brokerNlv !== null ? <p className="text-[10px] text-text-2">Using broker NLV snapshot when available.</p> : null}
-      <p className="text-[10px] text-text-2">Scale base: {formatCurrency(base)}</p>
-      <div className="mt-2 h-2 rounded bg-surface">
-        <div className="h-2 rounded bg-accent" style={{ width: `${progress}%` }} />
-      </div>
     </div>
   );
 }
 
 export function AccountBalancesWidget() {
-  const { selectedAccounts, toExternalAccountId } = useAccountFilterContext();
+  const { selectedAccounts } = useAccountFilterContext();
   const { snapshot, loading: snapshotLoading, computing, error: snapshotError, triggerCompute } = usePositionSnapshot(selectedAccounts);
-  const [summary, setSummary] = useState<OverviewSummaryResponse | null>(null);
-  const [startingCapital, setStartingCapital] = useState<AccountStartingCapitalSummary | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadAccountContext(): Promise<void> {
-      setSummaryLoading(true);
-      setSummaryError(null);
-
-      try {
-        const summaryQuery = new URLSearchParams();
-        const startingCapitalQuery = new URLSearchParams();
-        applyAccountIdsToSearchParams(summaryQuery, selectedAccounts);
-        applyAccountIdsToSearchParams(startingCapitalQuery, selectedAccounts);
-
-        const [summaryResponse, startingCapitalResponse] = await Promise.all([
-          fetch(`/api/overview/summary?${summaryQuery.toString()}`, { cache: "no-store", signal: controller.signal }),
-          fetch(`/api/accounts/starting-capital?${startingCapitalQuery.toString()}`, { cache: "no-store", signal: controller.signal }),
-        ]);
-
-        if (!summaryResponse.ok || !startingCapitalResponse.ok) {
-          throw new Error("Unable to load account balance context.");
-        }
-
-        const [summaryPayload, startingCapitalPayload] = (await Promise.all([
-          summaryResponse.json(),
-          startingCapitalResponse.json(),
-        ])) as [OverviewPayload, StartingCapitalPayload];
-
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setSummary(summaryPayload.data);
-        setStartingCapital(startingCapitalPayload.data);
-      } catch (loadError) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setSummary(null);
-        setStartingCapital(null);
-        setSummaryError(loadError instanceof Error ? loadError.message : "Unable to load account balance context.");
-      } finally {
-        if (!controller.signal.aborted) {
-          setSummaryLoading(false);
-        }
-      }
-    }
-
-    void loadAccountContext();
-
-    return () => {
-      controller.abort();
-    };
-  }, [selectedAccounts]);
-
-  const metricsByAccount = useMemo(() => {
-    return Object.fromEntries(
-      selectedAccounts.map((accountId) => [
-        accountId,
-        deriveAccountMetrics(
-          accountId,
-          toExternalAccountId(accountId),
-          snapshot?.positions ?? [],
-          snapshot?.snapshotAt ?? null,
-          summary,
-          startingCapital,
-          snapshotLoading || summaryLoading,
-        ),
-      ]),
-    ) as Record<string, AccountBalanceMetrics>;
-  }, [selectedAccounts, snapshot, summary, startingCapital, snapshotLoading, summaryLoading, toExternalAccountId]);
 
   const action = (
     <button
@@ -227,12 +100,16 @@ export function AccountBalancesWidget() {
       <div className="space-y-2">
         {selectedAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts selected.</p> : null}
         {snapshotError ? <p className="text-xs text-red-300">{snapshotError}</p> : null}
-        {summaryError ? <p className="text-xs text-red-300">{summaryError}</p> : null}
         {!snapshot && !snapshotLoading && !snapshotError ? (
           <p className="text-xs text-text-2">No snapshot available. Refresh to compute account balances.</p>
         ) : null}
         {selectedAccounts.map((accountId) => (
-          <AccountBalanceRow key={accountId} accountId={accountId} metrics={metricsByAccount[accountId]} />
+          <AccountBalanceRow
+            key={accountId}
+            accountId={accountId}
+            value={snapshot?.accountValues.find((entry) => entry.accountId === accountId) ?? null}
+            loading={snapshotLoading}
+          />
         ))}
       </div>
     </WidgetCard>

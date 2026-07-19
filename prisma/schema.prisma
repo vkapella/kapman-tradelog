@@ -277,6 +277,7 @@ model PositionSnapshot {
   status            PositionSnapshotStatus @default(PENDING)
   errorMessage      String?                @map("error_message")
   positionsJson     String                 @map("positions_json")
+  accountValuesJson String                 @default("[]") @map("account_values_json")
   unrealizedPnl     Decimal?               @map("unrealized_pnl") @db.Decimal(20, 6)
   realizedPnl       Decimal?               @map("realized_pnl") @db.Decimal(20, 6)
   cashAdjustments   Decimal?               @map("cash_adjustments") @db.Decimal(20, 6)

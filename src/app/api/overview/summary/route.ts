@@ -12,7 +12,12 @@ import {
   type ReturnOnCapitalEndingValueSource,
   snapshotValue,
 } from "@/lib/overview/return-on-capital";
-import { serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
+import {
+  parsePositionSnapshotAccountValuesJson,
+  parsePositionSnapshotPositionsJson,
+  serializePositionSnapshotAccountIds,
+} from "@/lib/positions/position-snapshot";
+import { resolveLiveAccountValue } from "@/lib/positions/live-account-value";
 import type { OverviewSummaryResponse } from "@/types/api";
 
 function formatNullableMetric(value: number | null): string | null {
@@ -133,11 +138,16 @@ export async function GET(request: Request) {
       where: {
         accountIds: { in: perAccountPositionScopeKeys },
         status: "COMPLETE",
-        currentNlv: { not: null },
         ...(endDateBound ? { snapshotAt: { lte: endDateBound } } : {}),
       },
       orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      select: { accountIds: true, currentNlv: true },
+      select: {
+        accountIds: true,
+        currentNlv: true,
+        positionsJson: true,
+        accountValuesJson: true,
+        snapshotAt: true,
+      },
     }),
   ]);
 
@@ -158,10 +168,6 @@ export async function GET(request: Request) {
   const committedImports = imports.filter((row) => row.status === "COMMITTED").length;
   const failedImports = imports.filter((row) => row.status === "FAILED").length;
   const startingCapital = startingCapitalSummary.total;
-  const currentNlv = accountBalances.reduce((sum, accountBalance) => {
-    return sum + (accountBalance.brokerNetLiquidationValue ?? accountBalance.cash);
-  }, 0);
-  const totalReturnPct = startingCapital > 0 ? ((currentNlv - startingCapital) / startingCapital) * 100 : null;
   const beginningSnapshotsByAccountId = new Map<string, (typeof beginningSnapshotRows)[number]>();
   for (const snapshot of beginningSnapshotRows) {
     if (!beginningSnapshotsByAccountId.has(snapshot.accountId)) {
@@ -185,15 +191,37 @@ export async function GET(request: Request) {
     } catch {
       continue;
     }
-    if (!Array.isArray(parsedScope) || parsedScope.length !== 1 || row.currentNlv === null) {
+    if (!Array.isArray(parsedScope) || parsedScope.length !== 1) {
       continue;
     }
     const scopedAccountId = String(parsedScope[0]);
     if (latestPositionNlvByAccountId.has(scopedAccountId)) {
       continue;
     }
-    latestPositionNlvByAccountId.set(scopedAccountId, Number(row.currentNlv));
+    const storedValue = parsePositionSnapshotAccountValuesJson(row.accountValuesJson)
+      .find((value) => value.accountId === scopedAccountId);
+    const accountExternalId = accountExternalIdsByInternalId.get(scopedAccountId) ?? scopedAccountId;
+    const resolvedValue = storedValue ?? (row.positionsJson && row.snapshotAt
+      ? resolveLiveAccountValue({
+          accountId: scopedAccountId,
+          accountExternalId,
+          positions: parsePositionSnapshotPositionsJson(row.positionsJson),
+          balance: accountBalances.find((entry) => entry.accountExternalId === accountExternalId) ?? null,
+          marksAsOf: row.snapshotAt,
+        })
+      : null);
+    const reconstructedNlv = resolvedValue?.reconstructedNlv
+      ?? (row.currentNlv === null ? null : row.currentNlv.toString());
+    if (reconstructedNlv !== null) {
+      latestPositionNlvByAccountId.set(scopedAccountId, Number(reconstructedNlv));
+    }
   }
+  const currentNlv = internalAccountIds.every((accountId) => latestPositionNlvByAccountId.has(accountId))
+    ? internalAccountIds.reduce((sum, accountId) => sum + (latestPositionNlvByAccountId.get(accountId) ?? 0), 0)
+    : null;
+  const totalReturnPct = currentNlv !== null && startingCapital > 0
+    ? ((currentNlv - startingCapital) / startingCapital) * 100
+    : null;
   const missingEndingValueAccountIds = internalAccountIds
     .filter((accountId) => !latestPositionNlvByAccountId.has(accountId) && !endingSnapshotsByAccountId.has(accountId))
     .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
@@ -292,7 +320,7 @@ export async function GET(request: Request) {
     expectancy: formatNullableMetric(expectancy),
     maxDrawdown: formatNullableMetric(maxDrawdown),
     startingCapital: startingCapital.toFixed(2),
-    currentNlv: currentNlv.toFixed(2),
+    currentNlv: currentNlv === null ? null : currentNlv.toFixed(2),
     snapshotCount,
     importQuality: {
       totalImports: imports.length,

@@ -5,6 +5,7 @@ import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
+import { resolveLiveAccountValue, sumCompleteReconstructedNlv } from "@/lib/positions/live-account-value";
 import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type {
@@ -285,33 +286,22 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const startingCapitalSummary = await getStartingCapitalSummary(accountIds);
     const startingCapital = startingCapitalSummary.total;
     const balanceContext = await loadAccountBalanceContext(accountIds);
-    const accountExternalIdByInternal = new Map(accountRows.map((row) => [row.id, row.accountId]));
-    const markedValueByAccount = new Map<string, number>();
-    for (const position of pricedPositions) {
-      if (typeof position.mark !== "number") {
-        continue;
-      }
-
-      const currentValue = markedValueByAccount.get(position.accountId) ?? 0;
-      markedValueByAccount.set(
-        position.accountId,
-        currentValue + position.mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1),
-      );
-    }
-
-    let currentNlv = 0;
-    for (const accountId of accountIds) {
-      const accountExternalId = accountExternalIdByInternal.get(accountId);
-      const accountBalance = balanceContext.find((entry) => entry.accountExternalId === accountExternalId);
-      const markedValue = markedValueByAccount.get(accountId) ?? 0;
-      currentNlv += accountBalance?.brokerNetLiquidationValue ?? (accountBalance?.cash ?? 0) + markedValue;
-    }
+    const accountValues = accountRows.map((account) => resolveLiveAccountValue({
+      accountId: account.id,
+      accountExternalId: account.accountId,
+      positions: pricedPositions,
+      balance: balanceContext.find((entry) => entry.accountExternalId === account.accountId) ?? null,
+      marksAsOf: new Date(),
+    }));
+    const currentNlv = sumCompleteReconstructedNlv(accountValues);
 
     const realizedPnl = toMoneyNumber(realizedAggregate._sum.realizedPnl);
     const cashAdjustments = toMoneyNumber(cashAggregate._sum.amount);
     const manualAdjustmentsTotal = sumManualAdjustmentAmounts(manualAdjustments);
-    const totalGain = currentNlv - startingCapital;
-    const unexplainedDelta = totalGain - unrealizedPnl - cashAdjustments - realizedPnl - manualAdjustmentsTotal;
+    const totalGain = currentNlv === null ? null : currentNlv - startingCapital;
+    const unexplainedDelta = totalGain === null
+      ? null
+      : totalGain - unrealizedPnl - cashAdjustments - realizedPnl - manualAdjustmentsTotal;
 
     // Open-leg MAE/MFE from HistoricalMark daily high/low over entry->now (advisory display).
     const openLegExcursions = await computeOpenLegExcursions(prisma, buildExcursionLegs(pricedPositions, executions), new Date());
@@ -334,14 +324,15 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       data: {
         status: "COMPLETE",
         positionsJson: JSON.stringify(persistedPositions),
+        accountValuesJson: JSON.stringify(accountValues),
         unrealizedPnl: toMoneyDecimal(unrealizedPnl),
         realizedPnl: toMoneyDecimal(realizedPnl),
         cashAdjustments: toMoneyDecimal(cashAdjustments),
         manualAdjustments: toMoneyDecimal(manualAdjustmentsTotal),
-        currentNlv: toMoneyDecimal(currentNlv),
+        currentNlv: currentNlv === null ? null : toMoneyDecimal(currentNlv),
         startingCapital: toMoneyDecimal(startingCapital),
-        totalGain: toMoneyDecimal(totalGain),
-        unexplainedDelta: toMoneyDecimal(unexplainedDelta),
+        totalGain: totalGain === null ? null : toMoneyDecimal(totalGain),
+        unexplainedDelta: unexplainedDelta === null ? null : toMoneyDecimal(unexplainedDelta),
         errorMessage: null,
       },
     });
@@ -375,6 +366,7 @@ export async function startPositionSnapshotCompute(requestedAccountIdsInput: str
       accountIds: accountIdsJson,
       status: "PENDING",
       positionsJson: "[]",
+      accountValuesJson: "[]",
     },
     select: { id: true, status: true },
   });

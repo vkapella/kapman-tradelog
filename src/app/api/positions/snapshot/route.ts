@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
 import {
+  parsePositionSnapshotAccountValuesJson,
   parsePositionSnapshotPositionsJson,
   resolvePositionSnapshotAccountIds,
   serializePositionSnapshotAccountIds,
   toPositionSnapshotMoneyString,
 } from "@/lib/positions/position-snapshot";
+import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
+import { resolveLiveAccountValue, sumCompleteReconstructedNlv } from "@/lib/positions/live-account-value";
 import type { PositionSnapshotResponse, PositionSnapshotResponseData } from "@/types/api";
 
 type SnapshotRow = {
@@ -14,7 +17,9 @@ type SnapshotRow = {
   snapshotAt: Date;
   status: "PENDING" | "COMPLETE" | "FAILED";
   errorMessage: string | null;
+  accountIds: string;
   positionsJson: string;
+  accountValuesJson: string;
   unrealizedPnl: { toString(): string } | null;
   realizedPnl: { toString(): string } | null;
   cashAdjustments: { toString(): string } | null;
@@ -25,18 +30,51 @@ type SnapshotRow = {
   unexplainedDelta: { toString(): string } | null;
 };
 
-function mapSnapshotRow(row: SnapshotRow): PositionSnapshotResponseData {
+async function mapSnapshotRow(row: SnapshotRow): Promise<PositionSnapshotResponseData> {
+  const positions = parsePositionSnapshotPositionsJson(row.positionsJson);
+  let accountValues = parsePositionSnapshotAccountValuesJson(row.accountValuesJson);
+
+  if (row.status === "COMPLETE" && accountValues.length === 0 && row.accountIds) {
+    let accountIds: string[] = [];
+    try {
+      const parsed = JSON.parse(row.accountIds) as unknown;
+      accountIds = Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      accountIds = [];
+    }
+
+    const [accounts, balances] = await Promise.all([
+      prisma.account.findMany({
+        where: { id: { in: accountIds } },
+        select: { id: true, accountId: true },
+        orderBy: { id: "asc" },
+      }),
+      loadAccountBalanceContext(accountIds),
+    ]);
+    accountValues = accounts.map((account) => resolveLiveAccountValue({
+      accountId: account.id,
+      accountExternalId: account.accountId,
+      positions,
+      balance: balances.find((entry) => entry.accountExternalId === account.accountId) ?? null,
+      marksAsOf: row.snapshotAt,
+    }));
+  }
+
+  const resolvedCurrentNlv = accountValues.length > 0
+    ? sumCompleteReconstructedNlv(accountValues)
+    : row.currentNlv === null ? null : Number(row.currentNlv);
   return {
     id: row.id,
     snapshotAt: row.snapshotAt.toISOString(),
     status: row.status,
     errorMessage: row.errorMessage ?? undefined,
-    positions: parsePositionSnapshotPositionsJson(row.positionsJson),
+    positions,
+    accountValues,
     unrealizedPnl: toPositionSnapshotMoneyString(row.unrealizedPnl),
     realizedPnl: toPositionSnapshotMoneyString(row.realizedPnl),
     cashAdjustments: toPositionSnapshotMoneyString(row.cashAdjustments),
     manualAdjustments: toPositionSnapshotMoneyString(row.manualAdjustments),
-    currentNlv: toPositionSnapshotMoneyString(row.currentNlv),
+    currentNlv: resolvedCurrentNlv === null ? null : resolvedCurrentNlv.toFixed(2),
     startingCapital: toPositionSnapshotMoneyString(row.startingCapital),
     totalGain: toPositionSnapshotMoneyString(row.totalGain),
     unexplainedDelta: toPositionSnapshotMoneyString(row.unexplainedDelta),
@@ -57,7 +95,9 @@ export async function GET(request: Request) {
         snapshotAt: true,
         status: true,
         errorMessage: true,
+        accountIds: true,
         positionsJson: true,
+        accountValuesJson: true,
         unrealizedPnl: true,
         realizedPnl: true,
         cashAdjustments: true,
@@ -90,7 +130,9 @@ export async function GET(request: Request) {
         snapshotAt: true,
         status: true,
         errorMessage: true,
+        accountIds: true,
         positionsJson: true,
+        accountValuesJson: true,
         unrealizedPnl: true,
         realizedPnl: true,
         cashAdjustments: true,
@@ -115,7 +157,7 @@ export async function GET(request: Request) {
 
   const snapshotAge = Math.max(0, Math.floor((Date.now() - snapshot.snapshotAt.getTime()) / 1000));
   const payload: PositionSnapshotResponse = {
-    data: mapSnapshotRow(snapshot),
+    data: await mapSnapshotRow(snapshot),
     meta: {
       snapshotExists: true,
       snapshotAge,
