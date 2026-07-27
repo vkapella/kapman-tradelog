@@ -1,0 +1,19 @@
+This document was exported from the paperMoney® platform which provides a simulated trading environment.
+
+Account Statement for D-68011053 (margin) since 7/21/26 through 7/27/26
+
+Cash Balance
+DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE
+7/23/26,01:00:00,BAL,,Cash balance at the start of business day 23.07 CST,,,,"209,208.64"
+7/23/26,13:47:24,TRD,="5374117674",SOLD -1 DDOG 100 18 SEP 26 270 CALL @20.10,-0.04,-0.65,"2,010.00","211,217.95"
+7/23/26,13:49:43,TRD,="5374119292",SOLD -2 APH 100 16 OCT 26 165 CALL @14.20,-0.06,-1.30,"2,840.00","214,056.59"
+7/23/26,13:51:50,TRD,="5374121706",SOLD -2 D 100 18 SEP 26 65 CALL @7.25,-0.03,-1.30,"1,450.00","215,505.26"
+
+Account Trade History
+,Exec Time,Spread,Side,Qty,Total Cost,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type
+,7/23/26 13:51:50,SINGLE,SELL,-2,0.00,TO CLOSE,D,18 SEP 26,65,CALL,7.25,7.25,LMT
+,7/23/26 13:49:43,SINGLE,SELL,-2,0.00,TO CLOSE,APH,16 OCT 26,165,CALL,14.20,14.20,LMT
+,7/23/26 13:47:24,SINGLE,SELL,-1,0.00,TO OPEN,DDOG,18 SEP 26,270,CALL,20.10,20.10,LMT
+
+Account Summary
+Net Liquidating Value,"$238,052.26"

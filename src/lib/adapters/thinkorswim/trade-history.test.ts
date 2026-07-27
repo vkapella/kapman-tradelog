@@ -101,4 +101,92 @@ describe("parseThinkorswimTradeHistory", () => {
       brokerRefNumber: "5336674732",
     });
   });
+
+  it("parses the 260727 Total Cost layout without shifting execution fields", () => {
+    const account53 = parseThinkorswimTradeHistory(readFileSync("fixtures/tos-260727-account53.csv", "utf8"));
+    const account54 = parseThinkorswimTradeHistory(readFileSync("fixtures/tos-260727-account54.csv", "utf8"));
+
+    expect(account53.accountMetadata.accountId).toBe("D-68011053");
+    expect(account53.executions).toHaveLength(3);
+    expect(account53.executions.map((execution) => ({
+      symbol: execution.symbol,
+      side: execution.side,
+      quantity: execution.quantity,
+      effect: execution.openingClosingEffect,
+      price: execution.price,
+      type: execution.optionType,
+      expiration: execution.expirationDate?.toISOString().slice(0, 10),
+      orderType: execution.rawRowJson.orderType,
+      totalCost: execution.rawRowJson.totalCost,
+    }))).toEqual([
+      {
+        symbol: "D",
+        side: "SELL",
+        quantity: 2,
+        effect: "TO_CLOSE",
+        price: 7.25,
+        type: "CALL",
+        expiration: "2026-09-18",
+        orderType: "LMT",
+        totalCost: "0.00",
+      },
+      {
+        symbol: "APH",
+        side: "SELL",
+        quantity: 2,
+        effect: "TO_CLOSE",
+        price: 14.2,
+        type: "CALL",
+        expiration: "2026-10-16",
+        orderType: "LMT",
+        totalCost: "0.00",
+      },
+      {
+        symbol: "DDOG",
+        side: "SELL",
+        quantity: 1,
+        effect: "TO_OPEN",
+        price: 20.1,
+        type: "CALL",
+        expiration: "2026-09-18",
+        orderType: "LMT",
+        totalCost: "0.00",
+      },
+    ]);
+    expect(account53.executions.map((execution) => execution.brokerRefNumber)).toEqual([
+      "5374121706",
+      "5374119292",
+      "5374117674",
+    ]);
+
+    expect(account54.accountMetadata.accountId).toBe("D-68011054");
+    expect(account54.executions).toHaveLength(1);
+    expect(account54.executions[0]).toMatchObject({
+      symbol: "GOOG",
+      side: "SELL",
+      quantity: 1,
+      openingClosingEffect: "TO_CLOSE",
+      optionType: "CALL",
+      strike: 400,
+      price: 21.75,
+      netAmount: 21.75,
+      brokerRefNumber: "5374114443",
+    });
+    expect(account54.executions[0]?.rawRowJson).toMatchObject({
+      totalCost: "0.00",
+      orderType: "LMT",
+    });
+  });
+
+  it("reports unsupported trade-history columns precisely", () => {
+    const synthetic = [
+      "Account Statement for D-99999999 (margin) since 1/1/26 through 1/2/26",
+      "Account Trade History",
+      ",Exec Time,Spread,Side,Qty,Total Cost,Pos Effect,Symbol,Exp,Strike,Type,Net Price,Order Type,Future Field",
+    ].join("\n");
+
+    expect(() => parseThinkorswimTradeHistory(synthetic)).toThrow(
+      "Unsupported Account Trade History header: missing required columns: Price.",
+    );
+  });
 });

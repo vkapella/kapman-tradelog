@@ -1,0 +1,15 @@
+This document was exported from the paperMoney® platform which provides a simulated trading environment.
+
+Account Statement for D-68011054 (margin) since 7/21/26 through 7/27/26
+
+Cash Balance
+DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE
+7/23/26,01:00:00,BAL,,Cash balance at the start of business day 23.07 CST,,,,"6,101.21"
+7/23/26,13:43:05,TRD,="5374114443",SOLD -1 GOOG 100 17 JUN 27 400 CALL @21.75,-0.05,-0.65,"2,175.00","8,275.51"
+
+Account Trade History
+,Exec Time,Spread,Side,Qty,Total Cost,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type
+,7/23/26 13:43:05,SINGLE,SELL,-1,0.00,TO CLOSE,GOOG,17 JUN 27,400,CALL,21.75,21.75,LMT
+
+Account Summary
+Net Liquidating Value,"$93,301.21"

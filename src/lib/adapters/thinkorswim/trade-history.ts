@@ -3,7 +3,21 @@ import { parseThinkorswimAccountSummary } from "./account-summary";
 import { parseCashBalanceRows, type ParsedCashTradeReference } from "./cash-balance";
 import type { AdapterWarning, NormalizedCashEvent, NormalizedDailyAccountSnapshot, NormalizedExecution, ParseResult } from "../types";
 
-const TRADE_HISTORY_HEADER = ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type";
+const REQUIRED_TRADE_HISTORY_COLUMNS = [
+  "Exec Time",
+  "Spread",
+  "Side",
+  "Qty",
+  "Pos Effect",
+  "Symbol",
+  "Exp",
+  "Strike",
+  "Type",
+  "Price",
+  "Net Price",
+  "Order Type",
+] as const;
+const OPTIONAL_TRADE_HISTORY_COLUMNS = new Set(["Total Cost"]);
 const KNOWN_SPREADS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
 const MULTI_LEG_SPREADS = new Set(["VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
 
@@ -115,14 +129,85 @@ function deriveAssetClass(typeValue: string): "EQUITY" | "OPTION" {
   return normalized === "CALL" || normalized === "PUT" ? "OPTION" : "EQUITY";
 }
 
-function hasContinuation(lines: string[], lineIndex: number): boolean {
+interface TradeHistoryColumns {
+  execTime: number;
+  spread: number;
+  side: number;
+  qty: number;
+  posEffect: number;
+  symbol: number;
+  exp: number;
+  strike: number;
+  type: number;
+  price: number;
+  netPrice: number;
+  orderType: number;
+  totalCost: number | null;
+}
+
+function parseTradeHistoryColumns(headerLine: string): TradeHistoryColumns {
+  const header = splitCsvLine(headerLine).map((column) => column.trim());
+  if (header[0] !== "") {
+    throw new Error("Unsupported Account Trade History header: expected a leading empty column.");
+  }
+
+  const indexes = new Map<string, number>();
+  const duplicateColumns: string[] = [];
+  for (let index = 1; index < header.length; index += 1) {
+    const name = header[index] ?? "";
+    if (!name) {
+      continue;
+    }
+    if (indexes.has(name)) {
+      duplicateColumns.push(name);
+      continue;
+    }
+    indexes.set(name, index);
+  }
+
+  if (duplicateColumns.length > 0) {
+    throw new Error(`Unsupported Account Trade History header: duplicate columns: ${duplicateColumns.join(", ")}.`);
+  }
+
+  const missingColumns = REQUIRED_TRADE_HISTORY_COLUMNS.filter((column) => !indexes.has(column));
+  if (missingColumns.length > 0) {
+    throw new Error(`Unsupported Account Trade History header: missing required columns: ${missingColumns.join(", ")}.`);
+  }
+
+  const supportedColumns = new Set<string>([
+    ...REQUIRED_TRADE_HISTORY_COLUMNS,
+    ...Array.from(OPTIONAL_TRADE_HISTORY_COLUMNS),
+  ]);
+  const unsupportedColumns = Array.from(indexes.keys()).filter((column) => !supportedColumns.has(column));
+  if (unsupportedColumns.length > 0) {
+    throw new Error(`Unsupported Account Trade History header: unrecognized columns: ${unsupportedColumns.join(", ")}.`);
+  }
+
+  return {
+    execTime: indexes.get("Exec Time")!,
+    spread: indexes.get("Spread")!,
+    side: indexes.get("Side")!,
+    qty: indexes.get("Qty")!,
+    posEffect: indexes.get("Pos Effect")!,
+    symbol: indexes.get("Symbol")!,
+    exp: indexes.get("Exp")!,
+    strike: indexes.get("Strike")!,
+    type: indexes.get("Type")!,
+    price: indexes.get("Price")!,
+    netPrice: indexes.get("Net Price")!,
+    orderType: indexes.get("Order Type")!,
+    totalCost: indexes.get("Total Cost") ?? null,
+  };
+}
+
+function hasContinuation(lines: string[], lineIndex: number, execTimeColumn: number): boolean {
   const nextLine = lines[lineIndex + 1];
   if (!nextLine || !nextLine.startsWith(",")) {
     return false;
   }
 
   const nextColumns = splitCsvLine(nextLine);
-  const nextExecTime = (nextColumns[1] ?? "").trim();
+  const nextExecTime = (nextColumns[execTimeColumn] ?? "").trim();
   return nextExecTime === "";
 }
 
@@ -321,9 +406,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
   }
 
   const headerLine = lines[sectionIndex + 1] ?? "";
-  if (headerLine.trim() !== TRADE_HISTORY_HEADER) {
-    throw new Error(`Unexpected Account Trade History header: ${headerLine}`);
-  }
+  const columns = parseTradeHistoryColumns(headerLine);
 
   let parsedRows = 0;
   let skippedRows = 0;
@@ -345,17 +428,18 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     }
 
     const row = splitCsvLine(line);
-    const execTimeRaw = (row[1] ?? "").trim();
-    const spreadRaw = (row[2] ?? "").trim().toUpperCase();
-    const sideRaw = (row[3] ?? "").trim().toUpperCase();
-    const qtyRaw = (row[4] ?? "").trim();
-    const posEffectRaw = (row[5] ?? "").trim().toUpperCase();
-    const symbolRaw = (row[6] ?? "").trim().toUpperCase();
-    const expRaw = (row[7] ?? "").trim();
-    const strikeRaw = (row[8] ?? "").trim();
-    const typeRaw = (row[9] ?? "").trim().toUpperCase();
-    const priceRaw = (row[10] ?? "").trim();
-    const netPriceRaw = (row[11] ?? "").trim();
+    const execTimeRaw = (row[columns.execTime] ?? "").trim();
+    const spreadRaw = (row[columns.spread] ?? "").trim().toUpperCase();
+    const sideRaw = (row[columns.side] ?? "").trim().toUpperCase();
+    const qtyRaw = (row[columns.qty] ?? "").trim();
+    const posEffectRaw = (row[columns.posEffect] ?? "").trim().toUpperCase();
+    const symbolRaw = (row[columns.symbol] ?? "").trim().toUpperCase();
+    const expRaw = (row[columns.exp] ?? "").trim();
+    const strikeRaw = (row[columns.strike] ?? "").trim();
+    const typeRaw = (row[columns.type] ?? "").trim().toUpperCase();
+    const priceRaw = (row[columns.price] ?? "").trim();
+    const netPriceRaw = (row[columns.netPrice] ?? "").trim();
+    const totalCostRaw = columns.totalCost === null ? "" : (row[columns.totalCost] ?? "").trim();
 
     const continuation = execTimeRaw === "";
 
@@ -372,7 +456,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
       }
 
       activeTimestamp = timestamp;
-      const startsGroup = MULTI_LEG_SPREADS.has(spreadRaw) || hasContinuation(lines, lineIndex);
+      const startsGroup = MULTI_LEG_SPREADS.has(spreadRaw) || hasContinuation(lines, lineIndex, columns.execTime);
       activeGroupId = startsGroup ? `${accountMetadata.accountId}-${lineIndex + 1}` : null;
     } else if (!activeTimestamp) {
       skippedRows += 1;
@@ -452,6 +536,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
         spread: spreadRaw || null,
         side: sideRaw || null,
         qty: qtyRaw || null,
+        totalCost: totalCostRaw || null,
         posEffect: posEffectRaw || null,
         symbol: symbolRaw || null,
         exp: expRaw || null,
@@ -459,7 +544,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
         type: typeRaw || null,
         price: priceRaw || null,
         netPrice: netPriceRaw || null,
-        orderType: (row[12] ?? "").trim() || null,
+        orderType: (row[columns.orderType] ?? "").trim() || null,
         refNumber: null,
       },
     };

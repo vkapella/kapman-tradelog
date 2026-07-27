@@ -10,6 +10,7 @@ import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { ImportPreviewTable } from "@/components/imports/ImportPreviewTable";
+import { getUploadErrorMessage } from "@/components/imports/upload-error";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
@@ -21,9 +22,7 @@ interface CommitPayload {
   data: CommitImportResponse;
 }
 
-interface UploadPayload {
-  data: UploadImportResponse;
-}
+type UploadPayload = { data: UploadImportResponse };
 
 type UploadPhase = "idle" | "uploading" | "parsing";
 
@@ -185,7 +184,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
             }
           } else {
             if (isMountedRef.current) {
-              setError("Upload failed. Review the file and retry.");
+              setError(getUploadErrorMessage(payload));
             }
           }
         } catch {
