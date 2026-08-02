@@ -98,8 +98,26 @@ by you, not reported to the human for confirmation:
 
 Only after all checklist items are confirmed should you report completion to the human.
 
-Deployment to Fly is a separate, explicitly-authorized step (see Deployment) —
-pushing to `main` does not deploy.
+Pushing to `main` auto-deploys to Fly once the `FLY_API_TOKEN` repo secret is
+configured — see **Deployment to Fly** below. A push to `main` is therefore a
+production release (including Prisma migrations); the validation suite above is
+the release gate.
+
+## Deployment to Fly
+
+- A push to `main` (or a manual run of the **Fly Deploy** workflow) deploys via
+  `.github/workflows/fly-deploy.yml` (`flyctl deploy --remote-only`).
+- **Token scope rule:** the `FLY_API_TOKEN` Actions secret must be a
+  *deploy-scoped, per-app* token — `fly tokens create deploy -a kapman-tradelog`
+  — never an org-wide token. This repo's CI credential must be incapable of
+  touching the other kapman Fly apps.
+- **Migrations ride every deploy:** `fly.toml` sets
+  `release_command = "npx prisma migrate deploy"`, so an auto-deploy applies any
+  pending Prisma migrations to the production database. Never push a migration
+  to `main` you are not ready to run in prod.
+- While the secret is unset the workflow skips green and deploys stay manual
+  (`fly deploy` from an operator machine). Remote agent sessions hold no Fly
+  credentials; their job ends at a validated push to `main`.
 
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router

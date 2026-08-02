@@ -1,0 +1,42 @@
+# Auto-deploy to Fly on push to main (#316). Same pipeline as the other
+# kapman Fly apps (first landed in kapman-polygon-viewer#66).
+#
+# Token policy: FLY_API_TOKEN must be a DEPLOY-scoped, PER-APP token —
+# `fly tokens create deploy -a kapman-tradelog` — never an org-wide token, so
+# this repo's CI can never touch the other kapman Fly apps.
+#
+# NOTE: fly.toml sets release_command = "npx prisma migrate deploy", so every
+# deploy — including these automatic ones — applies pending Prisma migrations
+# to the production database.
+#
+# The job skips (green) while the secret is unset, so this workflow can land
+# before the token exists; deploys stay manual (`fly deploy`) until then.
+name: Fly Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# one deploy at a time; a queued push waits rather than racing the machine
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Skip — FLY_API_TOKEN secret not set
+        if: env.FLY_API_TOKEN == ''
+        run: echo "FLY_API_TOKEN is not configured; skipping deploy (see AGENTS.md Deployment to Fly)."
+      - uses: actions/checkout@v4
+        if: env.FLY_API_TOKEN != ''
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+      - name: fly deploy
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only
