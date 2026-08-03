@@ -3,8 +3,8 @@
 Single source of truth for running, recovering, backfilling, and deploying the
 KapMan Trading Journal. For app architecture and data model see
 [docs/architecture.md](docs/architecture.md) and
-[docs/data_model.md](docs/data_model.md). For the autonomous git/PR workflow see
-[AGENTS.md](AGENTS.md).
+[docs/data_model.md](docs/data_model.md). For the autonomous direct-to-main git
+workflow see [AGENTS.md](AGENTS.md).
 
 **Quick facts**
 
@@ -16,6 +16,8 @@ KapMan Trading Journal. For app architecture and data model see
 | DB from inside containers | `db:5432` |
 | App runtime volume | `kapman-tradelog_app-node-modules` |
 | Postgres data volume | `postgres-data` (deleted only by `docker compose down -v`) |
+| Local Postgres version | 16 (docker) — **production is 17**; see [Section D](#d-backup--recovery) |
+| Prod DB backup archive | `../KapMan-DB-Archive/` (beside the repo) via `ops/archive-db-to-mac.sh` |
 
 ---
 
@@ -125,7 +127,143 @@ curl -sf http://localhost:3002/api/overview/summary | grep netPnl
 
 ---
 
-## D. Data pipeline — historical marks → value snapshots → excursions
+## D. Backup & recovery
+
+Production holds irreplaceable imported trading history. Three independent
+layers protect it; none substitutes for the others.
+
+| Layer | What it is | Window | Survives loss of the Fly account |
+|---|---|---|---|
+| Fly volume snapshots | Block-level copy of the whole volume, automatic daily | 30 days | **No** |
+| Mac archive | Verified logical `pg_dump`, portable anywhere | Kept indefinitely | Yes |
+| Backblaze Personal Backup | Sweeps the Mac archive off-machine | ~30-day version history | Yes |
+
+Snapshots are the undo button; the archive is the record. Use snapshots to
+reverse a bad migration or rebuild from the last few weeks. Use the archive for
+anything older, anything selective, or anything that must restore off Fly.
+
+### Archive production to this Mac
+
+```bash
+ops/archive-db-to-mac.sh
+```
+
+Read-only against production. Dumps on the Postgres Machine (so `pg_dump`
+always matches the server version), copies the file down, and refuses to
+archive it unless the transfer is byte-exact, above a size floor, readable by
+`pg_restore -l`, and holding the same table count production reported. Writes
+three files to the archive directory (`../KapMan-DB-Archive/`, beside the repo):
+
+| File | Purpose |
+|---|---|
+| `kapman_prod_<stamp>.dump` | PG17 custom-format dump |
+| `kapman_prod_<stamp>.manifest.txt` | Row counts captured from production **at dump time** |
+| `kapman_prod_<stamp>.sha256` | Integrity checksum |
+
+The manifest is what makes a later restore verifiable without a second
+production connection — compare restored counts against it.
+
+The archive lives at `/Volumes/OWC Envoy Pro SX/App Development/KapMan-DB-Archive`
+— beside the repo, deliberately **not inside it**. The script refuses to run if
+its archive directory sits within any git working tree, because untracked dumps
+are exactly what `git clean -fd` deletes and `git add -A` commits into history.
+
+Backblaze Personal Backup covers the OWC volume, and that is the off-machine
+copy of the archive.
+
+Two properties of this location to keep in mind:
+
+- **POSIX permissions are not enforced.** The OWC volume has
+  `Owners: Disabled` (APFS), so the script's `chmod 700` is cosmetic — any
+  process on this Mac can read the dumps. They hold complete trading history
+  and account identifiers.
+- **Same physical device as the working copy.** A single OWC failure takes out
+  the repo and the local archive together. Backblaze (off-machine) and the Fly
+  snapshots (Section D above) are what make that survivable — treat the local
+  archive as convenience, not as an independent copy.
+
+**The script never deletes anything.** At ~3 MB per dump, a decade of monthly
+archives costs well under a gigabyte. Prune manually and deliberately if ever
+needed — and note that deleting a local file also ages it out of Backblaze
+after their version-history window.
+
+### Restore rehearsal
+
+Verified working 2026-08-02 against a full production dump.
+
+> **Production is PostgreSQL 17.7; the local docker dev database is 16.** A
+> PG17 dump cannot be restored into PG16. Always rehearse against
+> `postgres:17-alpine` — never against the dev stack, which must stay untouched.
+
+```bash
+docker run -d --name kapman-restore-rehearsal -p 55433:5432 -e POSTGRES_PASSWORD=rehearsal postgres:17-alpine
+docker cp ../KapMan-DB-Archive/<stamp>.dump kapman-restore-rehearsal:/tmp/prod.dump
+docker exec kapman-restore-rehearsal createdb -U postgres kapman_restore
+docker exec kapman-restore-rehearsal pg_restore -U postgres -d kapman_restore --no-owner --no-privileges /tmp/prod.dump
+```
+
+Row counts alone are not proof. Check financial and structural integrity too:
+
+```bash
+docker exec kapman-restore-rehearsal psql -U postgres -d kapman_restore -A -t \
+  -c "select 'PL:', sum(realized_pnl) from matched_lots" \
+  -c "select 'X:', md5(string_agg(broker_tx_id, ',' order by broker_tx_id)) from executions" \
+  -c "select 'I:', count(*) from pg_indexes where tablename in (select relname from pg_stat_user_tables)" \
+  -c "select 'F:', count(*) from pg_constraint where contype = 'f'" \
+  -c "select 'M:', count(*) filter (where finished_at is null), count(*) from _prisma_migrations"
+```
+
+The 2026-08-02 rehearsal produced: realized P&L `143427.600000`, execution
+checksum `5e60de0f885a28da632710eb54ca27bd`, 42 indexes, 17 foreign keys, 20
+migrations with 0 unfinished. Compare row counts against the archive's
+`.manifest.txt`.
+
+Tear down when finished — the rehearsal container holds real trading data:
+
+```bash
+docker rm -f kapman-restore-rehearsal
+```
+
+### Fly volume snapshots
+
+Automatic, incremental, encrypted, taken daily by Fly. Retention was raised
+from the 5-day default to 30 days on 2026-08-02.
+
+```bash
+fly volumes snapshots list vol_vxm75kl6e611oww4 -a kapman-tradelog-db
+fly volumes update vol_vxm75kl6e611oww4 --snapshot-retention 30 -a kapman-tradelog-db
+```
+
+Restore is **not** in place. You create a new volume from a snapshot, attach a
+Machine to it, and repoint `DATABASE_URL`:
+
+```bash
+fly volumes create pg_data --snapshot-id <snapshot-id> -a kapman-tradelog-db -r iad
+```
+
+Limits worth knowing before you rely on this: daily granularity means up to ~24
+hours of loss; you cannot restore a single table; the snapshot is a PG17 data
+directory tied to Fly's `postgres-flex` image and is not portable off Fly; and
+it lives in the same Fly account as the database it protects.
+
+> **This restore path has never been rehearsed.** Unlike the archive restore
+> above, it is documented from Fly's behavior, not from a run we have done.
+
+### Known gaps
+
+Tracked, not yet built:
+
+- No scheduled/automated backup — `ops/archive-db-to-mac.sh` is manual today.
+- No off-platform object-storage copy (B2/R2) independent of this Mac.
+- No automated restore verification (`ops/verify-backup.sh`).
+- No secrets inventory. The dump restores data, **not** `BASIC_AUTH_*`,
+  `DATABASE_URL`, or the Massive S3 credentials — full recovery needs those
+  documented by name, with values in a password manager.
+- The Fly snapshot restore path is unrehearsed (above).
+
+---
+
+## E. Data pipeline — historical marks → value snapshots → excursions
 
 These power the Analysis page (account-value curve + MFE/MAE). Production runs
 them automatically in the dedicated `market-data-daily` Fly Scheduled Machine.
@@ -263,7 +401,7 @@ don't panic. "Empty curve after deploy" usually means "no backfill yet," not a b
 
 ---
 
-## E. Import troubleshooting
+## F. Import troubleshooting
 
 ### Symptom
 
@@ -302,7 +440,7 @@ curl -sS -X POST http://localhost:3002/api/imports/<import_id>/commit
 
 ---
 
-## F. Deployment (Fly.io)
+## G. Deployment (Fly.io)
 
 Config lives in `fly.toml`: app `kapman-tradelog`, region `iad`, port `3000`,
 `release_command = "npx prisma migrate deploy"`, health check `GET /api/health`.
@@ -384,7 +522,7 @@ npm run ingest:equity-marks && npm run backfill:value-snapshots
 
 ---
 
-## G. Reference
+## H. Reference
 
 - **Ports:** app host `3002` → container `3000`; DB host `127.0.0.1:55432` →
   container `db:5432`.
@@ -398,5 +536,10 @@ npm run ingest:equity-marks && npm run backfill:value-snapshots
   `rebuild:pnl`, `ingest:equity-marks`, `ingest:option-marks`,
   `backfill:value-snapshots`, `backfill:lot-excursions`, `prisma:generate`,
   `prisma:migrate`, `db:seed`.
-- **Local backups:** ad-hoc SQL dumps live in `backups/` (gitignored). Not
-  required for normal operation.
+- **Backups:** see [Section D](#d-backup--recovery). Production archives go to
+  `../KapMan-DB-Archive/` (beside the repo) via `ops/archive-db-to-mac.sh`. The in-repo `backups/`
+  directory holds only historical ad-hoc dev dumps (gitignored) and is not part
+  of the backup story.
+- **ops scripts:** `ops/archive-db-to-mac.sh` — operational scripts that touch
+  production live in `ops/`, deliberately outside `npm run` so they cannot be
+  invoked by a blanket `npm run *` permission grant.
