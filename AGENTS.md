@@ -98,26 +98,27 @@ by you, not reported to the human for confirmation:
 
 Only after all checklist items are confirmed should you report completion to the human.
 
-Pushing to `main` auto-deploys to Fly once the `FLY_API_TOKEN` repo secret is
-configured — see **Deployment to Fly** below. A push to `main` is therefore a
-production release (including Prisma migrations); the validation suite above is
-the release gate.
+**Pushing to `main` does not deploy.** Deployment to Fly is a separate,
+explicitly-authorized manual step — see **Deployment to Fly** below. An agent
+session's job ends at a validated push to `main`.
 
 ## Deployment to Fly
 
-- A push to `main` (or a manual run of the **Fly Deploy** workflow) deploys via
-  `.github/workflows/fly-deploy.yml` (`flyctl deploy --remote-only`).
-- **Token scope rule:** the `FLY_API_TOKEN` Actions secret must be a
-  *deploy-scoped, per-app* token — `fly tokens create deploy -a kapman-tradelog`
-  — never an org-wide token. This repo's CI credential must be incapable of
-  touching the other kapman Fly apps.
+- Deploys are run manually by the operator: `fly deploy -a kapman-tradelog`.
+  Full procedure, verification, and post-deploy steps are in
+  [RUNBOOK.md](RUNBOOK.md) Section G.
+- **Do not add CI that deploys on push.** This repo has no
+  `.github/workflows/` deploy job by deliberate decision, and `FLY_API_TOKEN`
+  is intentionally unset. Automating deploy here means automating migrations
+  against irreplaceable production trading data (see the next bullet).
 - **Migrations ride every deploy:** `fly.toml` sets
-  `release_command = "npx prisma migrate deploy"`, so an auto-deploy applies any
-  pending Prisma migrations to the production database. Never push a migration
-  to `main` you are not ready to run in prod.
-- While the secret is unset the workflow skips green and deploys stay manual
-  (`fly deploy` from an operator machine). Remote agent sessions hold no Fly
-  credentials; their job ends at a validated push to `main`.
+  `release_command = "npx prisma migrate deploy"`, so *any* deploy applies
+  pending Prisma migrations to the production database. Never deploy a
+  migration you are not ready to run in prod, and take a backup first —
+  `ops/archive-db-to-mac.sh`, see [RUNBOOK.md](RUNBOOK.md) Section D.
+- **The scheduler is not updated by `fly deploy`.** After every deploy run
+  `npm run deploy:market-data-scheduler -- kapman-tradelog`, or the
+  `market-data-daily` Machine keeps running the previous image.
 
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router
