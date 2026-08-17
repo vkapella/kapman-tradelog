@@ -51,7 +51,14 @@ git commit -m "fix: <description> (closes #NNN)"
 npm run typecheck
 npm run lint
 npm test -- --passWithNoTests
+npm run build
 ```
+
+`npm run build` is not optional. Typecheck, lint, and tests all pass on code
+that fails the production build — a route handler that reads the database and
+takes no `Request` argument gets prerendered at build time, where no database
+exists, and only `next build` catches it. Such a route must declare
+`export const dynamic = "force-dynamic"` (see `src/app/api/accounts/route.ts`).
 
 If any command exits non-zero, fix all failures before pushing.
 Do not push a broken build. Do not report failures to the human and ask what to

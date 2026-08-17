@@ -19,6 +19,11 @@ import {
 } from "@/lib/marketdata/scheduler-status";
 import type { SchedulerStatusResponse } from "@/types/api";
 
+// Always query the live database at request time; never statically prerender
+// this handler at build (no DB is available then). Required because this GET
+// takes no Request argument, which would otherwise make it prerenderable.
+export const dynamic = "force-dynamic";
+
 // Operational status is account-independent: it reports pipeline health for the
 // whole install and never takes an account filter.
 export async function GET() {
