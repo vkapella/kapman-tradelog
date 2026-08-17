@@ -82,6 +82,32 @@ enum ValueSnapshotSource {
   MIXED
 }
 
+enum PipelineRunTrigger {
+  SCHEDULED
+  MANUAL
+}
+
+enum PipelineRunStatus {
+  RUNNING
+  SUCCEEDED
+  NOOP
+  FAILED
+  SKIPPED_LOCKED
+  ABANDONED
+}
+
+enum PipelineStageStatus {
+  PENDING
+  SKIPPED
+  SUCCEEDED
+  FAILED
+}
+
+enum PipelineAlertLifecycle {
+  FIRING
+  RESOLVED
+}
+
 model Account {
   id              String   @id @default(cuid())
   accountId       String   @unique @map("account_id")
@@ -387,7 +413,7 @@ model AccountValueSnapshot {
 }
 
 /// Short-lived ownership record preventing overlapping scheduled pipeline runs.
-/// Durable run history belongs to follow-up issue #310, not this lease table.
+/// Durable run history lives in ScheduledPipelineRun, not this lease table.
 model ScheduledJobLease {
   jobName        String   @id @map("job_name")
   leaseOwner     String   @map("lease_owner")
@@ -397,6 +423,80 @@ model ScheduledJobLease {
 
   @@index([leaseExpiresAt])
   @@map("scheduled_job_leases")
+}
+
+/// Durable per-run history for the scheduled market-data pipeline. One row per
+/// attempt, written as RUNNING before work begins and finalized on every exit
+/// path. Read by GET /api/scheduler/status and GET /api/scheduler/runs.
+model ScheduledPipelineRun {
+  id      String             @id @default(cuid())
+  jobName String             @map("job_name")
+  trigger PipelineRunTrigger @default(SCHEDULED)
+  status  PipelineRunStatus  @default(RUNNING)
+
+  /// Lease owner that claimed this run; ties a row to its lease for recovery.
+  leaseOwner     String    @map("lease_owner")
+  /// Lease expiry at claim time. A RUNNING row past this is recoverable.
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  durationMs Int?      @map("duration_ms")
+
+  /// Range explicitly requested by the caller, when one was supplied.
+  requestedStartDate DateTime? @map("requested_start_date") @db.Date
+  requestedEndDate   DateTime? @map("requested_end_date") @db.Date
+  /// Range the pipeline actually derived and worked on.
+  effectiveStartDate DateTime? @map("effective_start_date") @db.Date
+  effectiveEndDate   DateTime? @map("effective_end_date") @db.Date
+  eligibleEndDate    DateTime? @map("eligible_end_date") @db.Date
+  commonMarkDate     DateTime? @map("common_mark_date") @db.Date
+
+  equityStatus      PipelineStageStatus @default(PENDING) @map("equity_status")
+  equityRowCount    Int?                @map("equity_row_count")
+  optionStatus      PipelineStageStatus @default(PENDING) @map("option_status")
+  optionRowCount    Int?                @map("option_row_count")
+  valuesStatus      PipelineStageStatus @default(PENDING) @map("values_status")
+  valuesRowCount    Int?                @map("values_row_count")
+  excursionStatus   PipelineStageStatus @default(PENDING) @map("excursion_status")
+  excursionRowCount Int?                @map("excursion_row_count")
+
+  /// Freshness observed at the end of the run, for lag reporting without a re-query.
+  latestEquityMarkDate    DateTime? @map("latest_equity_mark_date") @db.Date
+  latestOptionMarkDate    DateTime? @map("latest_option_mark_date") @db.Date
+  latestValueSnapshotDate DateTime? @map("latest_value_snapshot_date") @db.Date
+
+  unpricedPositionCount Int? @map("unpriced_position_count")
+  unpricedExcursionDays Int? @map("unpriced_excursion_days")
+
+  /// Sanitized failure message only — never raw provider payloads or secrets.
+  errorMessage String? @map("error_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([jobName, startedAt])
+  @@index([status])
+  @@index([startedAt])
+  @@map("scheduled_pipeline_runs")
+}
+
+/// Dedup state for external pipeline alerts. One row per alert key; keeps a
+/// firing alert from re-sending every run and enables a single recovery notice.
+model PipelineAlertState {
+  alertKey    String                 @id @map("alert_key")
+  jobName     String                 @map("job_name")
+  state       PipelineAlertLifecycle @default(FIRING)
+  /// Distinguishes a materially changed alert from a repeat of the same one.
+  signature   String?
+  firstSeenAt DateTime               @map("first_seen_at")
+  lastSentAt  DateTime               @map("last_sent_at")
+  resolvedAt  DateTime?              @map("resolved_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  @@index([jobName])
+  @@map("pipeline_alert_states")
 }
 
 /// Per matched-lot maximum favorable / adverse excursion. Populated by story 08.

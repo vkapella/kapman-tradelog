@@ -361,6 +361,82 @@ The explicit end is still capped by the configured publication lag. If a run is
 terminated, its lease expires automatically; wait for the reported expiry or
 adjust the lease only after confirming no other pipeline process is active.
 
+> **After every `fly deploy`, re-run `npm run deploy:market-data-scheduler`.**
+> A deploy updates the stopped `market-data-daily` Machine's image but does not
+> re-arm its schedule. The pipeline then stops firing with no error anywhere —
+> the last run stays `SUCCEEDED` while data silently ages. The Diagnostics
+> status panel below reports this as **Stale data**, which is the only signal
+> that distinguishes it from a healthy install.
+
+### Scheduler status, run history, and alerts
+
+Every attempt writes a durable row to `scheduled_pipeline_runs`: trigger,
+requested and effective ranges, per-stage status and row counts, observed source
+freshness, duration, and a sanitized failure message. A row is written as
+`RUNNING` before work begins and finalized as `SUCCEEDED`, `NOOP`, `FAILED`, or
+`SKIPPED_LOCKED`. A run whose process dies without finalizing is reclassified
+`ABANDONED` by the next run once its lease has expired.
+
+Read status in the app at **Diagnostics → Scheduled pipeline**, or via API:
+
+```bash
+curl -sf http://localhost:3002/api/scheduler/status | jq .data.health
+```
+
+```bash
+curl -sf "http://localhost:3002/api/scheduler/runs?page=1&pageSize=20" | jq '.data[] | {startedAt, status, errorMessage}'
+```
+
+Both endpoints are account-independent and sit behind the app's Basic Auth gate.
+Neither returns credentials, lease owners, or raw provider payloads.
+
+`health` collapses run outcome and data freshness into one verdict:
+
+| Health | Meaning | First action |
+|---|---|---|
+| `HEALTHY` | Last run finished and all sources are inside tolerance | None |
+| `RUNNING` | A run holds the lease right now | Re-check after it finishes |
+| `STALE` | A source is beyond the freshness tolerance | Confirm the Machine is armed, re-run the deploy script, then catch up |
+| `FAILED` | Last run failed or was abandoned | Read the sanitized message, fix, re-run |
+| `NEVER_RUN` | No history rows exist | Create the Machine, then run the pipeline once |
+
+**Retention.** Finalized runs older than `MARKET_DATA_RUN_RETENTION_DAYS`
+(default 90) are deleted at the end of each run. `RUNNING` rows are never
+pruned, so an in-flight or stranded run cannot be lost before it is resolved.
+Set the variable to a larger value to keep more history; pruning is skipped
+entirely if it is not a positive integer.
+
+**External alerts (optional).** Alerting is off until
+`PIPELINE_ALERT_WEBHOOK_URL` is set; with it unset the pipeline behaves exactly
+as before. When configured, the pipeline POSTs JSON to that URL for failed runs,
+recovered abandoned runs, lock contention at or beyond
+`PIPELINE_ALERT_LOCK_CONTENTION_THRESHOLD`, and freshness lag beyond
+`PIPELINE_ALERT_FRESHNESS_LAG_DAYS`. An unchanged, still-firing alert is
+suppressed for `PIPELINE_ALERT_REPEAT_MINUTES` (default 12h), and a single
+recovery notice is sent once the condition clears. See `.env.example` for every
+variable and its default.
+
+Set them in production as non-secret Machine environment or Fly secrets:
+
+```bash
+fly secrets set PIPELINE_ALERT_WEBHOOK_URL='https://example.com/hook' -a kapman-tradelog
+```
+
+Then re-run `npm run deploy:market-data-scheduler` so the scheduled Machine
+picks up the change.
+
+Alert troubleshooting:
+
+- **No alerts arriving** — confirm `alertsConfigured: true` in
+  `/api/scheduler/status`. If false, the webhook variable is not visible to the
+  process that runs the pipeline (the Machine, not just the web app).
+- **Alert fired once and went quiet** — expected. It is deduplicated until the
+  repeat window elapses or the condition materially changes.
+- **No recovery notice** — recovery is sent only for an alert that was actually
+  firing; a condition that never alerted has nothing to resolve.
+- **Delivery errors** — logged as `alert_delivery_failed` with the transport
+  error. Alert delivery never fails a pipeline run.
+
 ### Recipes
 
 Full refresh for a range (all accounts):

@@ -1,5 +1,6 @@
 import { DataPageLayout } from "@/components/data-page-layout";
 import { DiagnosticsPanel } from "@/components/diagnostics-panel";
+import { SchedulerStatusPanel } from "@/components/scheduler-status-panel";
 import { dataPageCopy } from "@/lib/ui/page-copy";
 
 export default function Page() {
@@ -8,6 +9,7 @@ export default function Page() {
   return (
     <div className="space-y-6">
       <DataPageLayout title={page.title} subtitle={page.subtitle} nextAction={page.nextAction} />
+      <SchedulerStatusPanel />
       <DiagnosticsPanel />
     </div>
   );

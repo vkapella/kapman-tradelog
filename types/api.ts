@@ -906,3 +906,69 @@ export interface PortfolioSnapshot {
   open_excursions_available: boolean; // true when open-leg MAE/MFE is computed from HistoricalMark
   open_positions: PortfolioSnapshotOpenLeg[];
 }
+
+export type SchedulerRunStatus = "RUNNING" | "SUCCEEDED" | "NOOP" | "FAILED" | "SKIPPED_LOCKED" | "ABANDONED";
+export type SchedulerStageStatus = "PENDING" | "SKIPPED" | "SUCCEEDED" | "FAILED";
+export type SchedulerStageKey = "equity" | "option" | "values" | "excursion";
+export type SchedulerSourceKey = "equityMarks" | "optionMarks" | "accountValues";
+export type SchedulerFreshnessState = "CURRENT" | "STALE" | "MISSING";
+
+/// Overall operational health, independent of any account selection.
+export type SchedulerHealth = "HEALTHY" | "RUNNING" | "STALE" | "FAILED" | "NEVER_RUN";
+
+export interface SchedulerStageSummary {
+  key: SchedulerStageKey;
+  label: string;
+  status: SchedulerStageStatus;
+  rowCount: number | null;
+}
+
+export interface SchedulerRunRecord {
+  id: string;
+  trigger: "SCHEDULED" | "MANUAL";
+  status: SchedulerRunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  requestedStartDate: string | null;
+  requestedEndDate: string | null;
+  effectiveStartDate: string | null;
+  effectiveEndDate: string | null;
+  eligibleEndDate: string | null;
+  commonMarkDate: string | null;
+  stages: SchedulerStageSummary[];
+  latestEquityMarkDate: string | null;
+  latestOptionMarkDate: string | null;
+  latestValueSnapshotDate: string | null;
+  unpricedPositionCount: number | null;
+  unpricedExcursionDays: number | null;
+  /// Sanitized message only; never raw provider payloads or credentials.
+  errorMessage: string | null;
+}
+
+export interface SchedulerFreshnessRecord {
+  key: SchedulerSourceKey;
+  label: string;
+  latestDate: string | null;
+  lagDays: number | null;
+  state: SchedulerFreshnessState;
+}
+
+export interface SchedulerStatusResponse {
+  jobName: string;
+  checkedAt: string;
+  health: SchedulerHealth;
+  lastRun: SchedulerRunRecord | null;
+  lastSuccessfulRun: SchedulerRunRecord | null;
+  freshness: SchedulerFreshnessRecord[];
+  freshnessToleranceDays: number;
+  retentionDays: number;
+  alertsConfigured: boolean;
+  /// Present while a run holds the lease; owner id is deliberately omitted.
+  activeLeaseExpiresAt: string | null;
+}
+
+export interface SchedulerRunsListQuery {
+  page?: number;
+  pageSize?: number;
+}

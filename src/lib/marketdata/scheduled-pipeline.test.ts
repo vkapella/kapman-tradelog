@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PipelineRunStatus, PipelineStageStatus, type PipelineRunStore } from "./pipeline-run-store";
 import type { ScheduledPipelineProgress, ScheduledPipelineStore } from "./scheduled-pipeline-store";
 import {
   resolveCommonMarkDate,
@@ -33,6 +34,26 @@ function storeWithProgress(rows: ScheduledPipelineProgress[], acquired = true): 
     loadActiveLease: vi.fn().mockResolvedValue(null),
   };
 }
+
+function createRunStoreStub(): PipelineRunStore {
+  let nextId = 0;
+  return {
+    startRun: vi.fn().mockImplementation(async () => `run-id-${++nextId}`),
+    finalizeRun: vi.fn().mockResolvedValue(undefined),
+    recoverAbandonedRuns: vi.fn().mockResolvedValue(0),
+    pruneRuns: vi.fn().mockResolvedValue(0),
+    latestRun: vi.fn().mockResolvedValue(null),
+    latestRunWithStatus: vi.fn().mockResolvedValue(null),
+    listRuns: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
+    countConsecutiveLocked: vi.fn().mockResolvedValue(0),
+  };
+}
+
+let runStore: PipelineRunStore;
+
+beforeEach(() => {
+  runStore = createRunStoreStub();
+});
 
 function equitySummary() {
   return {
@@ -118,6 +139,7 @@ describe("runScheduledMarketDataPipeline", () => {
     const result = await runScheduledMarketDataPipeline({
       now: new Date("2026-07-18T01:00:00.000Z"),
       store,
+      runStore,
       ingestEquity,
       ingestOptions,
       backfillValues,
@@ -164,6 +186,7 @@ describe("runScheduledMarketDataPipeline", () => {
     await runScheduledMarketDataPipeline({
       now: new Date("2026-07-18T01:00:00.000Z"),
       store,
+      runStore,
       ingestEquity: vi.fn(async () => ({ ...equitySummary(), startDate: "2026-01-02" })),
       ingestOptions: vi.fn(async () => ({ ...optionSummary(), startDate: "2026-01-02" })),
       backfillValues,
@@ -186,6 +209,7 @@ describe("runScheduledMarketDataPipeline", () => {
     const result = await runScheduledMarketDataPipeline({
       now: new Date("2026-07-18T01:00:00.000Z"),
       store,
+      runStore,
       backfillValues,
       logger: { log: vi.fn(), warn: vi.fn() },
     });
@@ -220,6 +244,7 @@ describe("runScheduledMarketDataPipeline", () => {
       startDate: day("2026-07-01"),
       endDate: day("2026-07-10"),
       store,
+      runStore,
       ingestEquity: vi.fn(async () => ({ ...equitySummary(), startDate: "2026-07-01", endDate: "2026-07-10" })),
       ingestOptions: vi.fn(async () => ({ ...optionSummary(), startDate: "2026-07-01", endDate: "2026-07-10" })),
       backfillValues,
@@ -233,7 +258,7 @@ describe("runScheduledMarketDataPipeline", () => {
 
   it("skips without reading progress when another owner holds the lease", async () => {
     const store = storeWithProgress([], false);
-    const result = await runScheduledMarketDataPipeline({ store, now: new Date("2026-07-18T01:00:00.000Z") });
+    const result = await runScheduledMarketDataPipeline({ store, runStore, now: new Date("2026-07-18T01:00:00.000Z") });
 
     expect(result.status).toBe("SKIPPED_LOCKED");
     expect(store.loadProgress).not.toHaveBeenCalled();
@@ -247,6 +272,7 @@ describe("runScheduledMarketDataPipeline", () => {
 
     await expect(runScheduledMarketDataPipeline({
       store,
+      runStore,
       now: new Date("2026-07-18T01:00:00.000Z"),
       owner: "failed-run",
       ingestEquity: vi.fn().mockRejectedValue(new Error("provider unavailable")),
@@ -258,6 +284,135 @@ describe("runScheduledMarketDataPipeline", () => {
     expect(ingestOptions).not.toHaveBeenCalled();
     expect(backfillValues).not.toHaveBeenCalled();
     expect(store.releaseLease).toHaveBeenCalledWith("failed-run");
+  });
+});
+
+describe("runScheduledMarketDataPipeline run history", () => {
+  function successInput(store: ScheduledPipelineStore) {
+    return {
+      now: new Date("2026-07-18T01:00:00.000Z"),
+      store,
+      runStore,
+      ingestEquity: vi.fn(async () => equitySummary()),
+      ingestOptions: vi.fn(async () => optionSummary()),
+      backfillValues: vi.fn(async () => ({
+        accountCount: 1,
+        startDate: "2026-07-11",
+        endDate: "2026-07-15",
+        tradingDayCount: 3,
+        snapshotsUpserted: 3,
+        unpricedPositionCount: 2,
+      })),
+      backfillExcursions: vi.fn(async () => ({
+        lotCount: 2,
+        excursionsUpserted: 4,
+        pricedDays: 6,
+        unpricedDays: 1,
+        noMarkLotCount: 0,
+      })),
+      logger: { log: vi.fn(), warn: vi.fn() },
+    };
+  }
+
+  function catchUpStore(): ScheduledPipelineStore {
+    return storeWithProgress([
+      progress(),
+      progress({ latestEquityMarkDate: day("2026-07-15"), latestOptionMarkDate: day("2026-07-15") }),
+      progress({
+        latestEquityMarkDate: day("2026-07-15"),
+        latestOptionMarkDate: day("2026-07-15"),
+        latestValueSnapshotDate: day("2026-07-15"),
+      }),
+    ]);
+  }
+
+  it("recovers abandoned runs before claiming the lease", async () => {
+    runStore.recoverAbandonedRuns = vi.fn().mockResolvedValue(1);
+    const store = catchUpStore();
+    const logger = { log: vi.fn(), warn: vi.fn() };
+
+    await runScheduledMarketDataPipeline({ ...successInput(store), logger });
+
+    expect(runStore.recoverAbandonedRuns).toHaveBeenCalledWith("daily-market-data", new Date("2026-07-18T01:00:00.000Z"));
+    expect(logger.log.mock.calls.map(([line]) => String(line)).join("\n")).toContain("recovered_abandoned_runs");
+  });
+
+  it("records RUNNING before work begins and finalizes as SUCCEEDED with stage counts", async () => {
+    const store = catchUpStore();
+
+    const result = await runScheduledMarketDataPipeline(successInput(store));
+
+    expect(runStore.startRun).toHaveBeenCalledWith(expect.objectContaining({
+      jobName: "daily-market-data",
+      leaseExpiresAt: expect.any(Date),
+      eligibleEndDate: day("2026-07-16"),
+    }));
+    expect(result.runId).toBe("run-id-1");
+    expect(runStore.finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
+      runId: "run-id-1",
+      status: PipelineRunStatus.SUCCEEDED,
+      commonMarkDate: day("2026-07-15"),
+      values: { status: PipelineStageStatus.SUCCEEDED, rowCount: 3 },
+      excursion: { status: PipelineStageStatus.SUCCEEDED, rowCount: 4 },
+      unpricedPositionCount: 2,
+      unpricedExcursionDays: 1,
+    }));
+  });
+
+  it("finalizes a contended attempt as SKIPPED_LOCKED without claiming a lease", async () => {
+    const store = storeWithProgress([], false);
+
+    const result = await runScheduledMarketDataPipeline({
+      store,
+      runStore,
+      now: new Date("2026-07-18T01:00:00.000Z"),
+      logger: { log: vi.fn(), warn: vi.fn() },
+    });
+
+    expect(runStore.startRun).toHaveBeenCalledWith(expect.objectContaining({ leaseExpiresAt: null }));
+    expect(runStore.finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
+      runId: result.runId,
+      status: PipelineRunStatus.SKIPPED_LOCKED,
+    }));
+  });
+
+  it("finalizes as FAILED with a sanitized message and still prunes history", async () => {
+    const store = storeWithProgress([progress()]);
+
+    await expect(runScheduledMarketDataPipeline({
+      store,
+      runStore,
+      now: new Date("2026-07-18T01:00:00.000Z"),
+      ingestEquity: vi.fn().mockRejectedValue(new Error("provider unavailable")),
+      logger: { log: vi.fn(), warn: vi.fn() },
+    })).rejects.toThrow("provider unavailable");
+
+    expect(runStore.finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
+      status: PipelineRunStatus.FAILED,
+      errorMessage: "provider unavailable",
+    }));
+    expect(runStore.pruneRuns).toHaveBeenCalledWith("daily-market-data", expect.any(Date), 90);
+  });
+
+  it("finalizes an up-to-date attempt as NOOP with skipped downstream stages", async () => {
+    const current = progress({
+      latestEquityMarkDate: day("2026-07-16"),
+      latestOptionMarkDate: day("2026-07-16"),
+      latestValueSnapshotDate: day("2026-07-16"),
+    });
+
+    await runScheduledMarketDataPipeline({
+      store: storeWithProgress([current, current]),
+      runStore,
+      now: new Date("2026-07-18T01:00:00.000Z"),
+      logger: { log: vi.fn(), warn: vi.fn() },
+    });
+
+    expect(runStore.finalizeRun).toHaveBeenCalledWith(expect.objectContaining({
+      status: PipelineRunStatus.NOOP,
+      values: { status: PipelineStageStatus.SKIPPED, rowCount: null },
+      excursion: { status: PipelineStageStatus.SKIPPED, rowCount: null },
+    }));
   });
 });
 

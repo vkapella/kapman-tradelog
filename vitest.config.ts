@@ -15,6 +15,11 @@ export default defineConfig({
       },
     ],
   },
+  // Match Next's JSX transform so components render in tests without each file
+  // importing React explicitly.
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     exclude: [...configDefaults.exclude, '.claude/**'],
   },

@@ -1,4 +1,5 @@
 import { prisma } from "../src/lib/db/prisma";
+import { DEFAULT_RUN_RETENTION_DAYS, PipelineRunTrigger } from "../src/lib/marketdata/pipeline-run-store";
 import {
   DEFAULT_PIPELINE_LEASE_MINUTES,
   DEFAULT_PUBLICATION_LAG_DAYS,
@@ -62,11 +63,22 @@ async function main(): Promise<void> {
     DEFAULT_PIPELINE_LEASE_MINUTES,
     "MARKET_DATA_PIPELINE_LEASE_MINUTES",
   );
+  const retentionDays = parsePositiveIntegerSetting(
+    process.env.MARKET_DATA_RUN_RETENTION_DAYS,
+    DEFAULT_RUN_RETENTION_DAYS,
+    "MARKET_DATA_RUN_RETENTION_DAYS",
+  );
+
+  // An operator-run catch-up is recorded as MANUAL so it is distinguishable
+  // from the daily Machine run in history.
+  const trigger = args.startDate || args.endDate ? PipelineRunTrigger.MANUAL : PipelineRunTrigger.SCHEDULED;
 
   const summary = await runScheduledMarketDataPipeline({
     ...args,
     publicationLagDays,
     leaseMinutes,
+    retentionDays,
+    trigger,
   });
   console.log(JSON.stringify({ component: "scheduled-market-data", event: "summary", ...summary }));
 }
