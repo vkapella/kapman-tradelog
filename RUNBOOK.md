@@ -428,14 +428,32 @@ suppressed for `PIPELINE_ALERT_REPEAT_MINUTES` (default 12h), and a single
 recovery notice is sent once the condition clears. See `.env.example` for every
 variable and its default.
 
+Payload shape is chosen from the webhook host: `hooks.slack.com` gets Slack's
+`text` field, Discord gets `content`, and anything else gets the structured JSON
+above. Override with `PIPELINE_ALERT_FORMAT` only if auto-detection is wrong.
+
+**Dead-man's-switch heartbeat (covers what alerts cannot).** The webhook alerts
+run *inside* the pipeline, so they cannot fire when the pipeline never runs —
+precisely the failure that left production stale for four weeks. Set
+`PIPELINE_HEARTBEAT_URL` to a check URL from an external monitor
+(healthchecks.io, Better Stack, Cronitor). The pipeline POSTs to it after every
+successful or no-op run; the monitor alerts when the ping stops arriving. It is
+deliberately **not** pinged on failure, so a failing run trips the switch too.
+
+Because the monitor lives outside Fly, it is the only signal that survives the
+scheduled Machine never starting. Configure its period to your run cadence plus
+a grace window — for a daily job, roughly 24h with 12h grace.
+
 Set them in production as non-secret Machine environment or Fly secrets:
 
 ```bash
 fly secrets set PIPELINE_ALERT_WEBHOOK_URL='https://example.com/hook' -a kapman-tradelog
+fly secrets set PIPELINE_HEARTBEAT_URL='https://hc-ping.com/<uuid>' -a kapman-tradelog
 ```
 
 Then re-run `npm run deploy:market-data-scheduler` so the scheduled Machine
-picks up the change.
+picks up the change. Fly injects secrets at Machine start, so a Machine that is
+not restarted keeps running with the old environment.
 
 Alert troubleshooting:
 
@@ -448,6 +466,11 @@ Alert troubleshooting:
   firing; a condition that never alerted has nothing to resolve.
 - **Delivery errors** — logged as `alert_delivery_failed` with the transport
   error. Alert delivery never fails a pipeline run.
+- **Slack or Discord returns 400** — the payload shape is wrong for that host.
+  Check the URL host is what you expect, or force `PIPELINE_ALERT_FORMAT`.
+- **Heartbeat never arrives** — look for `heartbeat_sent` or `heartbeat_failed`
+  in the run's logs. No line at all means the pipeline did not run, which is
+  what the external monitor is there to catch.
 
 ### Recipes
 

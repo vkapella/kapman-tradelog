@@ -13,6 +13,8 @@ export type PipelineAlertSeverity = "critical" | "warning" | "info";
 
 export interface PipelineAlertConfig {
   webhookUrl: string;
+  /// Explicit payload shape; inferred from the webhook host when unset.
+  webhookFormat?: string;
   freshnessLagDays: number;
   lockContentionThreshold: number;
   repeatMinutes: number;
@@ -100,6 +102,7 @@ export function resolveAlertConfig(env: Record<string, string | undefined> = pro
 
   return {
     webhookUrl,
+    webhookFormat: env.PIPELINE_ALERT_FORMAT,
     freshnessLagDays: parsePositiveInteger(env.PIPELINE_ALERT_FRESHNESS_LAG_DAYS, DEFAULT_FRESHNESS_LAG_DAYS),
     lockContentionThreshold: parsePositiveInteger(
       env.PIPELINE_ALERT_LOCK_CONTENTION_THRESHOLD,
@@ -270,8 +273,59 @@ export class PrismaPipelineAlertStateStore implements PipelineAlertStateStore {
   }
 }
 
+export type AlertWebhookFormat = "generic" | "slack" | "discord";
+
+const SEVERITY_PREFIX: Record<PipelineAlertSeverity, string> = {
+  critical: "[CRITICAL]",
+  warning: "[WARNING]",
+  info: "[RESOLVED]",
+};
+
+/**
+ * Chat webhooks reject the structured payload — Slack requires `text`, Discord
+ * requires `content` — so the destination decides the body shape.
+ */
+export function resolveWebhookFormat(url: string, override?: string): AlertWebhookFormat {
+  const normalizedOverride = override?.trim().toLowerCase();
+  if (normalizedOverride === "slack" || normalizedOverride === "discord" || normalizedOverride === "generic") {
+    return normalizedOverride;
+  }
+
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return "generic";
+  }
+
+  if (host === "hooks.slack.com") {
+    return "slack";
+  }
+  if (host === "discord.com" || host === "discordapp.com" || host.endsWith(".discord.com")) {
+    return "discord";
+  }
+  return "generic";
+}
+
+export function formatAlertMessage(payload: PipelineAlertPayload): string {
+  return `${SEVERITY_PREFIX[payload.severity]} ${payload.title}\n${payload.detail}\n(${payload.jobName} · ${payload.occurredAt})`;
+}
+
+export function buildWebhookBody(payload: PipelineAlertPayload, format: AlertWebhookFormat): Record<string, unknown> {
+  if (format === "slack") {
+    return { text: formatAlertMessage(payload) };
+  }
+  if (format === "discord") {
+    return { content: formatAlertMessage(payload) };
+  }
+  return { ...payload };
+}
+
 export class WebhookPipelineAlertTransport implements PipelineAlertTransport {
-  constructor(private readonly config: PipelineAlertConfig) {}
+  constructor(
+    private readonly config: PipelineAlertConfig,
+    private readonly format: AlertWebhookFormat = resolveWebhookFormat(config.webhookUrl, config.webhookFormat),
+  ) {}
 
   async send(payload: PipelineAlertPayload): Promise<void> {
     const controller = new AbortController();
@@ -280,7 +334,7 @@ export class WebhookPipelineAlertTransport implements PipelineAlertTransport {
       const response = await fetch(this.config.webhookUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildWebhookBody(payload, this.format)),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -289,6 +343,51 @@ export class WebhookPipelineAlertTransport implements PipelineAlertTransport {
     } finally {
       clearTimeout(timeout);
     }
+  }
+}
+
+/**
+ * Dead-man's-switch. In-pipeline alerts cannot fire when the pipeline never
+ * runs, which is the failure that left production stale for four weeks. Pinging
+ * an external monitor on every healthy finish inverts that: the monitor alerts
+ * when the ping stops arriving, so silence itself becomes the signal.
+ *
+ * Deliberately not pinged on failure — a failed run should let the switch trip.
+ */
+export async function pingHeartbeat(
+  runStatus: PipelineRunStatus,
+  env: Record<string, string | undefined> = process.env,
+  logger: DispatchLogger = console,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  const url = env.PIPELINE_HEARTBEAT_URL?.trim();
+  if (!url) {
+    return false;
+  }
+  if (runStatus !== PipelineRunStatus.SUCCEEDED && runStatus !== PipelineRunStatus.NOOP) {
+    return false;
+  }
+
+  const timeoutMs = parsePositiveInteger(env.PIPELINE_HEARTBEAT_TIMEOUT_MS, 10_000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(url, { method: "POST", signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Heartbeat responded ${response.status}`);
+    }
+    logger.log(JSON.stringify({ component: "scheduled-market-data", event: "heartbeat_sent" }));
+    return true;
+  } catch (error) {
+    // Never fail a good run because the monitor is unreachable.
+    logger.warn(JSON.stringify({
+      component: "scheduled-market-data",
+      event: "heartbeat_failed",
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -316,12 +415,16 @@ export interface NotifyPipelineOutcomeInput {
  * not configured, so the pipeline behaves identically without alert env vars.
  */
 export async function notifyPipelineOutcome(input: NotifyPipelineOutcomeInput): Promise<void> {
+  const logger = input.logger ?? console;
+
+  // Independent of webhook alerting: the heartbeat is the only signal that
+  // survives the pipeline not running at all.
+  await pingHeartbeat(input.runStatus, input.env, logger);
+
   const config = resolveAlertConfig(input.env);
   if (!config) {
     return;
   }
-
-  const logger = input.logger ?? console;
   const evaluation = evaluatePipelineAlerts({
     now: input.now,
     runStatus: input.runStatus,

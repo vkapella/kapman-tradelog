@@ -2,14 +2,19 @@ import { PipelineAlertLifecycle, PipelineRunStatus } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FRESHNESS_LAG_DAYS,
+  buildWebhookBody,
   dispatchPipelineAlerts,
   evaluatePipelineAlerts,
+  formatAlertMessage,
   lagInDays,
+  pingHeartbeat,
   resolveAlertConfig,
+  resolveWebhookFormat,
   shouldSendAlert,
   shouldSendRecovery,
   type PipelineAlert,
   type PipelineAlertConfig,
+  type PipelineAlertPayload,
   type PipelineAlertStateRecord,
 } from "./pipeline-alerts";
 
@@ -341,5 +346,133 @@ describe("dispatchPipelineAlerts", () => {
     expect(result.sent).toBe(0);
     expect(store.markFiring).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
+  });
+});
+
+describe("resolveWebhookFormat", () => {
+  it("detects Slack and Discord webhook hosts", () => {
+    expect(resolveWebhookFormat("https://hooks.slack.com/services/T0/B0/xxx")).toBe("slack");
+    expect(resolveWebhookFormat("https://discord.com/api/webhooks/1/abc")).toBe("discord");
+    expect(resolveWebhookFormat("https://discordapp.com/api/webhooks/1/abc")).toBe("discord");
+  });
+
+  it("falls back to generic for any other destination", () => {
+    expect(resolveWebhookFormat("https://alerts.example.com/hook")).toBe("generic");
+  });
+
+  it("treats an unparseable URL as generic rather than throwing", () => {
+    expect(resolveWebhookFormat("not-a-url")).toBe("generic");
+  });
+
+  it("honours an explicit override over host detection", () => {
+    expect(resolveWebhookFormat("https://hooks.slack.com/services/x", "generic")).toBe("generic");
+    expect(resolveWebhookFormat("https://alerts.example.com/hook", "slack")).toBe("slack");
+  });
+
+  it("ignores an unrecognized override", () => {
+    expect(resolveWebhookFormat("https://hooks.slack.com/services/x", "teams")).toBe("slack");
+  });
+});
+
+describe("buildWebhookBody", () => {
+  const payload: PipelineAlertPayload = {
+    jobName: "daily-market-data",
+    event: "firing",
+    key: "freshness-lag",
+    severity: "critical",
+    title: "Market-data freshness is beyond tolerance",
+    detail: "Equity marks: 2026-07-17 (30d behind)",
+    occurredAt: "2026-08-16T12:00:00.000Z",
+  };
+
+  it("sends Slack the text field it requires", () => {
+    const body = buildWebhookBody(payload, "slack");
+    expect(Object.keys(body)).toEqual(["text"]);
+    expect(body.text).toContain("[CRITICAL]");
+    expect(body.text).toContain("Equity marks: 2026-07-17");
+  });
+
+  it("sends Discord the content field it requires", () => {
+    const body = buildWebhookBody(payload, "discord");
+    expect(Object.keys(body)).toEqual(["content"]);
+  });
+
+  it("sends generic consumers the full structured payload", () => {
+    expect(buildWebhookBody(payload, "generic")).toEqual(payload);
+  });
+
+  it("labels a recovery as resolved rather than a severity", () => {
+    expect(formatAlertMessage({ ...payload, event: "resolved", severity: "info" })).toContain("[RESOLVED]");
+  });
+});
+
+describe("pingHeartbeat", () => {
+  const okResponse = { ok: true, status: 200 } as Response;
+
+  it("does nothing when no heartbeat URL is configured", async () => {
+    const fetchImpl = vi.fn();
+    await expect(pingHeartbeat(PipelineRunStatus.SUCCEEDED, {}, undefined, fetchImpl as unknown as typeof fetch))
+      .resolves.toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("pings on a successful run", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okResponse);
+    const logger = { log: vi.fn(), warn: vi.fn() };
+
+    await expect(pingHeartbeat(
+      PipelineRunStatus.SUCCEEDED,
+      { PIPELINE_HEARTBEAT_URL: "https://hc.example.com/ping/abc" },
+      logger,
+      fetchImpl as unknown as typeof fetch,
+    )).resolves.toBe(true);
+
+    expect(fetchImpl).toHaveBeenCalledWith("https://hc.example.com/ping/abc", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("pings on a no-op run, which still proves the pipeline is alive", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okResponse);
+    await expect(pingHeartbeat(
+      PipelineRunStatus.NOOP,
+      { PIPELINE_HEARTBEAT_URL: "https://hc.example.com/ping/abc" },
+      { log: vi.fn(), warn: vi.fn() },
+      fetchImpl as unknown as typeof fetch,
+    )).resolves.toBe(true);
+  });
+
+  it("stays silent on failure so the dead-man's-switch trips", async () => {
+    const fetchImpl = vi.fn();
+    for (const status of [PipelineRunStatus.FAILED, PipelineRunStatus.SKIPPED_LOCKED, PipelineRunStatus.ABANDONED]) {
+      await expect(pingHeartbeat(
+        status,
+        { PIPELINE_HEARTBEAT_URL: "https://hc.example.com/ping/abc" },
+        { log: vi.fn(), warn: vi.fn() },
+        fetchImpl as unknown as typeof fetch,
+      )).resolves.toBe(false);
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("never fails the run when the monitor is unreachable", async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error("network down"));
+    const logger = { log: vi.fn(), warn: vi.fn() };
+
+    await expect(pingHeartbeat(
+      PipelineRunStatus.SUCCEEDED,
+      { PIPELINE_HEARTBEAT_URL: "https://hc.example.com/ping/abc" },
+      logger,
+      fetchImpl as unknown as typeof fetch,
+    )).resolves.toBe(false);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("treats a non-2xx heartbeat response as a failed ping", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response);
+    await expect(pingHeartbeat(
+      PipelineRunStatus.SUCCEEDED,
+      { PIPELINE_HEARTBEAT_URL: "https://hc.example.com/ping/abc" },
+      { log: vi.fn(), warn: vi.fn() },
+      fetchImpl as unknown as typeof fetch,
+    )).resolves.toBe(false);
   });
 });
