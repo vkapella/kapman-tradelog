@@ -83,6 +83,25 @@ export function formatTimestamp(value: string | null): string {
   return value.replace("T", " ").slice(0, 19).concat(" UTC");
 }
 
+/**
+ * State the monitoring posture explicitly. With neither monitor configured, a
+ * pipeline that stops running produces no signal at all — the failure that left
+ * production stale for four weeks — so that case is called out rather than
+ * left to be inferred from two absent flags.
+ */
+export function describeMonitoring(value: Pick<SchedulerStatusResponse, "heartbeatConfigured" | "alertsConfigured">): string {
+  if (value.heartbeatConfigured && value.alertsConfigured) {
+    return "Heartbeat monitor and external alerts are configured.";
+  }
+  if (value.heartbeatConfigured) {
+    return "Heartbeat monitor is configured; external alerts are not.";
+  }
+  if (value.alertsConfigured) {
+    return "External alerts are configured, but no heartbeat monitor — nothing will report a pipeline that stops running entirely.";
+  }
+  return "No heartbeat monitor or external alerts are configured; a pipeline that stops running will not report itself.";
+}
+
 export function freshnessTone(record: SchedulerFreshnessRecord): string {
   if (record.state === "CURRENT") {
     return "text-pos";
@@ -141,7 +160,7 @@ export function SchedulerStatusBody({ data, loading, error }: SchedulerStatusBod
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <RunSummary title="Last successful run" run={data.lastSuccessfulRun} />
+            <RunSummary title="Last healthy run" run={data.lastHealthyRun} />
             <RunSummary title="Last attempt" run={data.lastRun} />
           </div>
 
@@ -183,9 +202,8 @@ export function SchedulerStatusBody({ data, loading, error }: SchedulerStatusBod
             </div>
           ) : null}
 
-          <p className="text-xs text-text-3">
-            {data.alertsConfigured ? "External alerts are configured." : "External alerts are not configured."} Run history is kept
-            for {data.retentionDays} days.
+          <p className={`text-xs ${data.heartbeatConfigured || data.alertsConfigured ? "text-text-3" : "text-warn"}`}>
+            {describeMonitoring(data)} Run history is kept for {data.retentionDays} days.
             {data.activeLeaseExpiresAt ? ` A run currently holds the lease until ${formatTimestamp(data.activeLeaseExpiresAt)}.` : ""}
           </p>
         </div>

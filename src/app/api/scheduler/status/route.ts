@@ -1,11 +1,11 @@
 import { detailResponse } from "@/lib/api/responses";
 import {
   DEFAULT_FRESHNESS_LAG_DAYS,
+  isHeartbeatConfigured,
   resolveAlertConfig,
 } from "@/lib/marketdata/pipeline-alerts";
 import {
   DEFAULT_RUN_RETENTION_DAYS,
-  PipelineRunStatus,
   PrismaPipelineRunStore,
 } from "@/lib/marketdata/pipeline-run-store";
 import {
@@ -34,9 +34,9 @@ export async function GET() {
   const runStore = new PrismaPipelineRunStore();
   const pipelineStore = new PrismaScheduledPipelineStore();
 
-  const [lastRunRow, lastSuccessRow, progress, activeLease] = await Promise.all([
+  const [lastRunRow, lastHealthyRow, progress, activeLease] = await Promise.all([
     runStore.latestRun(MARKET_DATA_PIPELINE_JOB_NAME),
-    runStore.latestRunWithStatus(MARKET_DATA_PIPELINE_JOB_NAME, PipelineRunStatus.SUCCEEDED),
+    runStore.latestHealthyRun(MARKET_DATA_PIPELINE_JOB_NAME),
     pipelineStore.loadProgress(),
     pipelineStore.loadActiveLease(now),
   ]);
@@ -58,11 +58,12 @@ export async function GET() {
     checkedAt: now.toISOString(),
     health: resolveSchedulerHealth(lastRun, freshness),
     lastRun,
-    lastSuccessfulRun: lastSuccessRow ? toSchedulerRunRecord(lastSuccessRow) : null,
+    lastHealthyRun: lastHealthyRow ? toSchedulerRunRecord(lastHealthyRow) : null,
     freshness,
     freshnessToleranceDays: toleranceDays,
     retentionDays: DEFAULT_RUN_RETENTION_DAYS,
     alertsConfigured: alertConfig !== null,
+    heartbeatConfigured: isHeartbeatConfigured(),
     activeLeaseExpiresAt: activeLease ? activeLease.expiresAt.toISOString() : null,
   };
 

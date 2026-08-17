@@ -139,7 +139,7 @@ describe("GET /api/scheduler/status", () => {
 
     expect(data.health).toBe("NEVER_RUN");
     expect(data.lastRun).toBeNull();
-    expect(data.lastSuccessfulRun).toBeNull();
+    expect(data.lastHealthyRun).toBeNull();
   });
 
   it("omits the lease owner from the response", async () => {
@@ -159,5 +159,29 @@ describe("GET /api/scheduler/status", () => {
 
     vi.stubEnv("PIPELINE_ALERT_WEBHOOK_URL", "https://alerts.example.com/hook");
     expect((await callRoute()).alertsConfigured).toBe(true);
+  });
+
+  it("reports whether the heartbeat monitor is configured, independently of alerts", async () => {
+    schedulerStatusMocks.scheduledPipelineRun.findFirst.mockResolvedValue(runRow());
+    stubProgress({ equityMark: day("2026-07-17"), optionMark: day("2026-07-17"), valueSnapshot: day("2026-07-17") });
+
+    expect((await callRoute()).heartbeatConfigured).toBe(false);
+
+    vi.stubEnv("PIPELINE_HEARTBEAT_URL", "https://hc-ping.com/uuid");
+    const data = await callRoute();
+    expect(data.heartbeatConfigured).toBe(true);
+    expect(data.alertsConfigured).toBe(false);
+  });
+
+  it("treats a NOOP run as the last healthy run", async () => {
+    // NOOP is the normal weekend result; excluding it reported "Never" on a
+    // healthy install, which is what production showed right after deploy.
+    schedulerStatusMocks.scheduledPipelineRun.findFirst.mockResolvedValue(runRow({ status: "NOOP" }));
+    stubProgress({ equityMark: day("2026-07-17"), optionMark: day("2026-07-17"), valueSnapshot: day("2026-07-17") });
+
+    const data = await callRoute();
+
+    expect(data.lastRun?.status).toBe("NOOP");
+    expect(data.lastHealthyRun?.status).toBe("NOOP");
   });
 });

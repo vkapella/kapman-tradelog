@@ -3,6 +3,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   HEALTH_COPY,
+  describeMonitoring,
   SchedulerStatusBody,
   formatDuration,
   formatLag,
@@ -93,7 +94,7 @@ function statusPayload(overrides: Partial<SchedulerStatusResponse> = {}): Schedu
       unpricedExcursionDays: 0,
       errorMessage: null,
     },
-    lastSuccessfulRun: null,
+    lastHealthyRun: null,
     freshness: [
       { key: "equityMarks", label: "Equity marks", latestDate: "2026-08-14", lagDays: 2, state: "CURRENT" },
       { key: "optionMarks", label: "Option marks", latestDate: "2026-08-14", lagDays: 2, state: "CURRENT" },
@@ -102,6 +103,7 @@ function statusPayload(overrides: Partial<SchedulerStatusResponse> = {}): Schedu
     freshnessToleranceDays: 4,
     retentionDays: 90,
     alertsConfigured: false,
+    heartbeatConfigured: false,
     activeLeaseExpiresAt: null,
     ...overrides,
   };
@@ -130,7 +132,7 @@ describe("SchedulerStatusBody", () => {
 
   it("renders the empty state with a seeding next action when nothing has run", () => {
     const markup = render({
-      data: statusPayload({ health: "NEVER_RUN", lastRun: null, lastSuccessfulRun: null }),
+      data: statusPayload({ health: "NEVER_RUN", lastRun: null, lastHealthyRun: null }),
       loading: false,
       error: null,
     });
@@ -187,11 +189,52 @@ describe("SchedulerStatusBody", () => {
     expect(markup).toContain("provider unavailable");
   });
 
-  it("reports whether alerting is configured and how long history is kept", () => {
-    expect(render({ data: statusPayload(), loading: false, error: null }))
-      .toContain("External alerts are not configured.");
-    expect(render({ data: statusPayload({ alertsConfigured: true }), loading: false, error: null }))
-      .toContain("External alerts are configured.");
+  it("reports how long history is kept", () => {
     expect(render({ data: statusPayload(), loading: false, error: null })).toContain("90 days");
+  });
+
+  it("labels the healthy-run card rather than calling it successful", () => {
+    // A NOOP run is healthy; "Last successful run" beside a NOOP read as a
+    // contradiction, and as "Never" whenever the last run was a NOOP.
+    const markup = render({ data: statusPayload(), loading: false, error: null });
+
+    expect(markup).toContain("Last healthy run");
+    expect(markup).not.toContain("Last successful run");
+  });
+
+  it("warns in the panel when nothing is monitoring the pipeline", () => {
+    const markup = render({ data: statusPayload(), loading: false, error: null });
+
+    expect(markup).toContain("No heartbeat monitor or external alerts are configured");
+    expect(markup).toContain("text-warn");
+  });
+
+  it("stops warning once a heartbeat monitor is configured", () => {
+    const markup = render({
+      data: statusPayload({ heartbeatConfigured: true }),
+      loading: false,
+      error: null,
+    });
+
+    expect(markup).toContain("Heartbeat monitor is configured");
+    expect(markup).not.toContain("No heartbeat monitor");
+  });
+});
+
+describe("describeMonitoring", () => {
+  it("names both monitors when both are configured", () => {
+    expect(describeMonitoring({ heartbeatConfigured: true, alertsConfigured: true }))
+      .toBe("Heartbeat monitor and external alerts are configured.");
+  });
+
+  it("flags alerts-only as leaving the silent-failure case uncovered", () => {
+    // Webhook alerts run inside the pipeline, so they cannot fire when it never runs.
+    expect(describeMonitoring({ heartbeatConfigured: false, alertsConfigured: true }))
+      .toContain("nothing will report a pipeline that stops running entirely");
+  });
+
+  it("states plainly when nothing is configured", () => {
+    expect(describeMonitoring({ heartbeatConfigured: false, alertsConfigured: false }))
+      .toContain("will not report itself");
   });
 });

@@ -194,3 +194,33 @@ describe("PrismaPipelineRunStore", () => {
     }));
   });
 });
+
+describe("PrismaPipelineRunStore.latestHealthyRun", () => {
+  it("counts a NOOP as healthy alongside SUCCEEDED", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const store = new PrismaPipelineRunStore({ scheduledPipelineRun: { findFirst } } as never);
+
+    await store.latestHealthyRun("daily-market-data");
+
+    const where = findFirst.mock.calls[0][0].where as { status: { in: string[] } };
+    expect(where.status.in).toEqual([PipelineRunStatus.SUCCEEDED, PipelineRunStatus.NOOP]);
+    expect(findFirst.mock.calls[0][0].orderBy).toEqual({ startedAt: "desc" });
+  });
+
+  it("excludes failed, abandoned, locked, and in-flight runs", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const store = new PrismaPipelineRunStore({ scheduledPipelineRun: { findFirst } } as never);
+
+    await store.latestHealthyRun("daily-market-data");
+
+    const where = findFirst.mock.calls[0][0].where as { status: { in: string[] } };
+    for (const excluded of [
+      PipelineRunStatus.FAILED,
+      PipelineRunStatus.ABANDONED,
+      PipelineRunStatus.SKIPPED_LOCKED,
+      PipelineRunStatus.RUNNING,
+    ]) {
+      expect(where.status.in).not.toContain(excluded);
+    }
+  });
+});

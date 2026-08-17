@@ -43,7 +43,7 @@ function createRunStoreStub(): PipelineRunStore {
     recoverAbandonedRuns: vi.fn().mockResolvedValue(0),
     pruneRuns: vi.fn().mockResolvedValue(0),
     latestRun: vi.fn().mockResolvedValue(null),
-    latestRunWithStatus: vi.fn().mockResolvedValue(null),
+    latestHealthyRun: vi.fn().mockResolvedValue(null),
     listRuns: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
     countConsecutiveLocked: vi.fn().mockResolvedValue(0),
   };

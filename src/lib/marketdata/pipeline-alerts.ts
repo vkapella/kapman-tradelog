@@ -113,6 +113,15 @@ export function resolveAlertConfig(env: Record<string, string | undefined> = pro
   };
 }
 
+/**
+ * Whether the dead-man's-switch heartbeat is configured. Reported in scheduler
+ * status because it is the only signal that survives the pipeline never running,
+ * so an operator needs to see at a glance whether it is in place.
+ */
+export function isHeartbeatConfigured(env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env.PIPELINE_HEARTBEAT_URL?.trim());
+}
+
 export function lagInDays(latest: Date | null, now: Date): number | null {
   if (!latest) {
     return null;

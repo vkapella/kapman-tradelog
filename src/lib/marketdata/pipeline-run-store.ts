@@ -12,6 +12,17 @@ export const DEFAULT_RUN_RETENTION_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Statuses that mean the pipeline ran and did not fail. NOOP belongs here: it
+ * is the normal weekend and market-holiday result, where the run completed
+ * cleanly with nothing new to ingest. Excluding it made a healthy install
+ * report that it had never run successfully.
+ */
+export const HEALTHY_RUN_STATUSES: PipelineRunStatus[] = [
+  PipelineRunStatus.SUCCEEDED,
+  PipelineRunStatus.NOOP,
+];
+
 /// Terminal statuses a RUNNING row can never return to on its own.
 const TERMINAL_STATUSES: PipelineRunStatus[] = [
   PipelineRunStatus.SUCCEEDED,
@@ -73,7 +84,7 @@ export interface PipelineRunStore {
   recoverAbandonedRuns(jobName: string, now: Date): Promise<number>;
   pruneRuns(jobName: string, now: Date, retentionDays: number): Promise<number>;
   latestRun(jobName: string): Promise<ScheduledPipelineRun | null>;
-  latestRunWithStatus(jobName: string, status: PipelineRunStatus): Promise<ScheduledPipelineRun | null>;
+  latestHealthyRun(jobName: string): Promise<ScheduledPipelineRun | null>;
   listRuns(input: ListPipelineRunsInput): Promise<ListPipelineRunsResult>;
   countConsecutiveLocked(jobName: string): Promise<number>;
 }
@@ -241,9 +252,9 @@ export class PrismaPipelineRunStore implements PipelineRunStore {
     });
   }
 
-  async latestRunWithStatus(jobName: string, status: PipelineRunStatus): Promise<ScheduledPipelineRun | null> {
+  async latestHealthyRun(jobName: string): Promise<ScheduledPipelineRun | null> {
     return this.prismaClient.scheduledPipelineRun.findFirst({
-      where: { jobName, status },
+      where: { jobName, status: { in: HEALTHY_RUN_STATUSES } },
       orderBy: { startedAt: "desc" },
     });
   }

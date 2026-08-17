@@ -971,11 +971,17 @@ export interface SchedulerStatusResponse {
   checkedAt: string;
   health: SchedulerHealth;
   lastRun: SchedulerRunRecord | null;
-  lastSuccessfulRun: SchedulerRunRecord | null;
+  /// Most recent run that completed without failing. Includes NOOP, which is the
+  /// normal weekend and holiday result rather than an absence of success.
+  lastHealthyRun: SchedulerRunRecord | null;
   freshness: SchedulerFreshnessRecord[];
   freshnessToleranceDays: number;
   retentionDays: number;
+  /// Optional webhook alerts (PIPELINE_ALERT_WEBHOOK_URL).
   alertsConfigured: boolean;
+  /// Dead-man's-switch heartbeat (PIPELINE_HEARTBEAT_URL). The only monitor that
+  /// still reports when the pipeline stops running entirely.
+  heartbeatConfigured: boolean;
   /// Present while a run holds the lease; owner id is deliberately omitted.
   activeLeaseExpiresAt: string | null;
 }
