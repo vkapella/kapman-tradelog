@@ -104,9 +104,9 @@ session's job ends at a validated push to `main`.
 
 ## Deployment to Fly
 
-- Deploys are run manually by the operator: `fly deploy -a kapman-tradelog`.
-  Full procedure, verification, and post-deploy steps are in
-  [RUNBOOK.md](RUNBOOK.md) Section G.
+- Deploys are run manually by the operator: `npm run deploy -- kapman-tradelog`,
+  which chains `fly deploy` and the scheduler update. Full procedure,
+  verification, and post-deploy steps are in [RUNBOOK.md](RUNBOOK.md) Section G.
 - **Do not add CI that deploys on push.** This repo has no
   `.github/workflows/` deploy job by deliberate decision, and `FLY_API_TOKEN`
   is intentionally unset. Automating deploy here means automating migrations
@@ -116,9 +116,13 @@ session's job ends at a validated push to `main`.
   pending Prisma migrations to the production database. Never deploy a
   migration you are not ready to run in prod, and take a backup first —
   `ops/archive-db-to-mac.sh`, see [RUNBOOK.md](RUNBOOK.md) Section D.
-- **The scheduler is not updated by `fly deploy`.** After every deploy run
-  `npm run deploy:market-data-scheduler -- kapman-tradelog`, or the
-  `market-data-daily` Machine keeps running the previous image.
+- **The scheduler is not updated by `fly deploy`.** Use `npm run deploy`, which
+  chains it. If you run bare `fly deploy`, follow it with
+  `npm run deploy:market-data-scheduler -- kapman-tradelog` or the
+  `market-data-daily` Machine keeps running the previous image *and* stops
+  firing entirely: an updated-but-never-started Machine keeps `schedule = daily`
+  in its config while Fly never runs it. That failure is silent — check
+  `/api/scheduler/status`, not the schedule field.
 
 ## Tech stack (pinned)
 - Next.js 14.2.x with App Router

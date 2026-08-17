@@ -34,6 +34,15 @@ if [[ -n "${EXISTING_ID}" ]]; then
     --skip-start \
     --yes
   echo "Updated scheduled Machine ${MACHINE_NAME} (${EXISTING_ID}) to ${CURRENT_IMAGE}."
+
+  # Start once after updating. `--skip-start` leaves the Machine stopped, and a
+  # stopped-but-never-started Machine keeps `schedule = daily` in its config
+  # while Fly never fires it — the pipeline then goes silent with no error
+  # anywhere. Production sat stale from 2026-07-19 to 2026-08-16 this way.
+  # The run is idempotent (it no-ops when data is current) and the database
+  # lease prevents overlap with any in-flight run.
+  echo "Starting ${MACHINE_NAME} once to re-arm the daily schedule..."
+  fly machine start "${EXISTING_ID}" -a "${APP_NAME}"
 else
   fly machine run "${CURRENT_IMAGE}" \
     -a "${APP_NAME}" \

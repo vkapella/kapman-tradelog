@@ -332,8 +332,7 @@ The production Machine has no HTTP service, uses restart policy `never`, and is
 started approximately once per day by Fly. A database lease prevents overlap.
 Structured stage summaries are written to Fly logs; secrets are never logged.
 
-Create the Machine once, and update it to the current production image after
-every deploy:
+`npm run deploy` runs this for you. To update the Machine on its own:
 
 ```bash
 npm run deploy:market-data-scheduler -- kapman-tradelog
@@ -341,7 +340,9 @@ npm run deploy:market-data-scheduler -- kapman-tradelog
 
 The command is idempotent: it creates the named `market-data-daily` Machine when
 absent and otherwise updates its image, command, resource limits, schedule, and
-non-secret environment. App-level Fly secrets are inherited by the Machine.
+non-secret environment, then **starts it once** to re-arm the schedule (see the
+warning below). App-level Fly secrets are inherited by the Machine. That start
+also runs the pipeline immediately, which no-ops when data is already current.
 
 Verify source and derived freshness without changing data:
 
@@ -361,12 +362,23 @@ The explicit end is still capped by the configured publication lag. If a run is
 terminated, its lease expires automatically; wait for the reported expiry or
 adjust the lease only after confirming no other pipeline process is active.
 
-> **After every `fly deploy`, re-run `npm run deploy:market-data-scheduler`.**
-> A deploy updates the stopped `market-data-daily` Machine's image but does not
-> re-arm its schedule. The pipeline then stops firing with no error anywhere —
-> the last run stays `SUCCEEDED` while data silently ages. The Diagnostics
-> status panel below reports this as **Stale data**, which is the only signal
-> that distinguishes it from a healthy install.
+> **Deploy with `npm run deploy`, not bare `fly deploy`.**
+>
+> `npm run deploy` runs `fly deploy` and then the scheduler script, which points
+> the `market-data-daily` Machine at the new image **and starts it once**. That
+> final start is the part that matters: `fly machine update` uses `--skip-start`,
+> and a Machine that is updated but never started keeps `schedule = daily` in its
+> config while Fly never fires it. The pipeline then goes silent with no error
+> anywhere — the last run stays `SUCCEEDED` while market data quietly ages.
+>
+> This is not hypothetical: production ran daily until the first post-deploy
+> `machine update` on 2026-07-19, then sat stale for four weeks until
+> 2026-08-16. `fly machine status <id>` showed `schedule: daily` the whole time
+> with zero start events. Checking the schedule field is therefore *not* a valid
+> health check — check start events or run history instead.
+>
+> The Diagnostics panel below reports this state as **Stale data**, and the
+> freshness alert fires on it if alerting is configured.
 
 ### Scheduler status, run history, and alerts
 
@@ -561,13 +573,14 @@ fly checks list -a kapman-tradelog
 
 ```bash
 npm run typecheck && npm run lint && npm test -- --passWithNoTests
-fly deploy -a kapman-tradelog
-npm run deploy:market-data-scheduler -- kapman-tradelog
+npm run deploy -- kapman-tradelog
 curl -sf https://kapman-tradelog.fly.dev/api/health | grep ok
 ```
 
-The scheduler is deliberately unmanaged by `fly deploy`, so the scheduler update
-command is mandatory after every deploy. Reuse the existing Fly secrets; only
+`npm run deploy` chains `fly deploy` and the scheduler update so the second step
+cannot be forgotten. The scheduler is deliberately unmanaged by `fly deploy`
+itself, so running `fly deploy` alone still requires
+`npm run deploy:market-data-scheduler` afterwards. Reuse the existing Fly secrets; only
 rerun `fly secrets set` to rotate. Massive credentials should be read-only for
 the flat-file bucket.
 
