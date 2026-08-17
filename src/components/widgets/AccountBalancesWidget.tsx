@@ -17,6 +17,19 @@ function formatTimestamp(value: string | null): string {
     : "unavailable";
 }
 
+/**
+ * Reconciliation is unknown whenever NLV could not be reconstructed, which is
+ * exactly when a signed zero would be read as "matches the broker perfectly".
+ * A real zero delta is still shown, because exact agreement is a real result.
+ */
+export function formatReconciliationDelta(delta: string | null): string {
+  if (delta === null) {
+    return "—";
+  }
+  const parsed = Number(delta);
+  return Number.isFinite(parsed) ? formatSignedCurrency(delta) : "—";
+}
+
 function formatSignedCurrency(value: string): string {
   const number = Number(value);
   return `${number >= 0 ? "+" : "-"}${formatCurrency(Math.abs(number))}`;
@@ -65,7 +78,7 @@ function AccountBalanceRow({ accountId, value, loading }: { accountId: string; v
           ) : (
             <div className="mt-2 rounded border border-border px-2 py-1 text-[10px] text-text-2">
               <div className="flex justify-between"><span>Broker NLV</span><span className="text-text">{formatCurrency(Number(value.brokerReportedNlv))}</span></div>
-              <div className="flex justify-between"><span>Reconstructed − broker</span><span className="text-text">{formatSignedCurrency(value.reconciliationDelta ?? "0")}</span></div>
+              <div className="flex justify-between"><span>Reconstructed − broker</span><span className="text-text">{formatReconciliationDelta(value.reconciliationDelta)}</span></div>
               <p>Broker as of: {formatTimestamp(value.brokerNlvAsOf)}</p>
             </div>
           )}
