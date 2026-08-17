@@ -7,6 +7,7 @@ import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import { resolveLiveAccountValue, sumCompleteReconstructedNlv } from "@/lib/positions/live-account-value";
 import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
+import { loadFallbackMarks } from "@/lib/positions/fallback-marks";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type {
   EquityQuoteRecord,
@@ -261,15 +262,32 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       optionQuoteCount: optionQuotes.size,
     });
 
+    const liveMarks = new Map<string, number>();
+    for (const position of openPositions) {
+      const mark = position.assetClass === "EQUITY"
+        ? equityQuotes?.[position.symbol]?.mark ?? null
+        : optionQuotes.get(position.instrumentKey) ?? null;
+      if (mark !== null && Number.isFinite(mark)) {
+        liveMarks.set(position.instrumentKey, mark);
+      }
+    }
+
+    // A recent daily close beats no value at all, but only inside the recency
+    // window and only when a live quote is genuinely unavailable.
+    const fallbackMarks = await loadFallbackMarks(
+      openPositions.filter((position) => !liveMarks.has(position.instrumentKey)).map((position) => position.instrumentKey),
+      new Date(),
+    );
+    detailLog(snapshotId, "loaded-fallback-marks", startedAtMs, {
+      requested: openPositions.length - liveMarks.size,
+      resolved: fallbackMarks.size,
+    });
+
     let totalMarkedValue = 0;
     const pricedPositions: PositionSnapshotOpenPosition[] = openPositions.map((position) => {
-      let mark: number | null = null;
-
-      if (position.assetClass === "EQUITY") {
-        mark = equityQuotes?.[position.symbol]?.mark ?? null;
-      } else if (position.assetClass === "OPTION") {
-        mark = optionQuotes.get(position.instrumentKey) ?? null;
-      }
+      const liveMark = liveMarks.get(position.instrumentKey) ?? null;
+      const fallback = liveMark === null ? fallbackMarks.get(position.instrumentKey) ?? null : null;
+      const mark = liveMark ?? fallback?.mark ?? null;
 
       if (mark !== null) {
         totalMarkedValue += mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1);
@@ -278,6 +296,8 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       return {
         ...position,
         mark,
+        markSource: mark === null ? null : liveMark !== null ? "LIVE" : "HISTORICAL",
+        markAsOf: fallback?.markDate ?? null,
       };
     });
 

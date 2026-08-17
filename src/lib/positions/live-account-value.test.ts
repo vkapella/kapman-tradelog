@@ -134,3 +134,74 @@ describe("resolveLiveAccountValue", () => {
     expect(sumCompleteReconstructedNlv([cashOnly, incomplete])).toBeNull();
   });
 });
+
+describe("resolveLiveAccountValue stale marks", () => {
+  function resolve(positions: PositionSnapshotOpenPosition[], cashAsOf = "2026-08-17T00:00:00.000Z") {
+    return resolveLiveAccountValue({
+      accountId: "account-1",
+      accountExternalId: "X19467537",
+      positions,
+      balance: balance({ cash: 1000, cashAsOf }),
+      marksAsOf: new Date("2026-08-17T14:30:00.000Z"),
+    });
+  }
+
+  it("still reconstructs NLV when a position is priced from a daily close", () => {
+    const value = resolve([
+      position({ mark: 750, markSource: "LIVE" }),
+      position({ instrumentKey: "QQQM", symbol: "QQQM", mark: 250, markSource: "HISTORICAL", markAsOf: "2026-08-14" }),
+    ]);
+
+    // 1000 cash + 750 + 250: a stale price still yields a usable value.
+    expect(value.reconstructedNlv).toBe("2000.00");
+    expect(value.status).toBe("STALE_MARKS");
+    expect(value.staleMarkCount).toBe(1);
+    expect(value.staleMarkAsOf).toBe("2026-08-14");
+  });
+
+  it("reports the oldest contributing close as the account's stale date", () => {
+    const value = resolve([
+      position({ mark: 750, markSource: "HISTORICAL", markAsOf: "2026-08-14" }),
+      position({ instrumentKey: "QQQM", symbol: "QQQM", mark: 250, markSource: "HISTORICAL", markAsOf: "2026-08-11" }),
+    ]);
+
+    expect(value.staleMarkCount).toBe(2);
+    expect(value.staleMarkAsOf).toBe("2026-08-11");
+  });
+
+  it("keeps a missing mark more severe than a stale one", () => {
+    const value = resolve([
+      position({ mark: null }),
+      position({ instrumentKey: "QQQM", symbol: "QQQM", mark: 250, markSource: "HISTORICAL", markAsOf: "2026-08-14" }),
+    ]);
+
+    expect(value.status).toBe("INCOMPLETE_MARKS");
+    expect(value.reconstructedNlv).toBeNull();
+    expect(value.missingMarkCount).toBe(1);
+  });
+
+  it("ranks stale marks above a cash and mark date mismatch", () => {
+    const value = resolve(
+      [position({ mark: 750, markSource: "HISTORICAL", markAsOf: "2026-08-14" })],
+      "2026-08-15T00:00:00.000Z",
+    );
+
+    expect(value.status).toBe("STALE_MARKS");
+  });
+
+  it("reports CURRENT when every mark is live and dates agree", () => {
+    const value = resolve([position({ mark: 750, markSource: "LIVE" })]);
+
+    expect(value.status).toBe("CURRENT");
+    expect(value.staleMarkCount).toBe(0);
+    expect(value.staleMarkAsOf).toBeNull();
+  });
+
+  it("treats a snapshot without mark provenance as live", () => {
+    // Snapshots persisted before mark source existed must not report as stale.
+    const value = resolve([position({ mark: 750 })]);
+
+    expect(value.staleMarkCount).toBe(0);
+    expect(value.status).toBe("CURRENT");
+  });
+});

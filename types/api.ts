@@ -609,6 +609,11 @@ export type PositionSnapshotStatus = "PENDING" | "COMPLETE" | "FAILED";
 
 export interface PositionSnapshotOpenPosition extends OpenPosition {
   mark: number | null;
+  /// How the mark was obtained. "HISTORICAL" is a daily close standing in for an
+  /// unavailable live quote. Optional: older persisted snapshots predate it.
+  markSource?: "LIVE" | "HISTORICAL" | null;
+  /// Effective date of a historical mark (YYYY-MM-DD); null for a live mark.
+  markAsOf?: string | null;
   // Open-leg excursion (daily-mark, since entry). Optional: older persisted snapshots predate it.
   maePct?: number | null;
   mfePct?: number | null;
@@ -617,7 +622,7 @@ export interface PositionSnapshotOpenPosition extends OpenPosition {
   excursionAsOf?: string | null;
 }
 
-export type LiveAccountValueStatus = "CURRENT" | "MIXED_AS_OF" | "INCOMPLETE_MARKS";
+export type LiveAccountValueStatus = "CURRENT" | "MIXED_AS_OF" | "STALE_MARKS" | "INCOMPLETE_MARKS";
 
 export interface LiveAccountValue {
   accountId: string;
@@ -634,6 +639,10 @@ export interface LiveAccountValue {
   marksAsOf: string;
   brokerNlvAsOf: string | null;
   missingMarkCount: number;
+  /// Positions priced from a daily close because no live quote was available.
+  staleMarkCount: number;
+  /// Oldest historical mark date contributing to this value (YYYY-MM-DD).
+  staleMarkAsOf: string | null;
   status: LiveAccountValueStatus;
   valuationBasis: "MARK";
   cashSource: "snapshot" | "heuristic_fallback";

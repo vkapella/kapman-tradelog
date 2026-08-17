@@ -25,11 +25,21 @@ export function resolveLiveAccountValue(input: ResolveLiveAccountValueInput): Li
   let equityMarketValue = 0;
   let optionMarketValue = 0;
   let missingMarkCount = 0;
+  let staleMarkCount = 0;
+  let staleMarkAsOf: string | null = null;
 
   for (const position of input.positions.filter((row) => row.accountId === input.accountId)) {
     if (position.mark === null || !Number.isFinite(position.mark)) {
       missingMarkCount += 1;
       continue;
+    }
+
+    if (position.markSource === "HISTORICAL") {
+      staleMarkCount += 1;
+      // Report the oldest contributing close, the worst case for this account.
+      if (position.markAsOf && (staleMarkAsOf === null || position.markAsOf < staleMarkAsOf)) {
+        staleMarkAsOf = position.markAsOf;
+      }
     }
 
     const marketValue = position.mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1);
@@ -49,11 +59,15 @@ export function resolveLiveAccountValue(input: ResolveLiveAccountValueInput): Li
     : reconstructedNlv - brokerReportedNlv;
   const cashAsOf = input.balance?.cashAsOf ?? null;
   const marksAsOf = input.marksAsOf.toISOString();
+  // Precedence runs from most to least severe: a value that cannot be computed
+  // outranks one computed from stale prices, which outranks a date mismatch.
   const status = missingMarkCount > 0
     ? "INCOMPLETE_MARKS"
-    : dateKey(cashAsOf) !== dateKey(input.marksAsOf)
-      ? "MIXED_AS_OF"
-      : "CURRENT";
+    : staleMarkCount > 0
+      ? "STALE_MARKS"
+      : dateKey(cashAsOf) !== dateKey(input.marksAsOf)
+        ? "MIXED_AS_OF"
+        : "CURRENT";
 
   return {
     accountId: input.accountId,
@@ -69,6 +83,8 @@ export function resolveLiveAccountValue(input: ResolveLiveAccountValueInput): Li
     marksAsOf,
     brokerNlvAsOf: input.balance?.brokerNlvAsOf ?? null,
     missingMarkCount,
+    staleMarkCount,
+    staleMarkAsOf,
     status,
     valuationBasis: "MARK",
     cashSource: input.balance?.cashSource ?? "heuristic_fallback",

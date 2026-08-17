@@ -380,6 +380,36 @@ adjust the lease only after confirming no other pipeline process is active.
 > The Diagnostics panel below reports this state as **Stale data**, and the
 > freshness alert fires on it if alerting is configured.
 
+### Live account value and stale marks
+
+Open positions are priced from live quotes. When a live quote is unavailable for
+an instrument, the snapshot falls back to the most recent daily close in
+`historical_marks`, but only if that close is within **10 days**
+(`MAX_FALLBACK_MARK_AGE_DAYS` in `src/lib/positions/fallback-marks.ts`). Beyond
+that the position stays unpriced.
+
+A live quote always wins. Equities are matched by symbol and options by the
+canonical option instrument key, which is how `historical_marks` already stores
+them, so one lookup covers both.
+
+The Account Balances widget states which case applies:
+
+| Message | Meaning |
+|---|---|
+| *N open position(s) missing a market mark* | No live quote and no close within the window. NLV is suppressed for that account. |
+| *priced from the last daily close from YYYY-MM-DD* | NLV is computed but includes a stale price. Treat it as approximate. |
+| *Cash and market marks have different effective dates* | All marks are live; the cash balance is from an earlier statement. |
+
+A single unpriced position still suppresses the whole account's NLV, which is
+deliberate: a partial total that silently omits a position is worse than no
+total. Reconciliation against broker NLV shows an em dash rather than `+$0.00`
+when it cannot be computed.
+
+If an account reports stale or missing marks persistently, check the live quote
+path first (`contract_not_found` versus `provider_unavailable` in the logs), then
+confirm the market-data pipeline is current via
+[Diagnostics → Scheduled pipeline](#scheduler-status-run-history-and-alerts).
+
 ### Scheduler status, run history, and alerts
 
 Every attempt writes a durable row to `scheduled_pipeline_runs`: trigger,

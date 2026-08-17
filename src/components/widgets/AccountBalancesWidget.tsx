@@ -35,9 +35,14 @@ function formatSignedCurrency(value: string): string {
   return `${number >= 0 ? "+" : "-"}${formatCurrency(Math.abs(number))}`;
 }
 
-function statusMessage(value: LiveAccountValue): string | null {
+export function statusMessage(value: Pick<LiveAccountValue, "status" | "missingMarkCount" | "staleMarkCount" | "staleMarkAsOf">): string | null {
   if (value.status === "INCOMPLETE_MARKS") {
     return `${value.missingMarkCount} open ${value.missingMarkCount === 1 ? "position is" : "positions are"} missing a market mark.`;
+  }
+  if (value.status === "STALE_MARKS") {
+    const subject = `${value.staleMarkCount} open ${value.staleMarkCount === 1 ? "position is" : "positions are"}`;
+    const asOf = value.staleMarkAsOf ? ` from ${value.staleMarkAsOf}` : "";
+    return `${subject} priced from the last daily close${asOf}, not a live quote.`;
   }
   if (value.status === "MIXED_AS_OF") {
     return "Cash and market marks have different effective dates.";
