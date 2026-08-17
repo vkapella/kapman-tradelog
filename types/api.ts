@@ -562,14 +562,17 @@ export interface EquityQuoteRecord {
 
 export type QuotesResponse = Record<string, EquityQuoteRecord> | QuoteUnavailableResponse;
 
+/// Only `mark` is guaranteed. Analytics fields are nullable so a provider that
+/// omits one — common for deep-ITM and long-dated contracts — cannot discard an
+/// otherwise valid mark, which is the field valuation actually depends on.
 export interface OptionQuoteRecord {
   mark: number;
-  bid: number;
-  ask: number;
-  delta: number;
-  theta: number;
-  iv: number;
-  dte: number;
+  bid: number | null;
+  ask: number | null;
+  delta: number | null;
+  theta: number | null;
+  iv: number | null;
+  dte: number | null;
   inTheMoney: boolean;
 }
 
