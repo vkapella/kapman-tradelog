@@ -178,3 +178,32 @@ export function normalizePersistedSort(sort: unknown): DataTableSortState {
 export function normalizeSelectedFilterValues(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => normalizeFilterValue(value as string))));
 }
+
+export function normalizePersistedHiddenColumns(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)));
+}
+
+export function toggleHiddenColumn(hiddenColumns: string[], columnId: string, visible: boolean): string[] {
+  const isHidden = hiddenColumns.includes(columnId);
+
+  if (visible) {
+    return isHidden ? hiddenColumns.filter((entry) => entry !== columnId) : hiddenColumns;
+  }
+
+  return isHidden ? hiddenColumns : [...hiddenColumns, columnId];
+}
+
+export function getVisibleColumns<Row>(
+  columns: DataTableColumnDefinition<Row>[],
+  hiddenColumns: string[],
+): DataTableColumnDefinition<Row>[] {
+  if (hiddenColumns.length === 0) {
+    return columns;
+  }
+
+  return columns.filter((column) => column.alwaysVisible || !hiddenColumns.includes(column.id));
+}

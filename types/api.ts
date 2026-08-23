@@ -990,3 +990,49 @@ export interface SchedulerRunsListQuery {
   page?: number;
   pageSize?: number;
 }
+
+export type RecommendationPassValue = "PASS1" | "PASS2";
+export type RecommendationDispositionValue = "ELIGIBLE" | "NO_TRADE" | "WAIT" | "VALIDATED" | "FLAGGED" | "REJECTED";
+
+/// Serialized TradeRecommendation row from GET /api/recommendations. Decimal
+/// columns arrive as strings; date columns as ISO strings.
+export interface RecommendationRecord {
+  id: string;
+  recId: string;
+  lineageId: string;
+  localRecId: string;
+  pass: RecommendationPassValue;
+  disposition: RecommendationDispositionValue;
+  asOf: string;
+  decidedAtRaw: string | null;
+  decidedAt: string | null;
+  ticker: string;
+  structure: string | null;
+  structureRaw: string | null;
+  direction: string | null;
+  reason: string | null;
+  optionType: string | null;
+  strike: string | null;
+  strikeShort: string | null;
+  expirationDate: string | null;
+  entryRangeLow: string | null;
+  entryRangeHigh: string | null;
+  entryRangeRaw: string | null;
+  sizingBand: string | null;
+  chainQuality: string | null;
+  optionMid: string | null;
+  underlyingRef: string | null;
+  journalSchemaVersion: string | null;
+  sourceFile: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/// Per-run aggregate from GET /api/recommendations/lineages, newest first.
+export interface RecommendationLineageSummaryRecord {
+  lineageId: string;
+  asOf: string | null;
+  rowCount: number;
+  passes: Record<string, number>;
+  dispositions: Record<string, number>;
+}

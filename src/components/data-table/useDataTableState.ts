@@ -4,9 +4,12 @@ import {
   applyDataTableSort,
   buildFilterOptions,
   countActiveFilters,
+  getVisibleColumns,
   normalizePersistedFilters,
+  normalizePersistedHiddenColumns,
   normalizePersistedSort,
   normalizeSelectedFilterValues,
+  toggleHiddenColumn,
 } from "@/components/data-table/utils";
 import type {
   DataTableColumnDefinition,
@@ -67,12 +70,14 @@ export function useDataTableState<Row>({
   );
   const [filters, setFilters] = useState<DataTableFiltersState>({});
   const [sort, setSort] = useState<DataTableSortState>(() => defaultSort);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastPersistedPayloadRef = useRef<string | null>(null);
 
   useEffect(() => {
     let nextFilters: DataTableFiltersState = {};
     let nextSort = defaultSort;
+    let nextHiddenColumns: string[] = [];
 
     try {
       const raw = window.sessionStorage.getItem(storageKey);
@@ -80,14 +85,17 @@ export function useDataTableState<Row>({
         const parsed = JSON.parse(raw) as Partial<DataTablePersistedState>;
         nextFilters = normalizePersistedFilters(parsed.filters);
         nextSort = normalizePersistedSort(parsed.sort);
+        nextHiddenColumns = normalizePersistedHiddenColumns(parsed.hiddenColumns);
       }
     } catch {
       nextFilters = {};
       nextSort = defaultSort;
+      nextHiddenColumns = [];
     }
 
     setFilters((current) => (filtersEqual(current, nextFilters) ? current : nextFilters));
     setSort((current) => (sortsEqual(current, nextSort) ? current : nextSort));
+    setHiddenColumns((current) => (arraysEqual(current, nextHiddenColumns) ? current : nextHiddenColumns));
     setIsHydrated(true);
   }, [defaultSort, storageKey]);
 
@@ -96,7 +104,7 @@ export function useDataTableState<Row>({
       return;
     }
 
-    const payload = JSON.stringify({ filters, sort } satisfies DataTablePersistedState);
+    const payload = JSON.stringify({ filters, sort, hiddenColumns } satisfies DataTablePersistedState);
     if (payload === lastPersistedPayloadRef.current) {
       return;
     }
@@ -113,7 +121,7 @@ export function useDataTableState<Row>({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [filters, isHydrated, sort, storageKey]);
+  }, [filters, hiddenColumns, isHydrated, sort, storageKey]);
 
   const filterOptions = useMemo(() => {
     const entries = columns
@@ -158,16 +166,30 @@ export function useDataTableState<Row>({
     setSort(defaultSort);
   }, [defaultSort]);
 
+  const setColumnVisibility = useCallback((columnId: string, visible: boolean) => {
+    setHiddenColumns((current) => toggleHiddenColumn(current, columnId, visible));
+  }, []);
+
+  const resetColumnVisibility = useCallback(() => {
+    setHiddenColumns((current) => (current.length === 0 ? current : []));
+  }, []);
+
+  const visibleColumns = useMemo(() => getVisibleColumns(columns, hiddenColumns), [columns, hiddenColumns]);
+
   return {
     activeFilterCount,
     clearAllFilters,
     filterOptions,
     filters,
+    hiddenColumns,
     isHydrated,
+    resetColumnVisibility,
     setColumnFilter,
+    setColumnVisibility,
     setFilters,
     setSort,
     sort,
     sortedRows,
+    visibleColumns,
   };
 }

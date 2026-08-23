@@ -21,7 +21,10 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: "TRADE RECORDS",
-    items: [{ href: "/trade-records", label: "Executions / Lots / Setups", badgeKey: "executionCount" }],
+    items: [
+      { href: "/trade-records", label: "Executions / Lots / Setups", badgeKey: "executionCount" },
+      { href: "/recommendations", label: "Recommendations" },
+    ],
   },
   {
     label: "IMPORT & DATA",
@@ -60,6 +63,10 @@ export function getTopbarContextTags(pathname: string): string[] {
 
   if (pathname.startsWith("/trade-records")) {
     return ["T1", "T2", "T3"];
+  }
+
+  if (pathname.startsWith("/recommendations")) {
+    return ["Pass 1", "Pass 2"];
   }
 
   if (pathname.startsWith("/imports")) {

@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { latestPass1Summary } from "@/lib/recommendations/lineage-summary";
+import type { RecommendationLineageSummaryRecord } from "@/types/api";
 
 /**
  * The Today screen (go-live Increment 2, tradelog #329): pending HITL queue
@@ -207,20 +210,26 @@ export default function TodayPage() {
   const [items, setItems] = useState<QueueItemView[] | null>(null);
   const [recs, setRecs] = useState<RecommendationRow[] | null>(null);
   const [pva, setPva] = useState<Map<string, PlanVsActualRow>>(new Map());
+  const [latestScreen, setLatestScreen] = useState<RecommendationLineageSummaryRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [itemsRes, recsRes, pvaRes] = await Promise.all([
+      const [itemsRes, recsRes, pvaRes, lineagesRes] = await Promise.all([
         fetch("/api/queue/items"),
         fetch("/api/recommendations?pass=PASS2&disposition=VALIDATED&pageSize=25"),
         fetch("/api/recommendations/plan-vs-actual"),
+        fetch("/api/recommendations/lineages"),
       ]);
       if (!itemsRes.ok || !recsRes.ok || !pvaRes.ok) throw new Error("load failed");
       setItems((await itemsRes.json()).data);
       setRecs((await recsRes.json()).data);
       const pvaRows: PlanVsActualRow[] = (await pvaRes.json()).data;
       setPva(new Map(pvaRows.map((r) => [r.recId, r])));
+      if (lineagesRes.ok) {
+        const lineages: RecommendationLineageSummaryRecord[] = (await lineagesRes.json()).data;
+        setLatestScreen(latestPass1Summary(lineages));
+      }
       setLoadError(null);
     } catch (e) {
       setLoadError(String(e instanceof Error ? e.message : e));
@@ -264,7 +273,21 @@ export default function TodayPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-[10px] uppercase tracking-[0.08em] text-text-2">Recent validated recommendations</h2>
+        <h2 className="mb-2 text-[10px] uppercase tracking-[0.08em] text-text-2">
+          Recent Validated Recommendations (Pass 2)
+        </h2>
+        {latestScreen ? (
+          <p className="mb-2 text-xs text-text-2">
+            Latest screen:{" "}
+            <Link
+              href={`/recommendations?lineage=${encodeURIComponent(latestScreen.lineageId)}`}
+              className="text-accent underline"
+            >
+              {latestScreen.lineageId} — {latestScreen.dispositions.ELIGIBLE ?? 0} eligible /{" "}
+              {latestScreen.dispositions.WAIT ?? 0} wait →
+            </Link>
+          </p>
+        ) : null}
         {recs === null ? (
           <p className="text-sm text-text-2">Loading…</p>
         ) : recs.length === 0 ? (
