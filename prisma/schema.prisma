@@ -522,3 +522,56 @@ model LotExcursion {
 
   @@map("lot_excursions")
 }
+
+enum RecommendationPass {
+  PASS1
+  PASS2
+}
+
+enum RecommendationDisposition {
+  ELIGIBLE
+  NO_TRADE
+  WAIT
+  VALIDATED
+  FLAGGED
+  REJECTED
+}
+
+model TradeRecommendation {
+  id                   String                    @id @default(cuid())
+  recId                String                    @unique @map("rec_id")
+  lineageId            String                    @map("lineage_id")
+  localRecId           String                    @map("local_rec_id")
+  pass                 RecommendationPass
+  disposition          RecommendationDisposition
+  asOf                 DateTime                  @map("as_of")
+  decidedAtRaw         String?                   @map("decided_at_raw")
+  decidedAt            DateTime?                 @map("decided_at")
+  ticker               String
+  structure            String?
+  structureRaw         String?                   @map("structure_raw")
+  direction            String?
+  reason               String?
+  optionType           String?                   @map("option_type")
+  strike               Decimal?                  @db.Decimal(20, 6)
+  strikeShort          Decimal?                  @map("strike_short") @db.Decimal(20, 6)
+  expirationDate       DateTime?                 @map("expiration_date")
+  entryRangeLow        Decimal?                  @map("entry_range_low") @db.Decimal(20, 6)
+  entryRangeHigh       Decimal?                  @map("entry_range_high") @db.Decimal(20, 6)
+  entryRangeRaw        String?                   @map("entry_range_raw")
+  sizingBand           String?                   @map("sizing_band")
+  chainQuality         String?                   @map("chain_quality")
+  optionMid            Decimal?                  @map("option_mid") @db.Decimal(20, 6)
+  underlyingRef        Decimal?                  @map("underlying_ref") @db.Decimal(20, 6)
+  journalSchemaVersion String?                   @map("journal_schema_version")
+  sourceFile           String?                   @map("source_file")
+  raw                  Json?
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+
+  @@index([lineageId])
+  @@index([ticker])
+  @@index([pass, disposition])
+  @@index([ticker, expirationDate])
+  @@map("trade_recommendations")
+}
