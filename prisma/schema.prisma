@@ -575,3 +575,81 @@ model TradeRecommendation {
   @@index([ticker, expirationDate])
   @@map("trade_recommendations")
 }
+
+enum QueueItemKind {
+  WYCKOFF_FLAGGED
+}
+
+enum QueueStatement {
+  ACCEPT
+  OVERRIDE
+  ESTIMATE
+  DEFER
+}
+
+enum QueueResolution {
+  PIPELINE_ACCEPTED_FRESH
+  DECLARED_ACCEPT
+  DECLARED_OVERRIDE
+  ESTIMATION_PATH
+  DEFERRED
+  RETURNED_DIVERGED
+}
+
+model QueueItem {
+  id                  String        @id @default(cuid())
+  queueItemId         String        @unique @map("queue_item_id")
+  queueSchemaVersion  String        @map("queue_schema_version")
+  kind                QueueItemKind
+  createdAtSource     DateTime      @map("created_at_source")
+  ticker              String
+  lineageId           String        @map("lineage_id")
+  recId               String?       @map("rec_id")
+  exportedAt          DateTime      @map("exported_at")
+  asOf                DateTime      @map("as_of")
+  viewerSchemaVersion String?       @map("viewer_schema_version")
+  proposalSnapshot    Json          @map("proposal_snapshot")
+  proposalHash        String        @map("proposal_hash")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  declarations QueueDeclaration[]
+  outcomes     QueueOutcome[]
+
+  @@index([ticker])
+  @@index([lineageId])
+  @@map("queue_items")
+}
+
+model QueueDeclaration {
+  id               String         @id @default(cuid())
+  declarationId    String         @unique @map("declaration_id")
+  proposalHash     String         @map("proposal_hash")
+  statement        QueueStatement
+  overrideReading  Json?          @map("override_reading")
+  operatorNote     String?        @map("operator_note")
+  statedAt         DateTime       @map("stated_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  queueItemId String    @map("queue_item_id")
+  queueItem   QueueItem @relation(fields: [queueItemId], references: [queueItemId], onDelete: Cascade)
+
+  @@index([queueItemId])
+  @@map("queue_declarations")
+}
+
+model QueueOutcome {
+  id                 String          @id @default(cuid())
+  outcomeId          String          @unique @map("outcome_id")
+  declarationId      String?         @map("declaration_id")
+  consumedAt         DateTime        @map("consumed_at")
+  consumingLineageId String          @map("consuming_lineage_id")
+  comparison         Json
+  resolution         QueueResolution
+  resultingStatus    String          @map("resulting_status")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  queueItemId String    @unique @map("queue_item_id")
+  queueItem   QueueItem @relation(fields: [queueItemId], references: [queueItemId], onDelete: Cascade)
+
+  @@map("queue_outcomes")
+}
