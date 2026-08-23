@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { bearerTokenOk, timingSafeEqual } from "@/lib/auth/bearer";
 
 // Minimal HTTP Basic Auth gate for the whole app.
 //
@@ -8,6 +9,11 @@ import { NextResponse, type NextRequest } from "next/server";
 // When either variable is unset the gate is bypassed, so local development,
 // docker compose, and tests run without authentication. In production (Fly)
 // set both via `fly secrets set` to require a login on every request.
+//
+// Machine callers (tradelog #332): when API_BEARER_TOKEN is also set,
+// `Authorization: Bearer <token>` is accepted on /api routes as an
+// alternative to basic auth. UI pages stay basic-auth-only; unset token
+// means the bearer path is off.
 //
 // `/api/health` is intentionally exempt so the Fly health check can reach the
 // app, and Next.js static assets are excluded via the matcher below.
@@ -21,17 +27,6 @@ function unauthorized(): NextResponse {
       "WWW-Authenticate": 'Basic realm="KapMan Trading Journal", charset="UTF-8"',
     },
   });
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return mismatch === 0;
 }
 
 export function middleware(request: NextRequest): NextResponse {
@@ -49,6 +44,12 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   const header = request.headers.get("authorization");
+
+  // Machine callers: bearer token on /api routes only.
+  if (bearerTokenOk(header, process.env.API_BEARER_TOKEN, request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
   if (!header?.startsWith("Basic ")) {
     return unauthorized();
   }
