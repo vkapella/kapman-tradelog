@@ -19,6 +19,7 @@
     "scheduled:market-data": "tsx scripts/run-scheduled-market-data.ts",
     "verify:market-data": "tsx scripts/verify-market-data-pipeline.ts",
     "deploy": "bash scripts/deploy.sh",
+    "deploy:safe": "bash ops/deploy-with-backup.sh",
     "deploy:market-data-scheduler": "bash scripts/deploy-market-data-scheduler.sh",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",

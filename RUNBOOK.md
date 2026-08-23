@@ -253,7 +253,9 @@ it lives in the same Fly account as the database it protects.
 
 Tracked, not yet built:
 
-- No scheduled/automated backup — `ops/archive-db-to-mac.sh` is manual today.
+- No scheduled/automated backup — `ops/archive-db-to-mac.sh` is manual today,
+  but every `npm run deploy:safe` takes one automatically before deploying
+  (`ops/deploy-with-backup.sh`, #330).
 - No off-platform object-storage copy (B2/R2) independent of this Mac.
 - No automated restore verification (`ops/verify-backup.sh`).
 - No secrets inventory. The dump restores data, **not** `BASIC_AUTH_*`,
@@ -622,12 +624,26 @@ curl -u '<user>:<strong-pass>' -sf https://kapman-tradelog.fly.dev/api/overview/
 fly checks list -a kapman-tradelog
 ```
 
+### Standard deploy — backup first, always
+
+```bash
+npm run deploy:safe
+```
+
+`deploy:safe` (`ops/deploy-with-backup.sh`, #330) is the standard production
+deploy path. It chains, in an order that cannot be skipped or reversed:
+(1) `ops/archive-db-to-mac.sh` — a verified prod dump into
+`../KapMan-DB-Archive/` (a failed archive **aborts the deploy**); (2)
+`npm run deploy` — `fly deploy` with release-command migrations plus the
+scheduler re-arm; (3) a post-deploy health check with retries. Use the bare
+`npm run deploy` only when a fresh archive already exists from the same
+sitting.
+
 ### Clean redeploy
 
 ```bash
 npm run typecheck && npm run lint && npm test -- --passWithNoTests
-npm run deploy -- kapman-tradelog
-curl -sf https://kapman-tradelog.fly.dev/api/health | grep ok
+npm run deploy:safe
 ```
 
 `npm run deploy` chains `fly deploy` and the scheduler update so the second step
