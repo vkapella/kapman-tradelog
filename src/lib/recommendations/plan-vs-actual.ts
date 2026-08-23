@@ -79,10 +79,32 @@ function sameDate(a: Date | null, b: Date | null): boolean {
   return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
 }
 
-function isOpening(exec: PlanExecRow): boolean {
-  if (exec.openingClosingEffect) return exec.openingClosingEffect === "OPENING";
-  // Fall back to side only when the effect is genuinely absent from the import.
-  return exec.side === "BUY" || exec.side === "SELL";
+/**
+ * An execution opens a leg when the broker says TO_OPEN. When the effect is
+ * UNKNOWN or absent, fall back to the side the leg's opening REQUIRES (long
+ * leg opens with BUY, short leg with SELL); when neither the effect nor an
+ * expected side can decide, the execution is excluded — never counted on a
+ * guess. TO_CLOSE is always excluded.
+ */
+function opensLeg(exec: PlanExecRow, expectedSide: "BUY" | "SELL" | null): boolean {
+  if (exec.openingClosingEffect === "TO_OPEN") return true;
+  if (exec.openingClosingEffect === "TO_CLOSE") return false;
+  if (expectedSide === null) return false;
+  return exec.side === expectedSide;
+}
+
+function openingSideForSingleLeg(structure: string | null): "BUY" | "SELL" | null {
+  switch (structure) {
+    case "LONG_CALL":
+    case "LONG_PUT":
+    case "LEAP_LONG_CALL":
+      return "BUY";
+    case "CSP":
+    case "LEAP_SHORT_PUT":
+      return "SELL";
+    default:
+      return null;
+  }
 }
 
 function withinWindow(exec: PlanExecRow, rec: PlanRecRow, windowDays: number): boolean {
@@ -159,23 +181,25 @@ export function matchRecommendationToExecutions(
       exec.underlyingSymbol?.toUpperCase() === rec.ticker.toUpperCase() &&
       sameDate(exec.expirationDate, rec.expirationDate) &&
       (rec.optionType === null || exec.optionType === null || exec.optionType === rec.optionType) &&
-      isOpening(exec) &&
       withinWindow(exec, rec, windowDays),
   );
 
+  const isSpread = rec.strikeShort !== null;
+  // Spread legs have fixed opening sides (long leg BUY, short leg SELL);
+  // a single leg's opening side comes from the structure.
+  const longLegSide = isSpread ? "BUY" : openingSideForSingleLeg(rec.structure);
+
   const longLeg = legFill(
-    candidates.filter((exec) => exec.strike === rec.strike),
+    candidates.filter((exec) => exec.strike === rec.strike && opensLeg(exec, longLegSide)),
     rec.strike,
   );
   const shortLeg =
     rec.strikeShort !== null
       ? legFill(
-          candidates.filter((exec) => exec.strike === rec.strikeShort),
+          candidates.filter((exec) => exec.strike === rec.strikeShort && opensLeg(exec, "SELL")),
           rec.strikeShort,
         )
       : null;
-
-  const isSpread = rec.strikeShort !== null;
   const legs = [longLeg, shortLeg].filter((leg): leg is LegFill => leg !== null);
 
   let taken: boolean;

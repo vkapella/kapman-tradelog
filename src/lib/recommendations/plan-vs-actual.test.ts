@@ -33,7 +33,7 @@ function exec(overrides: Partial<PlanExecRow> = {}): PlanExecRow {
     strike: 280,
     expirationDate: new Date("2026-11-20T00:00:00.000Z"),
     side: "BUY",
-    openingClosingEffect: "OPENING",
+    openingClosingEffect: "TO_OPEN",
     quantity: 2,
     price: 16.75,
     ...overrides,
@@ -70,7 +70,7 @@ describe("matchRecommendationToExecutions — single leg", () => {
   });
 
   it("excludes closing executions", () => {
-    const closing = exec({ openingClosingEffect: "CLOSING", side: "SELL" });
+    const closing = exec({ openingClosingEffect: "TO_CLOSE", side: "SELL" });
     const result = matchRecommendationToExecutions(rec(), [closing], 5);
     expect(result.taken).toBe(false);
   });
@@ -125,6 +125,33 @@ describe("matchRecommendationToExecutions — spreads", () => {
     expect(result.taken).toBe(false);
     expect(result.partialLegs).toBe(true);
     expect(result.fillVsRange).toBeNull();
+  });
+});
+
+describe("matchRecommendationToExecutions — UNKNOWN opening effect", () => {
+  it("falls back to the structure's opening side when the effect is UNKNOWN", () => {
+    const unknown = exec({ openingClosingEffect: "UNKNOWN", side: "BUY" });
+    const result = matchRecommendationToExecutions(rec(), [unknown], 5);
+    expect(result.taken).toBe(true);
+  });
+
+  it("excludes a wrong-side execution when the effect is UNKNOWN (a closing SELL of a long call)", () => {
+    const closingSell = exec({ openingClosingEffect: "UNKNOWN", side: "SELL" });
+    const result = matchRecommendationToExecutions(rec(), [closingSell], 5);
+    expect(result.taken).toBe(false);
+  });
+
+  it("excludes an UNKNOWN-effect execution when the structure gives no expected side", () => {
+    const unknown = exec({ openingClosingEffect: "UNKNOWN", side: "BUY" });
+    const result = matchRecommendationToExecutions(rec({ structure: null }), [unknown], 5);
+    expect(result.taken).toBe(false);
+  });
+
+  it("accepts a SELL TO_OPEN for a CSP via the structure's opening side", () => {
+    const cspRec = rec({ structure: "CSP", optionType: "PUT" });
+    const sellOpen = exec({ openingClosingEffect: "UNKNOWN", side: "SELL", optionType: "PUT" });
+    const result = matchRecommendationToExecutions(cspRec, [sellOpen], 5);
+    expect(result.taken).toBe(true);
   });
 });
 
