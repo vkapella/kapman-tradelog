@@ -6,7 +6,8 @@ import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 
 export function AccountSelector() {
   const [open, setOpen] = useState(false);
-  const { accountsError, accountsLoading, availableAccounts, reloadAccounts, selectedAccounts, setSelectedAccounts } = useAccountFilterContext();
+  const { accountsError, accountsLoading, availableAccounts, getAccountMeta, reloadAccounts, selectedAccounts, selectionWarnings, setSelectedAccounts } =
+    useAccountFilterContext();
 
   const allSelected = availableAccounts.length > 0 && selectedAccounts.length === availableAccounts.length;
   const label = useMemo(() => {
@@ -28,6 +29,7 @@ export function AccountSelector() {
 
     return `Accounts: ${selectedAccounts.length}/${availableAccounts.length}`;
   }, [accountsError, accountsLoading, allSelected, availableAccounts.length, selectedAccounts.length]);
+  const hasWarnings = selectionWarnings.length > 0;
 
   function toggleAccount(accountId: string) {
     if (selectedAccounts.includes(accountId)) {
@@ -43,8 +45,9 @@ export function AccountSelector() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text"
+        className={`rounded-lg border px-3 py-2 text-xs font-medium text-text ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface"}`}
       >
+        {hasWarnings ? "⚠ " : ""}
         {label}
       </button>
 
@@ -73,18 +76,45 @@ export function AccountSelector() {
               </div>
             ) : null}
             {!accountsLoading && !accountsError && availableAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts available</p> : null}
-            {availableAccounts.map((accountId) => (
-              <label key={accountId} className="flex cursor-pointer items-center gap-2 text-xs text-text">
-                <input
-                  type="checkbox"
-                  checked={selectedAccounts.includes(accountId)}
-                  onChange={() => toggleAccount(accountId)}
-                  className="h-3 w-3 rounded border-border bg-surface"
-                />
-                <AccountLabel accountId={accountId} className="truncate" />
-              </label>
-            ))}
+            {availableAccounts.map((accountId) => {
+              const meta = getAccountMeta(accountId);
+              return (
+                <label key={accountId} className="flex cursor-pointer items-center gap-2 text-xs text-text">
+                  <input
+                    type="checkbox"
+                    checked={selectedAccounts.includes(accountId)}
+                    onChange={() => toggleAccount(accountId)}
+                    className="h-3 w-3 rounded border-border bg-surface"
+                  />
+                  <AccountLabel accountId={accountId} className="truncate" />
+                  {meta?.paperMoney ? (
+                    <span className="rounded border border-amber-400/60 bg-amber-400/10 px-1 py-px text-[9px] uppercase tracking-wide text-amber-200">Paper</span>
+                  ) : null}
+                  {meta ? (
+                    meta.entityName ? (
+                      <span className="ml-auto truncate text-[10px] text-text-2" title={meta.entityName}>
+                        {meta.entityName}
+                      </span>
+                    ) : (
+                      <span className="ml-auto rounded border border-red-400/60 bg-red-400/10 px-1 py-px text-[9px] uppercase tracking-wide text-red-200">
+                        Unclassified
+                      </span>
+                    )
+                  ) : null}
+                </label>
+              );
+            })}
           </div>
+
+          {selectionWarnings.length > 0 ? (
+            <div className="mt-2 space-y-1 border-t border-border pt-2">
+              {selectionWarnings.map((warning) => (
+                <p key={warning} className="text-[11px] text-amber-200">
+                  {warning}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

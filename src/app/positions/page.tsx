@@ -77,6 +77,7 @@ export default function Page() {
   const snapshot = openPositionsStore.getSnapshot(selectedAccounts);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
   const [snapshotCopyStatus, setSnapshotCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [snapshotCopyError, setSnapshotCopyError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredPositions = useMemo(() => positions.filter((position) => isAccountInScope(selectedAccounts, position.accountId)), [positions, selectedAccounts]);
@@ -124,19 +125,34 @@ export default function Page() {
   async function handleRefreshQuotes() { await openPositionsStore.refresh(selectedAccounts); }
 
   async function handleCopySnapshot() {
+    setSnapshotCopyError(null);
     try {
       const params = new URLSearchParams();
       if (selectedAccounts.length > 0) params.set("accountIds", selectedAccounts.join(","));
       const query = params.toString();
       const response = await fetch(`/api/export/portfolio-snapshot${query ? `?${query}` : ""}`);
-      if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+      if (!response.ok) {
+        // Surface the export's named fail-closed reason (#334) instead of a bare failure.
+        let message = `Export failed: ${response.status}`;
+        try {
+          const errorBody = (await response.json()) as { error?: { code?: string; message?: string; details?: string[] } };
+          if (errorBody.error?.code) {
+            message = `${errorBody.error.code}: ${errorBody.error.message ?? ""} ${(errorBody.error.details ?? []).join(" ")}`.trim();
+          }
+        } catch {
+          // Non-JSON error body; keep the status-code message.
+        }
+        throw new Error(message);
+      }
       const body = (await response.json()) as { data: unknown };
       await navigator.clipboard.writeText(JSON.stringify(body.data, null, 2));
       setSnapshotCopyStatus("copied");
-    } catch {
+      setTimeout(() => setSnapshotCopyStatus("idle"), 2000);
+    } catch (copyError) {
       setSnapshotCopyStatus("failed");
+      setSnapshotCopyError(copyError instanceof Error ? copyError.message : "Export failed.");
+      setTimeout(() => setSnapshotCopyStatus("idle"), 6000);
     }
-    setTimeout(() => setSnapshotCopyStatus("idle"), 2000);
   }
 
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
@@ -155,6 +171,11 @@ export default function Page() {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+          {snapshotCopyStatus === "failed" && snapshotCopyError ? (
+            <p className="max-w-md text-[11px] text-amber-200" title={snapshotCopyError}>
+              {snapshotCopyError}
+            </p>
+          ) : null}
           <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
         </div>
       </header>

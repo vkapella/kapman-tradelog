@@ -11,6 +11,12 @@ interface ResolvedAccountLabel {
   isInternalFallback: boolean;
 }
 
+export interface AccountEntityMeta {
+  entitySlug: string | null; // null = unclassified (quarantined)
+  entityName: string | null;
+  paperMoney: boolean;
+}
+
 interface AccountFilterContextValue {
   accountsError: string | null;
   accountsLoading: boolean;
@@ -22,9 +28,35 @@ interface AccountFilterContextValue {
   toExternalAccountId: (accountId: string) => string;
   getAccountDisplayText: (accountId: string) => string;
   resolveAccountLabel: (accountId: string) => ResolvedAccountLabel;
+  getAccountMeta: (accountId: string) => AccountEntityMeta | null;
+  /** Human-readable reasons the current selection would be refused by the KB export (mixed entity/environment, unclassified). */
+  selectionWarnings: string[];
 }
 
 const AccountFilterContext = createContext<AccountFilterContextValue | null>(null);
+
+// Persisted account-filter selection. Without persistence the filter silently
+// re-defaults to all accounts on every load — the path by which a newly
+// imported (still unclassified) account would join an export scope unnoticed.
+const SELECTED_ACCOUNTS_STORAGE_KEY = "kapman-tradelog.selected-accounts.v1";
+
+function readPersistedSelection(): string[] {
+  try {
+    const raw = window.localStorage.getItem(SELECTED_ACCOUNTS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePersistedSelection(ids: string[]): void {
+  try {
+    window.localStorage.setItem(SELECTED_ACCOUNTS_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // Storage unavailable (private mode, quota) — selection just won't persist.
+  }
+}
 
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0))).sort((left, right) => left.localeCompare(right));
@@ -36,6 +68,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   const [externalByInternal, setExternalByInternal] = useState<Record<string, string>>({});
   const [displayLabelByInternal, setDisplayLabelByInternal] = useState<Record<string, string>>({});
   const [internalByExternal, setInternalByExternal] = useState<Record<string, string>>({});
+  const [metaByInternal, setMetaByInternal] = useState<Record<string, AccountEntityMeta>>({});
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -70,15 +103,29 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
           rows.filter((row) => row.displayLabel).map((row) => [row.id, row.displayLabel ?? row.accountId]),
         );
         const internalByExternalNext = Object.fromEntries(rows.map((row) => [row.accountId, row.id]));
+        const metaByInternalNext = Object.fromEntries(
+          rows.map((row) => [
+            row.id,
+            {
+              entitySlug: row.legalEntity?.slug ?? null,
+              entityName: row.legalEntity?.legalName ?? null,
+              paperMoney: row.paperMoney,
+            },
+          ]),
+        );
         const uniqueAccounts = Array.from(new Set(accountIds));
 
+        setMetaByInternal(metaByInternalNext);
         setExternalByInternal(externalByInternalNext);
         setDisplayLabelByInternal(displayLabelByInternalNext);
         setInternalByExternal(internalByExternalNext);
         setAvailableAccounts(uniqueAccounts);
         setSelectedAccountsState((current) => {
           if (current.length === 0) {
-            return uniqueAccounts;
+            // First load: restore the persisted selection (dropping stale ids);
+            // fall back to all accounts when nothing valid was persisted.
+            const persisted = readPersistedSelection().filter((accountId) => uniqueAccounts.includes(accountId));
+            return persisted.length > 0 ? persisted : uniqueAccounts;
           }
 
           const filtered = current.filter((accountId) => uniqueAccounts.includes(accountId));
@@ -145,6 +192,19 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
       };
     };
 
+    const selectedMeta = selectedAccounts.map((accountId) => metaByInternal[accountId]).filter(Boolean);
+    const selectionWarnings: string[] = [];
+    if (selectedMeta.some((meta) => meta.entitySlug === null)) {
+      selectionWarnings.push("Selection includes unclassified account(s) — quarantined from KB exports.");
+    }
+    const selectedEntities = Array.from(new Set(selectedMeta.map((meta) => meta.entitySlug).filter((slug): slug is string => slug !== null)));
+    if (selectedEntities.length > 1) {
+      selectionWarnings.push(`Selection spans legal entities (${selectedEntities.join(", ")}) — KB export will refuse it.`);
+    }
+    if (new Set(selectedMeta.map((meta) => meta.paperMoney)).size > 1) {
+      selectionWarnings.push("Selection mixes paper and live accounts — KB export will refuse it.");
+    }
+
     return {
       accountsError,
       accountsLoading,
@@ -154,7 +214,9 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
       setSelectedAccounts: (ids: string[]) => {
         const unique = uniqueSorted(ids);
         const valid = unique.filter((accountId) => availableAccounts.includes(accountId));
-        setSelectedAccountsState(valid.length === 0 ? availableAccounts : valid);
+        const next = valid.length === 0 ? availableAccounts : valid;
+        writePersistedSelection(next);
+        setSelectedAccountsState(next);
       },
       toExternalAccountId: (accountId: string) => externalByInternal[accountId] ?? accountId,
       getAccountDisplayText: (accountId: string) => resolveAccountLabel(accountId).text,
@@ -167,8 +229,10 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
         const externalAccountId = externalByInternal[accountId];
         return externalAccountId ? selectedExternalSet.has(externalAccountId) : false;
       },
+      getAccountMeta: (accountId: string) => metaByInternal[internalByExternal[accountId] ?? accountId] ?? null,
+      selectionWarnings,
     };
-  }, [accountsError, accountsLoading, availableAccounts, selectedAccounts, externalByInternal, displayLabelByInternal, internalByExternal]);
+  }, [accountsError, accountsLoading, availableAccounts, selectedAccounts, externalByInternal, displayLabelByInternal, internalByExternal, metaByInternal]);
 
   return <AccountFilterContext.Provider value={value}>{children}</AccountFilterContext.Provider>;
 }
