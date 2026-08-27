@@ -917,12 +917,20 @@ export interface PortfolioSnapshotOpenLeg {
   excursion_as_of: string | null; // last priced mark date in the window
 }
 
+export interface PortfolioSnapshotScope {
+  mode: "EXPLICIT"; // this export is always explicitly scoped; all-accounts is refused (#334)
+  legal_entity: { slug: string; legal_name: string };
+  environment: "LIVE" | "PAPER"; // mixed paper/live scopes are refused
+  account_ids: string[]; // fully enumerated external account ids in scope
+}
+
 export interface PortfolioSnapshot {
   kind: "portfolio_snapshot";
   source: "kapman-tradelog";
   exported_at: string; // ISO; lineage clock for the §A2 handoff
   tradelog_schema_version: string;
-  account_ids: string[]; // resolved external account ids in scope; [] = all accounts
+  account_ids: string[]; // legacy mirror of scope.account_ids; always enumerated since 1.1
+  scope: PortfolioSnapshotScope;
   as_of: string; // ISO; instant open positions were computed/priced
   open_excursions_available: boolean; // true when open-leg MAE/MFE is computed from HistoricalMark
   open_positions: PortfolioSnapshotOpenLeg[];

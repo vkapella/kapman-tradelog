@@ -84,12 +84,19 @@ describe("buildEntryInfoByGroupKey", () => {
 
 describe("buildPortfolioSnapshot", () => {
   const accountMap = new Map([["acc1", "D-123"]]);
+  const scope = {
+    mode: "EXPLICIT" as const,
+    legal_entity: { slug: "personal-vkapella", legal_name: "Victor Kapella" },
+    environment: "LIVE" as const,
+    account_ids: ["D-123"],
+  };
 
   it("computes per-leg entry_price, unrealized_pnl, structure, direction and joins entry info", () => {
     const snapshot = buildPortfolioSnapshot({
       exportedAt: "2026-06-26T18:00:00.000Z",
       asOf: "2026-06-26T18:00:00.000Z",
       accountExternalIds: ["D-123"],
+      scope,
       accountExternalIdByInternal: accountMap,
       pricedOpenPositions: [optionLeg({})],
       executions: [execution({ spreadGroupId: "SG1" })],
@@ -97,9 +104,15 @@ describe("buildPortfolioSnapshot", () => {
 
     expect(snapshot.kind).toBe("portfolio_snapshot");
     expect(snapshot.source).toBe("kapman-tradelog");
-    expect(snapshot.tradelog_schema_version).toBe("1.0");
+    expect(snapshot.tradelog_schema_version).toBe("1.1");
     expect(snapshot.open_excursions_available).toBe(false);
     expect(snapshot.account_ids).toEqual(["D-123"]);
+    expect(snapshot.scope).toEqual({
+      mode: "EXPLICIT",
+      legal_entity: { slug: "personal-vkapella", legal_name: "Victor Kapella" },
+      environment: "LIVE",
+      account_ids: ["D-123"],
+    });
     expect(snapshot).not.toHaveProperty("closed_lots");
 
     const leg = snapshot.open_positions[0];
@@ -120,7 +133,8 @@ describe("buildPortfolioSnapshot", () => {
     const snapshot = buildPortfolioSnapshot({
       exportedAt: "t",
       asOf: "t",
-      accountExternalIds: [],
+      accountExternalIds: ["D-123"],
+      scope,
       accountExternalIdByInternal: accountMap,
       pricedOpenPositions: [optionLeg({ mark: null })],
       executions: [],
@@ -133,7 +147,8 @@ describe("buildPortfolioSnapshot", () => {
     const snapshot = buildPortfolioSnapshot({
       exportedAt: "t",
       asOf: "t",
-      accountExternalIds: [],
+      accountExternalIds: ["D-123"],
+      scope,
       accountExternalIdByInternal: accountMap,
       pricedOpenPositions: [optionLeg({ netQty: 2, costBasis: 3979.9999999999995, mark: 19.55 })],
       executions: [],

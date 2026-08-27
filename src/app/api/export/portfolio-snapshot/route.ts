@@ -1,10 +1,11 @@
-import { detailResponse } from "@/lib/api/responses";
-import { parseAccountIds } from "@/lib/api/account-scope";
+import type { Prisma } from "@prisma/client";
+import { detailResponse, errorResponse } from "@/lib/api/responses";
+import { buildAccountIdWhere, parseAccountIds } from "@/lib/api/account-scope";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
-import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
+import { normalizePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import { buildPortfolioSnapshot, type PricedOpenPosition } from "@/lib/export/build-portfolio-snapshot";
 import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
 import type {
@@ -17,15 +18,76 @@ import type {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const requestedAccountIds = normalizePositionSnapshotAccountIds(parseAccountIds(url.searchParams.get("accountIds")));
-  const accountIds = await resolvePositionSnapshotAccountIds(requestedAccountIds);
-  const accountScope = accountIds.length > 0 ? ({ accountId: { in: accountIds } } as const) : undefined;
+
+  // Fail-closed entity scope (#334). This export is the KB's view of the live
+  // book, so a payload that silently mixes entities, environments, or
+  // unclassified accounts must never be produced. Only this route fails
+  // closed; the analytics routes keep their broad all-accounts defaults.
+  if (requestedAccountIds.length === 0) {
+    return errorResponse("EXPLICIT_SCOPE_REQUIRED", "KB-facing exports require an explicit account scope.", [
+      "Pass ?accountIds=<id[,id...]>. An all-accounts export is never valid for KB ingest.",
+    ]);
+  }
+
+  const scopedAccounts = await prisma.account.findMany({
+    where: buildAccountIdWhere(requestedAccountIds) as Prisma.AccountWhereInput,
+    select: {
+      id: true,
+      accountId: true,
+      paperMoney: true,
+      legalEntity: { select: { slug: true, legalName: true } },
+    },
+  });
+
+  const knownTokens = new Set(scopedAccounts.flatMap((account) => [account.id, account.accountId]));
+  const unknownTokens = requestedAccountIds.filter((token) => !knownTokens.has(token));
+  if (unknownTokens.length > 0) {
+    return errorResponse(
+      "UNKNOWN_ACCOUNT_IN_SCOPE",
+      "Requested account(s) do not exist.",
+      unknownTokens.map((token) => `No account matches "${token}"; the scope was not silently narrowed.`),
+    );
+  }
+
+  const classifiedAccounts = scopedAccounts.filter(
+    (account): account is (typeof scopedAccounts)[number] & { legalEntity: { slug: string; legalName: string } } =>
+      account.legalEntity !== null,
+  );
+  if (classifiedAccounts.length !== scopedAccounts.length) {
+    return errorResponse(
+      "UNCLASSIFIED_ACCOUNT_IN_SCOPE",
+      "Scope includes unclassified (quarantined) account(s).",
+      scopedAccounts
+        .filter((account) => account.legalEntity === null)
+        .map((account) => `Account ${account.accountId} has no legal entity; classify it on the Accounts page first.`),
+    );
+  }
+
+  const entitySlugs = Array.from(new Set(classifiedAccounts.map((account) => account.legalEntity.slug)));
+  if (entitySlugs.length > 1) {
+    return errorResponse(
+      "MIXED_ENTITY_SCOPE",
+      "Scope spans more than one legal entity.",
+      classifiedAccounts.map((account) => `${account.accountId}: ${account.legalEntity.slug}`),
+    );
+  }
+
+  const paperFlags = new Set(classifiedAccounts.map((account) => account.paperMoney));
+  if (paperFlags.size > 1) {
+    return errorResponse(
+      "MIXED_ENVIRONMENT_SCOPE",
+      "Scope mixes paper and live accounts.",
+      classifiedAccounts.map((account) => `${account.accountId}: ${account.paperMoney ? "paper" : "live"}`),
+    );
+  }
+
+  const legalEntity = classifiedAccounts[0].legalEntity;
+  const environment: "LIVE" | "PAPER" = classifiedAccounts[0].paperMoney ? "PAPER" : "LIVE";
+  const accountIds = classifiedAccounts.map((account) => account.id);
+  const accountScope = { accountId: { in: accountIds } } as const;
   const now = new Date().toISOString();
 
-  const [accountRows, executionRows, matchedLotRows, adjustmentRows] = await Promise.all([
-    prisma.account.findMany({
-      where: accountIds.length > 0 ? { id: { in: accountIds } } : undefined,
-      select: { id: true, accountId: true },
-    }),
+  const [executionRows, matchedLotRows, adjustmentRows] = await Promise.all([
     prisma.execution.findMany({
       where: accountScope,
       select: {
@@ -161,10 +223,8 @@ export async function GET(request: Request) {
     return { ...position, mark };
   });
 
-  const accountExternalIdByInternal = new Map(accountRows.map((row) => [row.id, row.accountId]));
-  // Empty array signals "all accounts" (no ?accountIds= filter); otherwise the resolved scope.
-  const accountExternalIds =
-    requestedAccountIds.length > 0 ? accountRows.map((row) => row.accountId) : [];
+  const accountExternalIdByInternal = new Map(classifiedAccounts.map((row) => [row.id, row.accountId]));
+  const accountExternalIds = classifiedAccounts.map((row) => row.accountId);
 
   const excursionsByKey = await computeOpenLegExcursions(
     prisma,
@@ -176,6 +236,12 @@ export async function GET(request: Request) {
     exportedAt: now,
     asOf: now,
     accountExternalIds,
+    scope: {
+      mode: "EXPLICIT",
+      legal_entity: { slug: legalEntity.slug, legal_name: legalEntity.legalName },
+      environment,
+      account_ids: accountExternalIds,
+    },
     accountExternalIdByInternal,
     pricedOpenPositions,
     executions,

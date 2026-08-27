@@ -4,10 +4,13 @@ import type {
   OpenPosition,
   PortfolioSnapshot,
   PortfolioSnapshotOpenLeg,
+  PortfolioSnapshotScope,
   PositionExcursion,
 } from "@/types/api";
 
-export const TRADELOG_SCHEMA_VERSION = "1.0" as const;
+// 1.1: adds the `scope` block (entity/environment/enumerated accounts); the
+// legacy top-level account_ids is always enumerated, never [] meaning "all".
+export const TRADELOG_SCHEMA_VERSION = "1.1" as const;
 
 /** OpenPosition with the per-leg mark resolved at compute time. */
 export type PricedOpenPosition = OpenPosition & { mark: number | null };
@@ -15,8 +18,10 @@ export type PricedOpenPosition = OpenPosition & { mark: number | null };
 export interface BuildPortfolioSnapshotInput {
   exportedAt: string;
   asOf: string;
-  /** Resolved external account ids in scope; empty array = all accounts. */
+  /** Resolved external account ids in scope; always fully enumerated (#334). */
   accountExternalIds: string[];
+  /** Entity/environment scope; the route fails closed before building when ambiguous. */
+  scope: PortfolioSnapshotScope;
   /** internal account id -> external account id (human-facing label). */
   accountExternalIdByInternal: Map<string, string>;
   pricedOpenPositions: PricedOpenPosition[];
@@ -154,6 +159,7 @@ export function buildPortfolioSnapshot(input: BuildPortfolioSnapshotInput): Port
     exported_at: input.exportedAt,
     tradelog_schema_version: TRADELOG_SCHEMA_VERSION,
     account_ids: input.accountExternalIds,
+    scope: input.scope,
     as_of: input.asOf,
     open_excursions_available: input.excursionsByKey !== undefined,
     open_positions,

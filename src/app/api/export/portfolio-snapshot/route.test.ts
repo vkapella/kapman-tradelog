@@ -26,18 +26,36 @@ vi.mock("@/lib/mcp/market-data", () => ({
   getOptionQuotesBatch: mocks.getOptionQuotesBatch,
 }));
 
-async function callGet(): Promise<PortfolioSnapshot> {
+const CLASSIFIED_ACCOUNT = {
+  id: "acc1",
+  accountId: "D-123",
+  paperMoney: false,
+  legalEntity: { slug: "personal-vkapella", legalName: "Victor Kapella" },
+};
+
+async function callGetRaw(query: string): Promise<Response> {
   const { GET } = await import("./route");
-  const response = await GET(new Request("http://localhost/api/export/portfolio-snapshot"));
+  return GET(new Request(`http://localhost/api/export/portfolio-snapshot${query}`));
+}
+
+async function callGet(query = "?accountIds=acc1"): Promise<PortfolioSnapshot> {
+  const response = await callGetRaw(query);
   const payload = (await response.json()) as { data: PortfolioSnapshot };
   return payload.data;
+}
+
+async function expectScopeError(query: string, code: string): Promise<void> {
+  const response = await callGetRaw(query);
+  const payload = (await response.json()) as { error: { code: string } };
+  expect(response.status).toBe(400);
+  expect(payload.error.code).toBe(code);
 }
 
 describe("GET /api/export/portfolio-snapshot", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocks.account.findMany.mockResolvedValue([]);
+    mocks.account.findMany.mockResolvedValue([CLASSIFIED_ACCOUNT]);
     mocks.execution.findMany.mockResolvedValue([]);
     mocks.matchedLot.findMany.mockResolvedValue([]);
     mocks.manualAdjustment.findMany.mockResolvedValue([]);
@@ -50,14 +68,21 @@ describe("GET /api/export/portfolio-snapshot", () => {
     const data = await callGet();
     expect(data.kind).toBe("portfolio_snapshot");
     expect(data.source).toBe("kapman-tradelog");
-    expect(data.tradelog_schema_version).toBe("1.0");
+    expect(data.tradelog_schema_version).toBe("1.1");
+    expect(data.scope).toEqual({
+      mode: "EXPLICIT",
+      legal_entity: { slug: "personal-vkapella", legal_name: "Victor Kapella" },
+      environment: "LIVE",
+      account_ids: ["D-123"],
+    });
+    expect(data.account_ids).toEqual(["D-123"]);
     expect(data.open_excursions_available).toBe(true);
     expect(data.open_positions).toEqual([]);
     expect(data).not.toHaveProperty("closed_lots");
   });
 
   it("emits an open option leg with a computed mark, unrealized P&L, and MAE/MFE from HistoricalMark", async () => {
-    mocks.account.findMany.mockResolvedValue([{ id: "acc1", accountId: "D-123" }]);
+    mocks.account.findMany.mockResolvedValue([CLASSIFIED_ACCOUNT]);
     mocks.execution.findMany.mockResolvedValue([
       {
         id: "open-aapl",
@@ -108,7 +133,7 @@ describe("GET /api/export/portfolio-snapshot", () => {
   });
 
   it("nets fully-closed quantity out of open positions and emits no closed_lots", async () => {
-    mocks.account.findMany.mockResolvedValue([{ id: "acc1", accountId: "D-123" }]);
+    mocks.account.findMany.mockResolvedValue([CLASSIFIED_ACCOUNT]);
     // One opening equity execution fully matched by a closed lot -> no open position remains.
     mocks.execution.findMany.mockResolvedValue([
       {
@@ -151,5 +176,67 @@ describe("GET /api/export/portfolio-snapshot", () => {
 
     expect(data.open_positions).toEqual([]); // fully matched -> not open
     expect(data).not.toHaveProperty("closed_lots");
+  });
+
+  it("fails closed when accountIds is omitted", async () => {
+    await expectScopeError("", "EXPLICIT_SCOPE_REQUIRED");
+    expect(mocks.execution.findMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a requested account does not exist (no silent narrowing)", async () => {
+    mocks.account.findMany.mockResolvedValue([CLASSIFIED_ACCOUNT]);
+    await expectScopeError("?accountIds=acc1,ghost", "UNKNOWN_ACCOUNT_IN_SCOPE");
+    expect(mocks.execution.findMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the scope includes an unclassified (quarantined) account", async () => {
+    mocks.account.findMany.mockResolvedValue([
+      CLASSIFIED_ACCOUNT,
+      { id: "acc2", accountId: "C-1001", paperMoney: false, legalEntity: null },
+    ]);
+    await expectScopeError("?accountIds=acc1,acc2", "UNCLASSIFIED_ACCOUNT_IN_SCOPE");
+    expect(mocks.execution.findMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the scope spans more than one legal entity", async () => {
+    mocks.account.findMany.mockResolvedValue([
+      CLASSIFIED_ACCOUNT,
+      {
+        id: "acc2",
+        accountId: "C-1001",
+        paperMoney: false,
+        legalEntity: { slug: "kapman-capital", legalName: "Kapman Capital Inc." },
+      },
+    ]);
+    await expectScopeError("?accountIds=acc1,acc2", "MIXED_ENTITY_SCOPE");
+    expect(mocks.execution.findMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the scope mixes paper and live accounts", async () => {
+    mocks.account.findMany.mockResolvedValue([
+      CLASSIFIED_ACCOUNT,
+      {
+        id: "acc2",
+        accountId: "D-999",
+        paperMoney: true,
+        legalEntity: { slug: "personal-vkapella", legalName: "Victor Kapella" },
+      },
+    ]);
+    await expectScopeError("?accountIds=acc1,acc2", "MIXED_ENVIRONMENT_SCOPE");
+    expect(mocks.execution.findMany).not.toHaveBeenCalled();
+  });
+
+  it("labels an all-paper single-entity scope as the PAPER environment", async () => {
+    mocks.account.findMany.mockResolvedValue([
+      {
+        id: "acc3",
+        accountId: "D-68011053",
+        paperMoney: true,
+        legalEntity: { slug: "personal-vkapella", legalName: "Victor Kapella" },
+      },
+    ]);
+    const data = await callGet("?accountIds=acc3");
+    expect(data.scope.environment).toBe("PAPER");
+    expect(data.scope.account_ids).toEqual(["D-68011053"]);
   });
 });
