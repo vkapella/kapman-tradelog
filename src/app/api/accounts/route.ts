@@ -19,6 +19,8 @@ export async function GET() {
       displayLabel: true,
       brokerName: true,
       startingCapital: true,
+      paperMoney: true,
+      legalEntity: { select: { slug: true, legalName: true, kind: true } },
       createdAt: true,
     },
     orderBy: [{ createdAt: "asc" }, { accountId: "asc" }],

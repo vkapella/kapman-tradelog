@@ -8,6 +8,8 @@ const updateAccountSchema = z
     displayLabel: z.string().trim().max(120).nullable().optional(),
     brokerName: z.string().trim().max(120).nullable().optional(),
     startingCapital: z.union([z.number(), z.string(), z.null()]).optional(),
+    /** Legal-entity slug to classify the account under; null unclassifies (quarantines). */
+    legalEntitySlug: z.string().trim().min(1).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field must be provided.",
@@ -66,6 +68,24 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return errorResponse("VALIDATION_ERROR", "Account payload is invalid.", [error instanceof Error ? error.message : "Invalid starting capital."]);
   }
 
+  let legalEntityId: string | null | undefined;
+  if (parsed.data.legalEntitySlug !== undefined) {
+    if (parsed.data.legalEntitySlug === null) {
+      legalEntityId = null;
+    } else {
+      const entity = await prisma.legalEntity.findUnique({
+        where: { slug: parsed.data.legalEntitySlug },
+        select: { id: true },
+      });
+      if (!entity) {
+        return errorResponse("UNKNOWN_LEGAL_ENTITY", "Legal entity not found.", [
+          `No legal entity exists for slug "${parsed.data.legalEntitySlug}". Entities are created by migration, never ad hoc.`,
+        ]);
+      }
+      legalEntityId = entity.id;
+    }
+  }
+
   const existing = await prisma.account.findUnique({
     where: { id: params.id },
     select: {
@@ -74,6 +94,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       displayLabel: true,
       brokerName: true,
       startingCapital: true,
+      paperMoney: true,
+      legalEntity: { select: { slug: true, legalName: true, kind: true } },
       createdAt: true,
     },
   });
@@ -88,6 +110,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(parsed.data.displayLabel !== undefined ? { displayLabel: normalizeText(parsed.data.displayLabel) } : {}),
       ...(parsed.data.brokerName !== undefined ? { brokerName: normalizeText(parsed.data.brokerName) } : {}),
       ...(startingCapital !== undefined ? { startingCapital } : {}),
+      ...(legalEntityId !== undefined ? { legalEntityId } : {}),
     },
     select: {
       id: true,
@@ -95,6 +118,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       displayLabel: true,
       brokerName: true,
       startingCapital: true,
+      paperMoney: true,
+      legalEntity: { select: { slug: true, legalName: true, kind: true } },
       createdAt: true,
     },
   });

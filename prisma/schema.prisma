@@ -108,6 +108,24 @@ enum PipelineAlertLifecycle {
   RESOLVED
 }
 
+enum EntityKind {
+  CORPORATION
+  INDIVIDUAL
+}
+
+model LegalEntity {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  legalName String     @map("legal_name")
+  kind      EntityKind
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  accounts Account[]
+
+  @@map("legal_entities")
+}
+
 model Account {
   id              String   @id @default(cuid())
   accountId       String   @unique @map("account_id")
@@ -116,6 +134,10 @@ model Account {
   broker          Broker
   brokerName      String?  @map("broker_name")
   paperMoney      Boolean  @default(false) @map("paper_money")
+  /// Legal owner of the account; null = unclassified (quarantined from all
+  /// entity-scoped exports and denominators until the operator classifies it).
+  legalEntityId   String?      @map("legal_entity_id")
+  legalEntity     LegalEntity? @relation(fields: [legalEntityId], references: [id])
   startingCapital Decimal? @map("starting_capital") @db.Decimal(20, 2)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

@@ -7,6 +7,8 @@ export interface AccountRow {
   displayLabel: string | null;
   brokerName: string | null;
   startingCapital: Prisma.Decimal | null;
+  paperMoney: boolean;
+  legalEntity: { slug: string; legalName: string; kind: "CORPORATION" | "INDIVIDUAL" } | null;
   createdAt: Date;
 }
 
@@ -17,6 +19,10 @@ export function mapAccountRowToRecord(row: AccountRow): AccountRecord {
     displayLabel: row.displayLabel,
     brokerName: row.brokerName,
     startingCapital: row.startingCapital?.toString() ?? null,
+    paperMoney: row.paperMoney,
+    legalEntity: row.legalEntity
+      ? { slug: row.legalEntity.slug, legalName: row.legalEntity.legalName, kind: row.legalEntity.kind }
+      : null,
     createdAt: row.createdAt.toISOString(),
   };
 }

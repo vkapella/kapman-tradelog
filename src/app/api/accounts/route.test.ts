@@ -43,6 +43,8 @@ describe("GET /api/accounts", () => {
           displayLabel: "IRA",
           brokerName: "Schwab",
           startingCapital: { toString: () => "100000" },
+          paperMoney: true,
+          legalEntity: { slug: "personal-vkapella", legalName: "Victor Kapella", kind: "INDIVIDUAL" },
           createdAt: new Date("2026-04-12T00:00:00.000Z"),
         },
       ]);

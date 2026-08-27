@@ -24,12 +24,21 @@ export interface ApiDetailResponse<T> {
 export type BrokerId = "schwab_thinkorswim" | "fidelity";
 export type ImportStatus = "UPLOADED" | "PARSED" | "COMMITTED" | "FAILED";
 
+export interface LegalEntityRecord {
+  slug: string;
+  legalName: string;
+  kind: "CORPORATION" | "INDIVIDUAL";
+}
+
 export interface AccountRecord {
   id: string;
   accountId: string;
   displayLabel: string | null;
   brokerName: string | null;
   startingCapital: string | null;
+  paperMoney: boolean;
+  /** Legal owner; null = unclassified (quarantined from entity-scoped exports). */
+  legalEntity: LegalEntityRecord | null;
   createdAt: string;
 }
 

@@ -116,6 +116,16 @@ async function main() {
       },
     });
 
+    // Fixture accounts are personal-era (operator decision 2026-08-26): classify
+    // them under the personal entity when unclassified. Never touches an account
+    // the operator has already classified.
+    if (account.legalEntityId === null) {
+      const personalEntity = await prisma.legalEntity.findUnique({ where: { slug: "personal-vkapella" } });
+      if (personalEntity) {
+        await prisma.account.update({ where: { id: account.id }, data: { legalEntityId: personalEntity.id } });
+      }
+    }
+
     const existingSeedImports = await prisma.import.findMany({
       where: {
         accountId: account.id,

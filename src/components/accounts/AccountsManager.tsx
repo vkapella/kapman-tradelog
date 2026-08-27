@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { AccountRecord, ApiListResponse, ApiDetailResponse } from "@/types/api";
+import type { AccountRecord, ApiListResponse, ApiDetailResponse, LegalEntityRecord } from "@/types/api";
 
 interface DraftAccountRow {
   displayLabel: string;
   brokerName: string;
   startingCapital: string;
+  /** Legal-entity slug; "" = unclassified (quarantined). */
+  legalEntitySlug: string;
 }
 
 function formatCreatedAt(value: string): string {
@@ -23,11 +25,13 @@ function buildDraft(record: AccountRecord): DraftAccountRow {
     displayLabel: record.displayLabel ?? "",
     brokerName: record.brokerName ?? "",
     startingCapital: formatMoneyInput(record.startingCapital),
+    legalEntitySlug: record.legalEntity?.slug ?? "",
   };
 }
 
 export function AccountsManager() {
   const [rows, setRows] = useState<AccountRecord[]>([]);
+  const [entities, setEntities] = useState<LegalEntityRecord[]>([]);
   const [drafts, setDrafts] = useState<Record<string, DraftAccountRow>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,17 +46,22 @@ export function AccountsManager() {
       setError(null);
 
       try {
-        const response = await fetch("/api/accounts", { cache: "no-store" });
-        if (!response.ok) {
+        const [response, entitiesResponse] = await Promise.all([
+          fetch("/api/accounts", { cache: "no-store" }),
+          fetch("/api/legal-entities", { cache: "no-store" }),
+        ]);
+        if (!response.ok || !entitiesResponse.ok) {
           throw new Error("Unable to load accounts.");
         }
 
         const payload = (await response.json()) as ApiListResponse<AccountRecord>;
+        const entitiesPayload = (await entitiesResponse.json()) as ApiListResponse<LegalEntityRecord>;
         if (cancelled) {
           return;
         }
 
         setRows(payload.data);
+        setEntities(entitiesPayload.data);
         setDrafts(Object.fromEntries(payload.data.map((row) => [row.id, buildDraft(row)])));
       } catch (loadError) {
         if (!cancelled) {
@@ -88,7 +97,8 @@ export function AccountsManager() {
           return (
             draft.displayLabel !== (row.displayLabel ?? "") ||
             draft.brokerName !== (row.brokerName ?? "") ||
-            draft.startingCapital !== formatMoneyInput(row.startingCapital)
+            draft.startingCapital !== formatMoneyInput(row.startingCapital) ||
+            draft.legalEntitySlug !== (row.legalEntity?.slug ?? "")
           );
         })
         .map((row) => row.id),
@@ -99,7 +109,7 @@ export function AccountsManager() {
     setDrafts((current) => ({
       ...current,
       [id]: {
-        ...(current[id] ?? { displayLabel: "", brokerName: "", startingCapital: "" }),
+        ...(current[id] ?? { displayLabel: "", brokerName: "", startingCapital: "", legalEntitySlug: "" }),
         [key]: value,
       },
     }));
@@ -124,6 +134,7 @@ export function AccountsManager() {
           displayLabel: draft.displayLabel,
           brokerName: draft.brokerName,
           startingCapital: draft.startingCapital,
+          legalEntitySlug: draft.legalEntitySlug === "" ? null : draft.legalEntitySlug,
         }),
       });
 
@@ -147,7 +158,8 @@ export function AccountsManager() {
       <header className="rounded-xl border border-border bg-surface p-4">
         <p className="text-sm font-semibold text-text">Accounts</p>
         <p className="mt-1 text-xs text-text-2">
-          Manage display labels, broker names, and per-account starting capital used by reconciliation and account-balance views.
+          Manage display labels, broker names, per-account starting capital, and legal-entity classification. Unclassified accounts are
+          quarantined: excluded from entity-scoped exports until classified.
         </p>
       </header>
 
@@ -172,6 +184,7 @@ export function AccountsManager() {
                 <th className="px-3 py-3">Display Label</th>
                 <th className="px-3 py-3">Broker Account</th>
                 <th className="px-3 py-3">Broker Name</th>
+                <th className="px-3 py-3">Legal Entity</th>
                 <th className="px-3 py-3">Starting Capital</th>
                 <th className="px-3 py-3">Created</th>
                 <th className="px-3 py-3 text-right">Action</th>
@@ -195,7 +208,14 @@ export function AccountsManager() {
                         className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
                       />
                     </td>
-                    <td className="px-3 py-3 align-top font-mono text-xs">{row.accountId}</td>
+                    <td className="px-3 py-3 align-top font-mono text-xs">
+                      {row.accountId}
+                      {row.paperMoney ? (
+                        <span className="ml-2 rounded border border-amber-400/60 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-sans uppercase tracking-wide text-amber-200">
+                          Paper
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-3 py-3 align-top">
                       <input
                         type="text"
@@ -203,6 +223,23 @@ export function AccountsManager() {
                         onChange={(event) => updateDraft(row.id, "brokerName", event.target.value)}
                         className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
                       />
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <select
+                        value={draft.legalEntitySlug}
+                        onChange={(event) => updateDraft(row.id, "legalEntitySlug", event.target.value)}
+                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
+                      >
+                        <option value="">Unclassified</option>
+                        {entities.map((entity) => (
+                          <option key={entity.slug} value={entity.slug}>
+                            {entity.legalName}
+                          </option>
+                        ))}
+                      </select>
+                      {draft.legalEntitySlug === "" ? (
+                        <p className="mt-1 text-[11px] text-amber-200">Quarantined: excluded from entity-scoped exports until classified.</p>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3 align-top">
                       <input
