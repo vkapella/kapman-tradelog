@@ -1,7 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useMemo, useState } from "react";
-import { RangeFilterContext } from "@/contexts/RangeFilterContext";
+import { useEffect, useMemo, useState } from "react";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type {
   PositionSnapshotApiResponse,
@@ -26,7 +25,6 @@ interface UsePositionSnapshotResult {
 }
 
 export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotResult {
-  const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const normalizedAccountIds = useMemo(
     () => Array.from(new Set(accountIds.map((value) => value.trim()).filter((value) => value.length > 0))).sort((left, right) => left.localeCompare(right)),
     [accountIds],
@@ -37,7 +35,12 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pollToken, setPollToken] = useState(0);
+  // `activeSnapshotId` pins which snapshot is displayed; `awaitingSnapshotId` tracks
+  // the compute still in flight. They are separate because a finished compute must
+  // stay pinned -- re-querying "latest for this scope" after it completed is what
+  // used to discard the fresh result and snap the widget back to an older row.
   const [activeSnapshotId, setActiveSnapshotId] = useState<string | null>(null);
+  const [awaitingSnapshotId, setAwaitingSnapshotId] = useState<string | null>(null);
 
   useEffect(() => {
     setSnapshot(null);
@@ -46,6 +49,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     setLoading(true);
     setPollToken(0);
     setActiveSnapshotId(null);
+    setAwaitingSnapshotId(null);
   }, [accountScopeKey]);
 
   useEffect(() => {
@@ -61,7 +65,6 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
           query.set("snapshotId", activeSnapshotId);
         } else {
           applyAccountIdsToSearchParams(query, normalizedAccountIds);
-          applyRangeToSearchParams(query);
         }
 
         const response = await fetch(`/api/positions/snapshot?${query.toString()}`, {
@@ -78,12 +81,24 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
           throw new Error(payload.error.message);
         }
 
-        setSnapshot(payload.data);
+        const data = payload.data;
+        setSnapshot(data);
         setMeta(payload.meta);
 
-        if (payload.data?.status === "PENDING") {
-          setActiveSnapshotId(payload.data.id);
-        } else if (activeSnapshotId) {
+        if (data?.status === "PENDING") {
+          setActiveSnapshotId(data.id);
+          setAwaitingSnapshotId(data.id);
+          return;
+        }
+
+        if (data) {
+          // Functional update so `awaitingSnapshotId` need not be an effect dependency.
+          setAwaitingSnapshotId((current) => (current === data.id ? null : current));
+        }
+
+        // A failed compute is worth nothing to display, so fall back to the last
+        // snapshot that did succeed instead of pinning the failure.
+        if (data?.status === "FAILED") {
           setActiveSnapshotId(null);
         }
       } catch (loadError) {
@@ -106,10 +121,10 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     return () => {
       controller.abort();
     };
-  }, [activeSnapshotId, normalizedAccountIds, pollToken, range.startDate, range.endDate, applyRangeToSearchParams]);
+  }, [activeSnapshotId, normalizedAccountIds, pollToken]);
 
   useEffect(() => {
-    if (snapshot?.status !== "PENDING" && !activeSnapshotId) {
+    if (snapshot?.status !== "PENDING" && awaitingSnapshotId === null) {
       return;
     }
 
@@ -120,7 +135,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [activeSnapshotId, snapshot?.status]);
+  }, [awaitingSnapshotId, snapshot?.status]);
 
   async function triggerCompute(): Promise<void> {
     setLoading(true);
@@ -145,6 +160,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
       }
 
       setActiveSnapshotId(payload.data.snapshotId);
+      setAwaitingSnapshotId(payload.data.snapshotId);
       setPollToken((current) => current + 1);
     } catch (computeError) {
       setLoading(false);
@@ -156,7 +172,7 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     snapshot,
     loading,
     stale: Boolean(meta.snapshotAge && meta.snapshotAge > POSITION_SNAPSHOT_STALE_THRESHOLD_SECONDS),
-    computing: snapshot?.status === "PENDING" || activeSnapshotId !== null,
+    computing: snapshot?.status === "PENDING" || awaitingSnapshotId !== null,
     error,
     triggerCompute,
   };

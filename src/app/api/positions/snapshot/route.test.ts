@@ -93,6 +93,45 @@ describe("GET /api/positions/snapshot", () => {
     );
   });
 
+  it("ignores the caller's date range so a snapshot past the local day's UTC end is still returned", async () => {
+    routeMocks.positionSnapshot.findFirst.mockResolvedValue({
+      id: "snapshot-after-utc-midnight",
+      // 8:58 PM on 2026-08-27 at UTC-4 lands on the next UTC day. Scoping by the
+      // caller's local endDate used to bound this out and serve a stale snapshot.
+      snapshotAt: new Date("2026-08-28T00:58:34.860Z"),
+      status: "COMPLETE",
+      errorMessage: null,
+      accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]),
+      positionsJson: "[]",
+      accountValuesJson: JSON.stringify([{ accountId: "acct-internal-1", reconstructedNlv: "199960.00" }]),
+      unrealizedPnl: null,
+      realizedPnl: null,
+      cashAdjustments: null,
+      manualAdjustments: null,
+      currentNlv: { toString: () => "199960" },
+      startingCapital: null,
+      totalGain: null,
+      unexplainedDelta: null,
+    });
+
+    const { GET } = await import("./route");
+    const response = await GET(
+      new Request(
+        "http://localhost/api/positions/snapshot?accountIds=acct-internal-1,acct-internal-2&startDate=2025-09-02&endDate=2026-08-27",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { data: { id: string; currentNlv: string } };
+    expect(payload.data.id).toBe("snapshot-after-utc-midnight");
+    expect(payload.data.currentNlv).toBe("199960.00");
+    expect(routeMocks.positionSnapshot.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]) },
+      }),
+    );
+  });
+
   it("returns the latest pending snapshot for an exact account scope", async () => {
     routeMocks.positionSnapshot.findFirst.mockResolvedValue({
       id: "snapshot-pending",

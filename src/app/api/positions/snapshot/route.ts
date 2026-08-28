@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseAccountIds, parseDateRangeParams, toEndOfDayUtcIso } from "@/lib/api/account-scope";
+import { parseAccountIds } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
 import {
   parsePositionSnapshotAccountValuesJson,
@@ -84,7 +84,6 @@ async function mapSnapshotRow(row: SnapshotRow): Promise<PositionSnapshotRespons
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const snapshotId = url.searchParams.get("snapshotId");
-  const { startDate, endDate } = parseDateRangeParams(url.searchParams);
 
   let snapshot: SnapshotRow | null;
   if (snapshotId) {
@@ -113,17 +112,12 @@ export async function GET(request: Request) {
     const resolvedAccountIds = await resolvePositionSnapshotAccountIds(requestedAccountIds);
     const accountIdsJson = serializePositionSnapshotAccountIds(resolvedAccountIds);
 
-    const dateScope =
-      startDate || endDate
-        ? {
-            snapshotAt: {
-              ...(startDate ? { gte: new Date(startDate) } : {}),
-              ...(endDate ? { lte: toEndOfDayUtcIso(endDate) } : {}),
-            },
-          }
-        : undefined;
+    // Deliberately unscoped by date. A snapshot is a live "what is it worth right
+    // now" reading, and the caller's range end is a *local* calendar date: bounding
+    // on it in UTC hid every snapshot computed after 20:00 UTC-4 behind the last
+    // one from earlier in the day, so Refresh appeared to do nothing.
     snapshot = await prisma.positionSnapshot.findFirst({
-      where: dateScope ? { AND: [{ accountIds: accountIdsJson }, dateScope] } : { accountIds: accountIdsJson },
+      where: { accountIds: accountIdsJson },
       orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
