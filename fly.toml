@@ -7,6 +7,18 @@ primary_region = "iad"
 [deploy]
   release_command = "npx prisma migrate deploy"
 
+[env]
+  # Cloudflare Access gate (#336). Both values are public identifiers, not
+  # secrets — the team domain is in every redirect URL and the aud tag is in
+  # every JWT — so they live here rather than in `fly secrets`. That is
+  # deliberate: as committed config they cannot silently go missing the way an
+  # unset secret can, and this gate is the ONLY thing protecting the origin on
+  # kapman-tradelog.fly.dev, which Cloudflare Access does not cover.
+  # CF_ACCESS_AUD is this Access application's audience tag; it differs per app,
+  # and a JWT minted for the screener or fair-value app must not open this one.
+  CF_ACCESS_TEAM_DOMAIN = "kapmancapital.cloudflareaccess.com"
+  CF_ACCESS_AUD = "e1e00501a81e413bf4815271448c029d398a1b29c049ca8f55e7572c35d6f049"
+
 [http_service]
   internal_port = 3000
   force_https = true

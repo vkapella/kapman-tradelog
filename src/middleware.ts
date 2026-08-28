@@ -1,40 +1,53 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { bearerTokenOk, timingSafeEqual } from "@/lib/auth/bearer";
+import { bearerTokenOk } from "@/lib/auth/bearer";
+import {
+  ACCESS_JWT_HEADER,
+  accessConfig,
+  verifyAccessJwt,
+} from "@/lib/auth/access-jwt";
 
-// Minimal HTTP Basic Auth gate for the whole app.
+// Cloudflare Access gate for the whole app (#336, replacing HTTP Basic auth).
 //
-// Credentials come from environment variables and are never committed:
-//   BASIC_AUTH_USER, BASIC_AUTH_PASSWORD
+// Google SSO happens at Cloudflare in front of tradelog.kapmancapital.com, which
+// stamps a signed JWT on every proxied request. This middleware verifies it.
 //
-// When either variable is unset the gate is bypassed, so local development,
-// docker compose, and tests run without authentication. In production (Fly)
-// set both via `fly secrets set` to require a login on every request.
+// That verification is not belt-and-braces: Access guards the proxied hostname
+// only, and kapman-tradelog.fly.dev reaches this origin with no Cloudflare in
+// the path. Basic auth used to be the only thing holding that door shut, so the
+// gate was replaced rather than removed — what is behind it is the trading
+// journal, positions and P&L included.
 //
-// Machine callers (tradelog #332): when API_BEARER_TOKEN is also set,
-// `Authorization: Bearer <token>` is accepted on /api routes as an
-// alternative to basic auth. UI pages stay basic-auth-only; unset token
-// means the bearer path is off.
+// Configuration comes from CF_ACCESS_TEAM_DOMAIN + CF_ACCESS_AUD (fly.toml
+// [env]; both are public identifiers, not secrets). When either is unset the
+// gate is bypassed, so local development, docker compose, and tests run without
+// authentication — the same bypass the basic-auth gate had.
 //
-// `/api/health` is intentionally exempt so the Fly health check can reach the
-// app, and Next.js static assets are excluded via the matcher below.
+// Machine callers (#332): when API_BEARER_TOKEN is set,
+// `Authorization: Bearer <token>` is still accepted on /api routes. Access
+// authenticates browsers via Google and cannot authenticate a curl, and this is
+// how kapman-kb's agent sessions reach the journal.
+//
+// `/api/health` is exempt so Fly's health check — which hits the origin
+// directly and carries no JWT — can reach the app. Gating it would fail every
+// check and roll the deploy back. Next.js static assets are excluded via the
+// matcher below.
 
 const HEALTH_PATH = "/api/health";
 
 function unauthorized(): NextResponse {
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="KapMan Trading Journal", charset="UTF-8"',
-    },
-  });
+  return new NextResponse(
+    "Cloudflare Access sign-in required. Open this app at " +
+      "https://tradelog.kapmancapital.com/ — reaching the origin directly " +
+      "bypasses sign-in and is refused.",
+    { status: 401, headers: { "content-type": "text/plain; charset=utf-8" } },
+  );
 }
 
-export function middleware(request: NextRequest): NextResponse {
-  const expectedUser = process.env.BASIC_AUTH_USER?.trim();
-  const expectedPassword = process.env.BASIC_AUTH_PASSWORD;
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const access = accessConfig();
 
-  // Auth not configured -> allow through (local dev / tests / compose).
-  if (!expectedUser || !expectedPassword) {
+  // Access not configured -> allow through (local dev / tests / compose).
+  if (!access) {
     return NextResponse.next();
   }
 
@@ -43,35 +56,22 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  const header = request.headers.get("authorization");
-
   // Machine callers: bearer token on /api routes only.
-  if (bearerTokenOk(header, process.env.API_BEARER_TOKEN, request.nextUrl.pathname)) {
+  if (
+    bearerTokenOk(
+      request.headers.get("authorization"),
+      process.env.API_BEARER_TOKEN,
+      request.nextUrl.pathname,
+    )
+  ) {
     return NextResponse.next();
   }
 
-  if (!header?.startsWith("Basic ")) {
-    return unauthorized();
-  }
-
-  let decoded = "";
-  try {
-    decoded = atob(header.slice("Basic ".length));
-  } catch {
-    return unauthorized();
-  }
-
-  const separatorIndex = decoded.indexOf(":");
-  if (separatorIndex === -1) {
-    return unauthorized();
-  }
-
-  const user = decoded.slice(0, separatorIndex);
-  const password = decoded.slice(separatorIndex + 1);
-
-  const userOk = timingSafeEqual(user, expectedUser);
-  const passwordOk = timingSafeEqual(password, expectedPassword);
-  if (!userOk || !passwordOk) {
+  const identity = await verifyAccessJwt(
+    request.headers.get(ACCESS_JWT_HEADER),
+    access,
+  );
+  if (!identity) {
     return unauthorized();
   }
 

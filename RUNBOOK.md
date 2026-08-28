@@ -258,9 +258,11 @@ Tracked, not yet built:
   (`ops/deploy-with-backup.sh`, #330).
 - No off-platform object-storage copy (B2/R2) independent of this Mac.
 - No automated restore verification (`ops/verify-backup.sh`).
-- No secrets inventory. The dump restores data, **not** `BASIC_AUTH_*`,
+- No secrets inventory. The dump restores data, **not** `API_BEARER_TOKEN`,
   `DATABASE_URL`, or the Massive S3 credentials — full recovery needs those
-  documented by name, with values in a password manager.
+  documented by name, with values in a password manager. (The auth gate itself
+  needs no secret: Cloudflare Access holds the identity, and its two settings
+  are committed in `fly.toml`.)
 - The Fly snapshot restore path is unrehearsed (above).
 
 ---
@@ -597,8 +599,10 @@ fly apps create kapman-tradelog
 fly postgres create
 fly postgres attach <pg-app-name> -a kapman-tradelog   # injects DATABASE_URL
 
-# Basic Auth gate (src/middleware.ts)
-fly secrets set BASIC_AUTH_USER='<user>' BASIC_AUTH_PASSWORD='<strong-pass>' -a kapman-tradelog
+# Auth gate (src/middleware.ts) is Cloudflare Access — no secret to set. Its
+# two settings are public identifiers and live in fly.toml [env]:
+# CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD. Only the machine-caller token is secret:
+fly secrets set API_BEARER_TOKEN='<token>' -a kapman-tradelog
 
 # Marks pipeline secrets (only if running backfills against prod)
 fly secrets set \
@@ -686,8 +690,9 @@ npm run ingest:equity-marks && npm run backfill:value-snapshots
   container `db:5432`.
 - **Env:** copy `.env.example` to `.env`. Required: `DATABASE_URL`, `NODE_ENV`,
   `NEXT_TELEMETRY_DISABLED`. Optional groups: MCP live quotes
-  (`MCP_SERVER_URL`, `MCP_BEARER_TOKEN`), Basic Auth (`BASIC_AUTH_USER`,
-  `BASIC_AUTH_PASSWORD`), marks pipeline (S3/Polygon vars above). When MCP is
+  (`MCP_SERVER_URL`, `MCP_BEARER_TOKEN`), Cloudflare Access
+  (`CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` — leave unset locally, which turns
+  the gate off), marks pipeline (S3/Polygon vars above). When MCP is
   unset/unreachable, `/api/quotes` and `/api/option-quote` return
   `{ "error": "unavailable" }`; all other features work.
 - **npm scripts:** `dev`, `build`, `start`, `lint`, `typecheck`, `test`,

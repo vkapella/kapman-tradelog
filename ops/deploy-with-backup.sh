@@ -41,7 +41,7 @@ for attempt in 1 2 3 4 5 6; do
   if curl -sf --max-time 10 "https://${APP_NAME}.fly.dev/api/health" | grep -q '"ok"'; then
     log "health OK: https://${APP_NAME}.fly.dev/api/health"
     log "done. Scheduler health: Diagnostics -> Scheduled pipeline, or"
-    log "  curl -sf -u \$BASIC_AUTH_USER:\$BASIC_AUTH_PASSWORD https://${APP_NAME}.fly.dev/api/scheduler/status"
+    log "  curl -sf -H "Authorization: Bearer \$API_BEARER_TOKEN" https://${APP_NAME}.fly.dev/api/scheduler/status"
     exit 0
   fi
   log "health not ready yet (attempt ${attempt}/6); retrying in 10s"

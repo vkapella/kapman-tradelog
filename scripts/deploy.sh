@@ -24,4 +24,4 @@ echo "==> Updating and re-arming the scheduled market-data Machine"
 
 echo
 echo "==> Deploy complete. Confirm pipeline health at Diagnostics -> Scheduled pipeline,"
-echo "    or: curl -sf -u \$BASIC_AUTH_USER:\$BASIC_AUTH_PASSWORD https://${APP_NAME}.fly.dev/api/scheduler/status"
+echo "    or: curl -sf -H "Authorization: Bearer \$API_BEARER_TOKEN" https://${APP_NAME}.fly.dev/api/scheduler/status"
