@@ -409,6 +409,12 @@ export interface ReconciliationResponse {
   realizedPnl: string;
   manualAdjustments: string;
   unexplainedDelta: string;
+  /** The run the figures came from; absent on the legacy exact-scope fallback. */
+  runId?: string;
+  snapshotAt?: string;
+  /** Accounts whose current data revision is ahead of what the run observed. */
+  staleAccountIds?: string[];
+  source?: "run_accounts" | "legacy_exact_scope" | "empty";
 }
 
 export interface TtsEvidenceResponse {
@@ -655,6 +661,10 @@ export interface LiveAccountValue {
   status: LiveAccountValueStatus;
   valuationBasis: "MARK";
   cashSource: "snapshot" | "heuristic_fallback";
+  /** Source-data revision the compute observed for this account (string — BigInt
+   *  does not survive JSON). Null on legacy rows and non-transactional reads;
+   *  consumers must fall back to canonical enqueue precedence, never assume equality. */
+  inputsRevision?: string | null;
 }
 
 // Client-safe per-position excursion (no prisma); carried in the store's excursions map.
@@ -696,6 +706,10 @@ export interface PositionSnapshotResponse {
   meta: {
     snapshotExists: boolean;
     snapshotAge?: number;
+    /** Each scoped account's CURRENT data revision (string), read live at
+     *  response time. Comparing against accountValues[].inputsRevision answers
+     *  "does this snapshot reflect current data" — the currency check. */
+    currentDataRevisions?: Record<string, string>;
   };
 }
 

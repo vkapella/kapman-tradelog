@@ -59,6 +59,9 @@ describe("rebuildAccountLedger execution qty overrides", () => {
     });
 
     const tx = {
+      account: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       matchedLot: {
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         createMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -135,6 +138,9 @@ describe("rebuildAccountLedger execution price overrides", () => {
     });
 
     const tx = {
+      account: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       matchedLot: {
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         createMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -209,6 +215,9 @@ describe("rebuildAccountLedger import warning rewrite", () => {
     });
 
     const tx = {
+      account: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       matchedLot: {
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         createMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -308,6 +317,9 @@ describe("rebuildAccountLedger import warning rewrite", () => {
     });
 
     const tx = {
+      account: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       matchedLot: {
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         createMany: vi.fn().mockResolvedValue({ count: 1 }),

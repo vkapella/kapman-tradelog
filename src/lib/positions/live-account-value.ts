@@ -7,6 +7,9 @@ interface ResolveLiveAccountValueInput {
   positions: PositionSnapshotOpenPosition[];
   balance: AccountBalanceContextRecord | null;
   marksAsOf: Date;
+  /** Serialized accounts.data_revision observed by this compute; null when the
+   *  read was not transactional (route fallback, legacy rows). */
+  inputsRevision?: string | null;
 }
 
 function money(value: number): string {
@@ -88,6 +91,7 @@ export function resolveLiveAccountValue(input: ResolveLiveAccountValueInput): Li
     status,
     valuationBasis: "MARK",
     cashSource: input.balance?.cashSource ?? "heuristic_fallback",
+    inputsRevision: input.inputsRevision ?? null,
   };
 }
 

@@ -7,6 +7,7 @@ import type { ManualAdjustmentRecord } from "@/types/api";
 import { computeBrokerTxId } from "./ingest";
 import { deriveInstrumentKeyFromPersistedExecution } from "./instrument-key";
 import { runFifoMatcher, type LedgerExecution, type LedgerWarning } from "./fifo-matcher";
+import { bumpAccountDataRevision } from "@/lib/accounts/data-revision";
 
 export interface RebuildAccountLedgerResult {
   matchedLotsPersisted: number;
@@ -197,12 +198,17 @@ function toExecutionQtyOverrideAdjustments(overrides: RebuildAccountLedgerOption
   });
 }
 
+// Every caller of rebuildAccountLedger is by definition mutating
+// snapshot-relevant data in this transaction, so the revision bump lives here:
+// import commit/delete, adjustment create/reverse, and both rebuild entry
+// points are covered by one call site.
 export async function rebuildAccountLedger(
   tx: Prisma.TransactionClient,
   accountId: string,
   asOfDate: Date,
   options?: RebuildAccountLedgerOptions,
 ): Promise<RebuildAccountLedgerResult> {
+  await bumpAccountDataRevision(tx, [accountId]);
   await tx.matchedLot.deleteMany({ where: { accountId } });
   await tx.execution.deleteMany({
     where: {

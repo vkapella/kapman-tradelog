@@ -15,6 +15,7 @@ const routeMocks = vi.hoisted(() => {
     matchedLot: {
       findMany: vi.fn(),
       aggregate: vi.fn(),
+      groupBy: vi.fn(),
     },
     manualAdjustment: {
       findMany: vi.fn(),
@@ -30,6 +31,9 @@ const routeMocks = vi.hoisted(() => {
       create: vi.fn(),
       update: vi.fn(),
     },
+    positionSnapshotAccount: {
+      createMany: vi.fn(),
+    },
     getEquityQuotes: vi.fn(),
     getOptionQuotesBatch: vi.fn(),
     getStartingCapitalSummary: vi.fn(),
@@ -38,18 +42,21 @@ const routeMocks = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db/prisma", () => {
-  return {
-    prisma: {
-      account: routeMocks.account,
-      import: routeMocks.import,
-      execution: routeMocks.execution,
-      matchedLot: routeMocks.matchedLot,
-      manualAdjustment: routeMocks.manualAdjustment,
-      dailyAccountSnapshot: routeMocks.dailyAccountSnapshot,
-      cashEvent: routeMocks.cashEvent,
-      positionSnapshot: routeMocks.positionSnapshot,
-    },
+  const prisma = {
+    account: routeMocks.account,
+    import: routeMocks.import,
+    execution: routeMocks.execution,
+    matchedLot: routeMocks.matchedLot,
+    manualAdjustment: routeMocks.manualAdjustment,
+    dailyAccountSnapshot: routeMocks.dailyAccountSnapshot,
+    cashEvent: routeMocks.cashEvent,
+    positionSnapshot: routeMocks.positionSnapshot,
+    positionSnapshotAccount: routeMocks.positionSnapshotAccount,
+    // Interactive form receives this same object as the tx client; the array
+    // form's promises were created eagerly by the mocked model calls.
+    $transaction: (arg: unknown) => (typeof arg === "function" ? (arg as (tx: unknown) => unknown)(prisma) : Promise.all(arg as Promise<unknown>[])),
   };
+  return { prisma };
 });
 
 vi.mock("@/lib/mcp/market-data", () => {
@@ -76,7 +83,9 @@ describe("POST /api/positions/snapshot/compute", () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    routeMocks.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "acct-external-1" }]);
+    routeMocks.account.findMany.mockResolvedValue([
+      { id: "acct-internal-1", accountId: "acct-external-1", startingCapital: null, dataRevision: BigInt(7) },
+    ]);
     routeMocks.import.findMany.mockResolvedValue([{ id: "import-1", accountId: "acct-internal-1" }]);
     routeMocks.positionSnapshot.create.mockResolvedValue({ id: "snapshot-1", status: "PENDING" });
     routeMocks.positionSnapshot.update.mockResolvedValue({ id: "snapshot-1" });
@@ -95,6 +104,10 @@ describe("POST /api/positions/snapshot/compute", () => {
       },
     ]);
     routeMocks.matchedLot.aggregate.mockResolvedValue({ _sum: { realizedPnl: { toString: () => "55.50" } } });
+    routeMocks.matchedLot.groupBy.mockResolvedValue([
+      { accountId: "acct-internal-1", _sum: { realizedPnl: { toString: () => "55.50" } } },
+    ]);
+    routeMocks.positionSnapshotAccount.createMany.mockResolvedValue({ count: 1 });
     routeMocks.cashEvent.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => "10.00" } } });
     routeMocks.cashEvent.groupBy.mockResolvedValue([]);
     routeMocks.getStartingCapitalSummary.mockResolvedValue({ total: 10000, byAccount: { "acct-internal-1": 10000 } });
@@ -196,14 +209,22 @@ describe("POST /api/positions/snapshot/compute", () => {
       },
     ]);
     routeMocks.cashEvent.groupBy
+      // Call 1: compute's per-account cash aggregate (inside the inputs tx).
+      .mockResolvedValueOnce([
+        {
+          accountId: "acct-internal-1",
+          _sum: { amount: { toString: () => "750.00" } },
+        },
+      ])
+      // Call 2: balance-context cash sums; call 3 (internal equivalents)
+      // falls through to the beforeEach default of [].
       .mockResolvedValueOnce([
         {
           accountId: "acct-internal-1",
           _sum: { amount: { toString: () => "750.00" } },
           _max: { eventDate: new Date("2026-04-11T00:00:00.000Z") },
         },
-      ])
-      .mockResolvedValueOnce([]);
+      ]);
 
     const { POST } = await import("./route");
 

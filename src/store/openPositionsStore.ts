@@ -1,7 +1,9 @@
 "use client";
 
+import { compareDataRevisions } from "@/lib/accounts/data-revision";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type {
+  LiveAccountValue,
   OpenPosition,
   PositionExcursion,
   PositionSnapshotApiResponse,
@@ -64,6 +66,10 @@ export interface AccountSnapshot {
   excursions: Record<string, PositionExcursion>;
   lastRefreshedAt: number | null;
   precedence: SnapshotPrecedence | null;
+  /** Source-data revision the applied snapshot observed for this account
+   *  (#339). Ordering by revision beats canonical precedence when both sides
+   *  carry one; null falls back to the precedence policy. */
+  inputsRevision: string | null;
   isLoading: boolean;
   error: string | null;
   freshness: ScopeFreshness;
@@ -88,6 +94,7 @@ interface PersistedAccountSnapshot {
   quotes: Record<string, StoredQuote>;
   lastRefreshedAt: number | null;
   precedence: SnapshotPrecedence | null;
+  inputsRevision?: string | null;
 }
 
 const EMPTY_FRESHNESS: ScopeFreshness = {
@@ -102,6 +109,7 @@ const EMPTY_ACCOUNT_SNAPSHOT: AccountSnapshot = {
   excursions: {},
   lastRefreshedAt: null,
   precedence: null,
+  inputsRevision: null,
   isLoading: false,
   error: null,
   freshness: EMPTY_FRESHNESS,
@@ -124,6 +132,7 @@ function cloneEmptySnapshot(): AccountSnapshot {
     excursions: {},
     lastRefreshedAt: null,
     precedence: null,
+    inputsRevision: null,
     isLoading: false,
     error: null,
     freshness: EMPTY_FRESHNESS,
@@ -201,6 +210,7 @@ function parsePersistedAccountSnapshot(raw: string | null): PersistedAccountSnap
       quotes,
       lastRefreshedAt: typeof parsed.lastRefreshedAt === "number" ? parsed.lastRefreshedAt : null,
       precedence: parsePrecedence(parsed.precedence),
+      inputsRevision: typeof parsed.inputsRevision === "string" ? parsed.inputsRevision : null,
     };
   } catch {
     return null;
@@ -214,6 +224,7 @@ function toPersistedSnapshot(snapshot: AccountSnapshot): PersistedAccountSnapsho
     quotes: snapshot.quotes,
     lastRefreshedAt: snapshot.lastRefreshedAt,
     precedence: snapshot.precedence,
+    inputsRevision: snapshot.inputsRevision,
   };
 }
 
@@ -222,6 +233,7 @@ function splitSnapshotByAccount(
   accountIds: string[],
   snapshotAt: string,
   precedence: SnapshotPrecedence,
+  revisionByAccount: Map<string, string | null>,
 ): Map<string, AccountSnapshot> {
   const grouped = new Map<string, AccountSnapshot>();
 
@@ -230,6 +242,7 @@ function splitSnapshotByAccount(
       ...cloneEmptySnapshot(),
       lastRefreshedAt: Date.parse(snapshotAt),
       precedence,
+      inputsRevision: revisionByAccount.get(accountId) ?? null,
     });
   }
 
@@ -383,7 +396,11 @@ function createOpenPositionsStore(): OpenPositionsStore {
       // compare-and-set, so two tabs can still interleave read-check-write;
       // the monotonicity guarantee is scoped to a single tab.
       const existing = parsePersistedAccountSnapshot(window.localStorage.getItem(buildStorageKey(accountId)));
-      if (existing?.precedence && snapshot.precedence && comparePrecedence(existing.precedence, snapshot.precedence) > 0) {
+      const persistedRevisionComparison = compareDataRevisions(existing?.inputsRevision ?? null, snapshot.inputsRevision);
+      if (persistedRevisionComparison !== null && persistedRevisionComparison > 0) {
+        return;
+      }
+      if (persistedRevisionComparison !== -1 && existing?.precedence && snapshot.precedence && comparePrecedence(existing.precedence, snapshot.precedence) > 0) {
         return;
       }
       window.localStorage.setItem(buildStorageKey(accountId), JSON.stringify(toPersistedSnapshot(snapshot)));
@@ -424,6 +441,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
     createdAt?: string;
     scopeAccountIds?: string[];
     positions: PositionSnapshotOpenPosition[];
+    accountValues?: LiveAccountValue[];
   }
 
   function applySnapshot(requestedAccountIds: string[], data: ApplyableSnapshot, tokens: OpTokens | null): void {
@@ -439,7 +457,10 @@ function createOpenPositionsStore(): OpenPositionsStore {
     const payloadScope = Array.isArray(data.scopeAccountIds) && data.scopeAccountIds.length > 0 ? new Set(data.scopeAccountIds) : null;
     const coveredAccountIds = payloadScope === null ? requestedAccountIds : requestedAccountIds.filter((accountId) => payloadScope.has(accountId));
 
-    const grouped = splitSnapshotByAccount(data.positions, coveredAccountIds, data.snapshotAt, candidate);
+    const revisionByAccount = new Map<string, string | null>(
+      (data.accountValues ?? []).map((value) => [value.accountId, value.inputsRevision ?? null]),
+    );
+    const grouped = splitSnapshotByAccount(data.positions, coveredAccountIds, data.snapshotAt, candidate, revisionByAccount);
     let changed = false;
 
     for (const accountId of coveredAccountIds) {
@@ -448,13 +469,19 @@ function createOpenPositionsStore(): OpenPositionsStore {
       }
 
       const current = readAccountSnapshot(accountId);
-      // Canonical-precedence policy: equal is an idempotent redelivery
-      // (already applied), lower is discarded. Neither is an error.
-      if (current.precedence !== null && comparePrecedence(candidate, current.precedence) <= 0) {
+      // Two-axis freshness (#339): a provable source-data revision outranks
+      // canonical enqueue precedence -- an earlier-enqueued compute that
+      // observed newer inputs wins. Equal or unknown revisions fall back to
+      // the precedence policy (equal = idempotent redelivery, lower discarded).
+      const revisionComparison = compareDataRevisions(revisionByAccount.get(accountId) ?? null, current.inputsRevision);
+      if (revisionComparison !== null && revisionComparison < 0) {
+        continue;
+      }
+      if (revisionComparison !== 1 && current.precedence !== null && comparePrecedence(candidate, current.precedence) <= 0) {
         continue;
       }
 
-      const apiSnapshot = grouped.get(accountId) ?? { ...cloneEmptySnapshot(), lastRefreshedAt: Date.parse(data.snapshotAt), precedence: candidate };
+      const apiSnapshot = grouped.get(accountId) ?? { ...cloneEmptySnapshot(), lastRefreshedAt: Date.parse(data.snapshotAt), precedence: candidate, inputsRevision: revisionByAccount.get(accountId) ?? null };
       const nextSnapshot = mergeCachedQuotes(current, apiSnapshot);
 
       writeAccountSnapshot(accountId, nextSnapshot);
@@ -555,6 +582,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
               excursions: current.excursions,
               lastRefreshedAt: persisted.lastRefreshedAt,
               precedence: persisted.precedence,
+              inputsRevision: persisted.inputsRevision ?? null,
               isLoading: current.isLoading,
               error: current.error,
             }
@@ -562,9 +590,20 @@ function createOpenPositionsStore(): OpenPositionsStore {
             ? cloneEmptySnapshot()
             : current;
 
-        // Restoring must never lower an account below in-memory precedence.
-        if (persisted && current.precedence !== null && (nextSnapshot.precedence === null || comparePrecedence(nextSnapshot.precedence, current.precedence) < 0)) {
-          continue;
+        // Restoring must never lower an account below in-memory freshness --
+        // by revision when both sides carry one, else by precedence.
+        if (persisted) {
+          const restoreRevisionComparison = compareDataRevisions(nextSnapshot.inputsRevision, current.inputsRevision);
+          if (restoreRevisionComparison !== null && restoreRevisionComparison < 0) {
+            continue;
+          }
+          if (
+            restoreRevisionComparison !== 1 &&
+            current.precedence !== null &&
+            (nextSnapshot.precedence === null || comparePrecedence(nextSnapshot.precedence, current.precedence) < 0)
+          ) {
+            continue;
+          }
         }
 
         if (nextSnapshot !== current) {
@@ -693,6 +732,7 @@ function createOpenPositionsStore(): OpenPositionsStore {
         // A multi-account composition has no single precedence; a one-account
         // view is just that account and keeps its precedence visible.
         precedence: accountSnapshots.length === 1 ? accountSnapshots[0].precedence : null,
+        inputsRevision: accountSnapshots.length === 1 ? accountSnapshots[0].inputsRevision : null,
         isLoading: accountSnapshots.some((accountSnapshot) => accountSnapshot.isLoading),
         error: accountSnapshots.find((accountSnapshot) => accountSnapshot.error)?.error ?? null,
         freshness,

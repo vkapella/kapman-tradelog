@@ -75,6 +75,7 @@ export async function GET(request: Request) {
     beginningSnapshotRows,
     endingSnapshotRows,
     capitalFlowRows,
+    latestPerAccountChildRows,
     latestPerAccountPositionSnapshots,
   ] = await Promise.all([
     prisma.execution.count({
@@ -134,6 +135,25 @@ export async function GET(request: Request) {
       },
       select: { amount: true },
     }),
+    // Latest per-account child rows (#339): any COMPLETE run contributes its
+    // per-account result, so multi-account snapshots are no longer discarded.
+    prisma.positionSnapshotAccount.findMany({
+      where: {
+        accountId: { in: internalAccountIds },
+        run: {
+          status: "COMPLETE",
+          ...(endDateBound ? { snapshotAt: { lte: endDateBound } } : {}),
+        },
+      },
+      orderBy: [{ inputsRevision: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
+      select: {
+        accountId: true,
+        inputsRevision: true,
+        reconstructedNlv: true,
+        run: { select: { snapshotAt: true, createdAt: true, id: true } },
+      },
+    }),
+    // Legacy fallback for accounts whose only snapshots predate the child table.
     prisma.positionSnapshot.findMany({
       where: {
         accountIds: { in: perAccountPositionScopeKeys },
@@ -184,6 +204,16 @@ export async function GET(request: Request) {
     .filter((accountId) => !beginningSnapshotsByAccountId.has(accountId))
     .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
   const latestPositionNlvByAccountId = new Map<string, number>();
+  // Child rows are ordered by (inputsRevision DESC NULLS LAST, createdAt DESC),
+  // so the first row per account is the source-data-freshest result. Rows with
+  // a null reconstructed NLV are skipped: a later-revision-but-incomplete
+  // compute must not mask an older complete one.
+  for (const child of latestPerAccountChildRows) {
+    if (latestPositionNlvByAccountId.has(child.accountId) || child.reconstructedNlv === null) {
+      continue;
+    }
+    latestPositionNlvByAccountId.set(child.accountId, Number(child.reconstructedNlv));
+  }
   for (const row of latestPerAccountPositionSnapshots) {
     let parsedScope: unknown;
     try {

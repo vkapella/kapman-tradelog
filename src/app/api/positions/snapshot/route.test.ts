@@ -73,6 +73,7 @@ describe("GET /api/positions/snapshot", () => {
       meta: {
         snapshotExists: true,
         snapshotAge: expect.any(Number),
+        currentDataRevisions: { "acct-internal-1": "0", "acct-internal-2": "0" },
       },
     });
     expect(routeMocks.positionSnapshot.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "snapshot-1" } }));
@@ -183,6 +184,7 @@ describe("GET /api/positions/snapshot", () => {
       meta: {
         snapshotExists: true,
         snapshotAge: expect.any(Number),
+        currentDataRevisions: {},
       },
     });
     expect(routeMocks.positionSnapshot.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "snapshot-pending" } }));

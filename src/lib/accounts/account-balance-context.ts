@@ -1,6 +1,8 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { buildAccountIdWhere, buildAccountScopeWhere } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
+
+type DbClient = Prisma.TransactionClient | PrismaClient;
 
 export interface AccountBalanceContextRecord {
   accountExternalId: string;
@@ -36,14 +38,14 @@ function maxIsoDate(left: string | null, right: string | null): string | null {
   return left >= right ? left : right;
 }
 
-export async function loadAccountBalanceContext(accountIds: string[]): Promise<AccountBalanceContextRecord[]> {
+export async function loadAccountBalanceContext(accountIds: string[], db: DbClient = prisma): Promise<AccountBalanceContextRecord[]> {
   const [accounts, snapshotRows, executionSums, cashEventSums, internalCashEquivalentSums] = await Promise.all([
-    prisma.account.findMany({
+    db.account.findMany({
       where: buildAccountIdWhere(accountIds) as Prisma.AccountWhereInput | undefined,
       select: { id: true, accountId: true },
       orderBy: { accountId: "asc" },
     }),
-    prisma.dailyAccountSnapshot.findMany({
+    db.dailyAccountSnapshot.findMany({
       where: buildAccountScopeWhere(accountIds) as Prisma.DailyAccountSnapshotWhereInput | undefined,
       select: {
         accountId: true,
@@ -55,19 +57,19 @@ export async function loadAccountBalanceContext(accountIds: string[]): Promise<A
       },
       orderBy: [{ accountId: "asc" }, { snapshotDate: "desc" }, { id: "desc" }],
     }),
-    prisma.execution.groupBy({
+    db.execution.groupBy({
       by: ["accountId"],
       where: buildAccountScopeWhere(accountIds) as Prisma.ExecutionWhereInput | undefined,
       _sum: { netAmount: true },
       _max: { tradeDate: true },
     }),
-    prisma.cashEvent.groupBy({
+    db.cashEvent.groupBy({
       by: ["accountId"],
       where: buildAccountScopeWhere(accountIds) as Prisma.CashEventWhereInput | undefined,
       _sum: { amount: true },
       _max: { eventDate: true },
     }),
-    prisma.cashEvent.groupBy({
+    db.cashEvent.groupBy({
       by: ["accountId"],
       where: {
         AND: [

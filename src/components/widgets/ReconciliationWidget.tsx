@@ -21,7 +21,7 @@ function formatSnapshotTime(value: string): string {
 
 export function ReconciliationWidget() {
   const { selectedAccounts } = useAccountFilterContext();
-  const { snapshot, loading, stale, computing, error, triggerCompute } = usePositionSnapshot(selectedAccounts);
+  const { snapshot, loading, stale, computing, error, staleDataAccountIds, triggerCompute } = usePositionSnapshot(selectedAccounts);
 
   const action = (
     <button
@@ -54,6 +54,11 @@ export function ReconciliationWidget() {
         <div className="mb-2 flex items-center gap-2 text-[11px] text-text-2">
           <span>As of {formatSnapshotTime(snapshot.snapshotAt)}</span>
           {stale ? <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300">Stale</span> : null}
+          {staleDataAccountIds.length > 0 ? (
+            <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300" title="Source data changed since this compute (imports, adjustments, or capital edits). Compute again for current figures.">
+              Data changed since compute
+            </span>
+          ) : null}
           {snapshot.status === "PENDING" ? <span>Refreshing…</span> : null}
         </div>
       ) : null}

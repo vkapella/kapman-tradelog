@@ -50,7 +50,7 @@ export function statusMessage(value: Pick<LiveAccountValue, "status" | "missingM
   return null;
 }
 
-function AccountBalanceRow({ accountId, value, loading }: { accountId: string; value: LiveAccountValue | null; loading: boolean }) {
+function AccountBalanceRow({ accountId, value, loading, dataStale }: { accountId: string; value: LiveAccountValue | null; loading: boolean; dataStale: boolean }) {
   const warning = value ? statusMessage(value) : null;
 
   return (
@@ -94,13 +94,18 @@ function AccountBalanceRow({ accountId, value, loading }: { accountId: string; v
           {warning}
         </p>
       ) : null}
+      {dataStale ? (
+        <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
+          Account data changed since this compute — refresh for current values.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 export function AccountBalancesWidget() {
   const { selectedAccounts } = useAccountFilterContext();
-  const { snapshot, loading: snapshotLoading, computing, error: snapshotError, triggerCompute } = usePositionSnapshot(selectedAccounts);
+  const { snapshot, loading: snapshotLoading, computing, error: snapshotError, staleDataAccountIds, triggerCompute } = usePositionSnapshot(selectedAccounts);
 
   const action = (
     <button
@@ -127,6 +132,7 @@ export function AccountBalancesWidget() {
             accountId={accountId}
             value={snapshot?.accountValues.find((entry) => entry.accountId === accountId) ?? null}
             loading={snapshotLoading}
+            dataStale={staleDataAccountIds.includes(accountId)}
           />
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serializeDataRevision } from "@/lib/accounts/data-revision";
 import { parseAccountIds } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -161,11 +162,27 @@ export async function GET(request: Request) {
   }
 
   const snapshotAge = Math.max(0, Math.floor((Date.now() - snapshot.snapshotAt.getTime()) / 1000));
+  const data = await mapSnapshotRow(snapshot);
+
+  // Currency check: each scoped account's CURRENT revision, read live. The
+  // client compares these against accountValues[].inputsRevision to answer
+  // "has source data changed since this snapshot" (#339).
+  const revisionRows = data.scopeAccountIds.length > 0
+    ? await prisma.account.findMany({
+        where: { id: { in: data.scopeAccountIds } },
+        select: { id: true, dataRevision: true },
+      })
+    : [];
+  const currentDataRevisions = Object.fromEntries(
+    revisionRows.map((row) => [row.id, serializeDataRevision(row.dataRevision) ?? "0"]),
+  );
+
   const payload: PositionSnapshotResponse = {
-    data: await mapSnapshotRow(snapshot),
+    data,
     meta: {
       snapshotExists: true,
       snapshotAge,
+      currentDataRevisions,
     },
   };
 

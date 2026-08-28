@@ -27,6 +27,9 @@ const routeMocks = vi.hoisted(() => ({
     positionSnapshot: {
       findMany: vi.fn(),
     },
+    positionSnapshotAccount: {
+      findMany: vi.fn(),
+    },
   },
   loadAccountBalanceContext: vi.fn(),
   getStartingCapitalSummary: vi.fn(),
@@ -52,6 +55,7 @@ describe("GET /api/overview/summary", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    routeMocks.prisma.positionSnapshotAccount.findMany.mockResolvedValue([]);
 
     routeMocks.prisma.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "X19467537" }]);
     routeMocks.prisma.execution.count.mockResolvedValue(0);

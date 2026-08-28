@@ -109,7 +109,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     data: {
       ...(parsed.data.displayLabel !== undefined ? { displayLabel: normalizeText(parsed.data.displayLabel) } : {}),
       ...(parsed.data.brokerName !== undefined ? { brokerName: normalizeText(parsed.data.brokerName) } : {}),
-      ...(startingCapital !== undefined ? { startingCapital } : {}),
+      // Starting capital feeds reconciliation, so its edit is a source-data
+      // mutation; the increment rides the same UPDATE statement (atomic).
+      ...(startingCapital !== undefined ? { startingCapital, dataRevision: { increment: 1 } } : {}),
       ...(legalEntityId !== undefined ? { legalEntityId } : {}),
     },
     select: {

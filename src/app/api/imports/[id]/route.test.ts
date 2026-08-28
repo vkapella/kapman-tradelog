@@ -41,6 +41,7 @@ const importDeleteRouteMocks = vi.hoisted(() => {
     },
     account: {
       delete: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   };
 

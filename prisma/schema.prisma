@@ -139,6 +139,12 @@ model Account {
   legalEntityId   String?      @map("legal_entity_id")
   legalEntity     LegalEntity? @relation(fields: [legalEntityId], references: [id])
   startingCapital Decimal? @map("starting_capital") @db.Decimal(20, 2)
+  /// Monotonic source-data revision: bumped in the SAME transaction as every
+  /// snapshot-relevant mutation (imports, adjustments, ledger rebuilds,
+  /// starting-capital edits). Market-data ingestion deliberately does NOT bump
+  /// it -- marks carry their own as-of provenance. Snapshots stamp the revision
+  /// they observed, making "does this snapshot reflect current data" provable.
+  dataRevision    BigInt   @default(0) @map("data_revision")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -150,6 +156,7 @@ model Account {
   setupGroups    SetupGroup[]
   matchedLots    MatchedLot[]
   valueSnapshots AccountValueSnapshot[]
+  snapshotResults PositionSnapshotAccount[]
 
   @@map("accounts")
 }
@@ -322,6 +329,10 @@ model PositionSnapshot {
   id                String                 @id @default(cuid())
   accountIds        String                 @map("account_ids")
   snapshotAt        DateTime               @default(now()) @map("snapshot_at")
+  /// Diagnostics only, never ordering keys: completion order is quote-latency
+  /// order, and neither timestamp orders source data (see #339).
+  completedAt       DateTime?              @map("completed_at")
+  inputsReadAt      DateTime?              @map("inputs_read_at")
   status            PositionSnapshotStatus @default(PENDING)
   errorMessage      String?                @map("error_message")
   positionsJson     String                 @map("positions_json")
@@ -336,8 +347,51 @@ model PositionSnapshot {
   unexplainedDelta  Decimal?               @map("unexplained_delta") @db.Decimal(20, 6)
   createdAt         DateTime               @default(now()) @map("created_at")
 
+  accountResults PositionSnapshotAccount[]
+
   @@index([snapshotAt(sort: Desc)])
   @@map("position_snapshots")
+}
+
+/// Per-account results of one snapshot run. Typed reconciliation facts frozen
+/// at compute time (never derived at read time), stamped with the source-data
+/// revision the compute observed. Reconciliation composes rows from ONE run
+/// only; positions views may compose latest-per-account rows with the as-of
+/// spread exposed. Positions stay JSON: an immutable collection payload.
+model PositionSnapshotAccount {
+  id                    String    @id @default(cuid())
+  runId                 String    @map("run_id")
+  accountId             String    @map("account_id")
+  inputsRevision        BigInt?   @map("inputs_revision")
+  cash                  Decimal   @db.Decimal(20, 6)
+  equityMarketValue     Decimal   @map("equity_market_value") @db.Decimal(20, 6)
+  optionMarketValue     Decimal   @map("option_market_value") @db.Decimal(20, 6)
+  securitiesMarketValue Decimal   @map("securities_market_value") @db.Decimal(20, 6)
+  reconstructedNlv      Decimal?  @map("reconstructed_nlv") @db.Decimal(20, 6)
+  brokerNlv             Decimal?  @map("broker_nlv") @db.Decimal(20, 6)
+  startingCapital       Decimal   @map("starting_capital") @db.Decimal(20, 6)
+  realizedPnl           Decimal   @map("realized_pnl") @db.Decimal(20, 6)
+  cashAdjustments       Decimal   @map("cash_adjustments") @db.Decimal(20, 6)
+  manualAdjustments     Decimal   @map("manual_adjustments") @db.Decimal(20, 6)
+  unrealizedPnl         Decimal?  @map("unrealized_pnl") @db.Decimal(20, 6)
+  totalGain             Decimal?  @map("total_gain") @db.Decimal(20, 6)
+  unexplainedDelta      Decimal?  @map("unexplained_delta") @db.Decimal(20, 6)
+  marksAsOf             DateTime? @map("marks_as_of")
+  cashAsOf              DateTime? @map("cash_as_of")
+  brokerNlvAsOf         DateTime? @map("broker_nlv_as_of")
+  missingMarkCount      Int       @default(0) @map("missing_mark_count")
+  staleMarkCount        Int       @default(0) @map("stale_mark_count")
+  staleMarkAsOf         String?   @map("stale_mark_as_of")
+  status                String
+  positionsJson         String    @default("[]") @map("positions_json")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  run     PositionSnapshot @relation(fields: [runId], references: [id], onDelete: Cascade)
+  account Account          @relation(fields: [accountId], references: [id])
+
+  @@unique([runId, accountId])
+  @@index([accountId, inputsRevision(sort: Desc), runId])
+  @@map("position_snapshot_accounts")
 }
 
 model CashEvent {

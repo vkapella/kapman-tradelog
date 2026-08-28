@@ -76,6 +76,7 @@ describe("PATCH /api/accounts/[id]", () => {
       data: {
         displayLabel: "Schwab IRA",
         startingCapital: "125000.00",
+        dataRevision: { increment: 1 },
       },
       select: expect.any(Object),
     });

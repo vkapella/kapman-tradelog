@@ -42,6 +42,7 @@ function completePayload(overrides: {
   createdAt?: string;
   scopeAccountIds: string[];
   positions?: unknown[];
+  inputsRevisions?: Record<string, string>;
 }) {
   return {
     data: {
@@ -51,7 +52,7 @@ function completePayload(overrides: {
       scopeAccountIds: overrides.scopeAccountIds,
       status: "COMPLETE",
       positions: overrides.positions ?? [],
-      accountValues: [],
+      accountValues: Object.entries(overrides.inputsRevisions ?? {}).map(([accountId, inputsRevision]) => ({ accountId, inputsRevision })),
       unrealizedPnl: "0.00",
       realizedPnl: "0.00",
       cashAdjustments: "0.00",
@@ -247,6 +248,105 @@ describe("openPositionsStore", () => {
       expect(openPositionsStore.getSnapshot(accountDesc).positions[0].netQty).toBe(222);
       expect(openPositionsStore.getSnapshot(accountAsc).precedence?.snapshotId).toBe("snap-b");
       expect(openPositionsStore.getSnapshot(accountDesc).precedence?.snapshotId).toBe("snap-b");
+    });
+  });
+
+  describe("two-axis freshness (#339)", () => {
+    it("lets an earlier-enqueued payload with a HIGHER inputs revision beat later-enqueued cached state — the #338 gap, closed", async () => {
+      const accountId = "account-revision-beats-precedence";
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+
+      // Later-enqueued computation, but it observed revision 41.
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          completePayload({
+            id: "snap-late-stale",
+            snapshotAt: "2026-08-28T10:00:00.000Z",
+            scopeAccountIds: [accountId],
+            positions: [{ ...makePosition(accountId, { netQty: 100000 }), mark: 1, markSource: "LIVE", markAsOf: null }],
+            inputsRevisions: { [accountId]: "41" },
+          }),
+        ),
+      );
+      await openPositionsStore.followSnapshot([accountId], "snap-late-stale");
+      expect(openPositionsStore.getSnapshot(accountId).positions[0].netQty).toBe(100000);
+
+      // Earlier-enqueued (lower canonical precedence) but observed revision 42:
+      // under #338's precedence-only policy this payload was discarded.
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          completePayload({
+            id: "snap-early-fresh",
+            snapshotAt: "2026-08-28T09:00:00.000Z",
+            scopeAccountIds: [accountId],
+            positions: [{ ...makePosition(accountId, { netQty: 199960 }), mark: 1, markSource: "LIVE", markAsOf: null }],
+            inputsRevisions: { [accountId]: "42" },
+          }),
+        ),
+      );
+      await openPositionsStore.followSnapshot([accountId], "snap-early-fresh");
+
+      const snapshot = openPositionsStore.getSnapshot(accountId);
+      expect(snapshot.positions[0].netQty).toBe(199960);
+      expect(snapshot.inputsRevision).toBe("42");
+    });
+
+    it("rejects a lower-revision payload even at higher canonical precedence", async () => {
+      const accountId = "account-revision-guards-down";
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          completePayload({
+            id: "snap-fresh",
+            snapshotAt: "2026-08-28T09:00:00.000Z",
+            scopeAccountIds: [accountId],
+            positions: [{ ...makePosition(accountId, { netQty: 7 }), mark: 1, markSource: "LIVE", markAsOf: null }],
+            inputsRevisions: { [accountId]: "42" },
+          }),
+        ),
+      );
+      await openPositionsStore.followSnapshot([accountId], "snap-fresh");
+
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(
+          completePayload({
+            id: "snap-later-but-stale",
+            snapshotAt: "2026-08-28T11:00:00.000Z",
+            scopeAccountIds: [accountId],
+            positions: [{ ...makePosition(accountId, { netQty: 1 }), mark: 1, markSource: "LIVE", markAsOf: null }],
+            inputsRevisions: { [accountId]: "41" },
+          }),
+        ),
+      );
+      await openPositionsStore.followSnapshot([accountId], "snap-later-but-stale");
+
+      expect(openPositionsStore.getSnapshot(accountId).positions[0].netQty).toBe(7);
+      expect(openPositionsStore.getSnapshot(accountId).inputsRevision).toBe("42");
+    });
+
+    it("falls back to canonical precedence on equal revisions (fresher marks win) and persists the revision", async () => {
+      const accountId = "account-equal-revision-precedence";
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+
+      for (const [snapshotId, hour, netQty] of [["snap-r1", "09", 5], ["snap-r2", "10", 6]] as const) {
+        fetchMock.mockResolvedValueOnce(
+          jsonResponse(
+            completePayload({
+              id: snapshotId,
+              snapshotAt: `2026-08-28T${hour}:00:00.000Z`,
+              scopeAccountIds: [accountId],
+              positions: [{ ...makePosition(accountId, { netQty }), mark: 1, markSource: "LIVE", markAsOf: null }],
+              inputsRevisions: { [accountId]: "42" },
+            }),
+          ),
+        );
+        await openPositionsStore.followSnapshot([accountId], snapshotId);
+      }
+
+      expect(openPositionsStore.getSnapshot(accountId).positions[0].netQty).toBe(6);
+      const persisted = JSON.parse(window.localStorage.getItem(buildStorageKey(accountId)) ?? "{}");
+      expect(persisted.inputsRevision).toBe("42");
     });
   });
 

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { parsePayloadByType } from "@/lib/adjustments/types";
 import { loadAccountBalanceContext } from "@/lib/accounts/account-balance-context";
-import { getStartingCapitalSummary } from "@/lib/accounts/starting-capital";
+import { serializeDataRevision } from "@/lib/accounts/data-revision";
 import { prisma } from "@/lib/db/prisma";
 import { getEquityQuotes, getOptionQuotesBatch } from "@/lib/mcp/market-data";
 import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
@@ -178,12 +178,18 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
   };
 
   try {
-    const [accountRows, executionRows, matchedLotRows, adjustmentRows, realizedAggregate, cashAggregate] = await Promise.all([
-      prisma.account.findMany({
+    // All snapshot-relevant local inputs AND the per-account data revisions are
+    // read inside one REPEATABLE READ transaction, so the stamped revision
+    // provably matches what was read (see #339). External quote calls happen
+    // after the transaction commits.
+    const inputsReadAt = new Date();
+    const { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows, balanceContext } = await prisma.$transaction(async (tx) => {
+    const [accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows] = await Promise.all([
+      tx.account.findMany({
         where: accountScope ? { id: { in: accountIds } } : undefined,
-        select: { id: true, accountId: true },
+        select: { id: true, accountId: true, startingCapital: true, dataRevision: true },
       }),
-      prisma.execution.findMany({
+      tx.execution.findMany({
         where: accountScope,
         select: {
           id: true,
@@ -207,20 +213,23 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
           importId: true,
         },
       }),
-      prisma.matchedLot.findMany({
+      tx.matchedLot.findMany({
         where: accountScope,
         include: {
           openExecution: { select: { tradeDate: true, importId: true, symbol: true } },
           closeExecution: { select: { tradeDate: true, importId: true } },
         },
       }),
-      prisma.manualAdjustment.findMany({
+      tx.manualAdjustment.findMany({
         where: manualAdjustmentWhere,
         include: { account: { select: { accountId: true } } },
       }),
-      prisma.matchedLot.aggregate({ where: accountScope, _sum: { realizedPnl: true } }),
-      prisma.cashEvent.aggregate({ where: accountScope, _sum: { amount: true } }),
+      tx.matchedLot.groupBy({ by: ["accountId"], where: accountScope, _sum: { realizedPnl: true } }),
+      tx.cashEvent.groupBy({ by: ["accountId"], where: accountScope, _sum: { amount: true } }),
     ]);
+    const balanceContext = await loadAccountBalanceContext(accountIds, tx);
+    return { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows, balanceContext };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 
     detailLog(snapshotId, "loaded-inputs", startedAtMs, {
       accountCount: accountRows.length,
@@ -303,20 +312,22 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
 
     const totalCostBasis = openPositions.reduce((sum, position) => sum + position.costBasis, 0);
     const unrealizedPnl = totalMarkedValue - totalCostBasis;
-    const startingCapitalSummary = await getStartingCapitalSummary(accountIds);
-    const startingCapital = startingCapitalSummary.total;
-    const balanceContext = await loadAccountBalanceContext(accountIds);
+    const startingCapital = accountRows.reduce((sum, account) => sum + Number(account.startingCapital ?? 0), 0);
+    const realizedByAccount = new Map(realizedByAccountRows.map((row) => [row.accountId, toMoneyNumber(row._sum.realizedPnl)]));
+    const cashByAccount = new Map(cashByAccountRows.map((row) => [row.accountId, toMoneyNumber(row._sum.amount)]));
+    const marksAsOf = new Date();
     const accountValues = accountRows.map((account) => resolveLiveAccountValue({
       accountId: account.id,
       accountExternalId: account.accountId,
       positions: pricedPositions,
       balance: balanceContext.find((entry) => entry.accountExternalId === account.accountId) ?? null,
-      marksAsOf: new Date(),
+      marksAsOf,
+      inputsRevision: serializeDataRevision(account.dataRevision),
     }));
     const currentNlv = sumCompleteReconstructedNlv(accountValues);
 
-    const realizedPnl = toMoneyNumber(realizedAggregate._sum.realizedPnl);
-    const cashAdjustments = toMoneyNumber(cashAggregate._sum.amount);
+    const realizedPnl = Array.from(realizedByAccount.values()).reduce((sum, value) => sum + value, 0);
+    const cashAdjustments = Array.from(cashByAccount.values()).reduce((sum, value) => sum + value, 0);
     const manualAdjustmentsTotal = sumManualAdjustmentAmounts(manualAdjustments);
     const totalGain = currentNlv === null ? null : currentNlv - startingCapital;
     const unexplainedDelta = totalGain === null
@@ -339,23 +350,81 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
         : position;
     });
 
-    await prisma.positionSnapshot.update({
-      where: { id: snapshotId },
-      data: {
-        status: "COMPLETE",
-        positionsJson: JSON.stringify(persistedPositions),
-        accountValuesJson: JSON.stringify(accountValues),
-        unrealizedPnl: toMoneyDecimal(unrealizedPnl),
-        realizedPnl: toMoneyDecimal(realizedPnl),
-        cashAdjustments: toMoneyDecimal(cashAdjustments),
-        manualAdjustments: toMoneyDecimal(manualAdjustmentsTotal),
-        currentNlv: currentNlv === null ? null : toMoneyDecimal(currentNlv),
-        startingCapital: toMoneyDecimal(startingCapital),
-        totalGain: totalGain === null ? null : toMoneyDecimal(totalGain),
-        unexplainedDelta: unexplainedDelta === null ? null : toMoneyDecimal(unexplainedDelta),
-        errorMessage: null,
-      },
+    // Per-account results, frozen at compute time. The reconciliation identity
+    // holds per account with all inputs from ONE observation, which is what
+    // keeps unexplainedDelta meaningful as a data-integrity signal.
+    const accountResults = accountRows.map((account) => {
+      const value = accountValues.find((entry) => entry.accountId === account.id);
+      const accountPositions = persistedPositions.filter((position) => position.accountId === account.id);
+      const accountMarkedValue = accountPositions.reduce(
+        (sum, position) => (position.mark === null ? sum : sum + position.mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1)),
+        0,
+      );
+      const accountCostBasis = accountPositions.reduce((sum, position) => sum + position.costBasis, 0);
+      const accountMissingMarks = (value?.missingMarkCount ?? 0) > 0;
+      const accountUnrealized = accountMissingMarks ? null : accountMarkedValue - accountCostBasis;
+      const accountStartingCapital = Number(account.startingCapital ?? 0);
+      const accountRealized = realizedByAccount.get(account.id) ?? 0;
+      const accountCash = cashByAccount.get(account.id) ?? 0;
+      const accountManual = sumManualAdjustmentAmounts(manualAdjustments.filter((adjustment) => adjustment.accountId === account.id));
+      const accountNlv = value?.reconstructedNlv == null ? null : Number(value.reconstructedNlv);
+      const accountTotalGain = accountNlv === null ? null : accountNlv - accountStartingCapital;
+      const accountUnexplained = accountTotalGain === null || accountUnrealized === null
+        ? null
+        : accountTotalGain - accountUnrealized - accountCash - accountRealized - accountManual;
+
+      return {
+        runId: snapshotId,
+        accountId: account.id,
+        inputsRevision: account.dataRevision,
+        cash: toMoneyDecimal(Number(value?.cashAndEquivalents ?? 0)),
+        equityMarketValue: toMoneyDecimal(Number(value?.equityMarketValue ?? 0)),
+        optionMarketValue: toMoneyDecimal(Number(value?.optionMarketValue ?? 0)),
+        securitiesMarketValue: toMoneyDecimal(Number(value?.securitiesMarketValue ?? 0)),
+        reconstructedNlv: accountNlv === null ? null : toMoneyDecimal(accountNlv),
+        brokerNlv: value?.brokerReportedNlv == null ? null : toMoneyDecimal(Number(value.brokerReportedNlv)),
+        startingCapital: toMoneyDecimal(accountStartingCapital),
+        realizedPnl: toMoneyDecimal(accountRealized),
+        cashAdjustments: toMoneyDecimal(accountCash),
+        manualAdjustments: toMoneyDecimal(accountManual),
+        unrealizedPnl: accountUnrealized === null ? null : toMoneyDecimal(accountUnrealized),
+        totalGain: accountTotalGain === null ? null : toMoneyDecimal(accountTotalGain),
+        unexplainedDelta: accountUnexplained === null ? null : toMoneyDecimal(accountUnexplained),
+        marksAsOf,
+        cashAsOf: value?.cashAsOf ? new Date(value.cashAsOf) : null,
+        brokerNlvAsOf: value?.brokerNlvAsOf ? new Date(value.brokerNlvAsOf) : null,
+        missingMarkCount: value?.missingMarkCount ?? 0,
+        staleMarkCount: value?.staleMarkCount ?? 0,
+        staleMarkAsOf: value?.staleMarkAsOf ?? null,
+        status: value?.status ?? "INCOMPLETE_MARKS",
+        positionsJson: JSON.stringify(accountPositions),
+      };
     });
+
+    await prisma.$transaction([
+      prisma.positionSnapshot.update({
+        where: { id: snapshotId },
+        data: {
+          status: "COMPLETE",
+          completedAt: new Date(),
+          inputsReadAt,
+          positionsJson: JSON.stringify(persistedPositions),
+          accountValuesJson: JSON.stringify(accountValues),
+          // Legacy scope-wide scalars: still written for compat, no longer the
+          // authoritative source for any non-exact-scope read.
+          unrealizedPnl: toMoneyDecimal(unrealizedPnl),
+          realizedPnl: toMoneyDecimal(realizedPnl),
+          cashAdjustments: toMoneyDecimal(cashAdjustments),
+          manualAdjustments: toMoneyDecimal(manualAdjustmentsTotal),
+          currentNlv: currentNlv === null ? null : toMoneyDecimal(currentNlv),
+          startingCapital: toMoneyDecimal(startingCapital),
+          totalGain: totalGain === null ? null : toMoneyDecimal(totalGain),
+          unexplainedDelta: unexplainedDelta === null ? null : toMoneyDecimal(unexplainedDelta),
+          errorMessage: null,
+        },
+      }),
+      prisma.positionSnapshotAccount.createMany({ data: accountResults }),
+    ]);
 
     detailLog(snapshotId, "completed", startedAtMs, {
       openPositionCount: pricedPositions.length,
@@ -368,6 +437,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       where: { id: snapshotId },
       data: {
         status: "FAILED",
+        completedAt: new Date(),
         errorMessage,
       },
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { compareDataRevisions } from "@/lib/accounts/data-revision";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import type {
   PositionSnapshotApiResponse,
@@ -13,6 +14,7 @@ export const POSITION_SNAPSHOT_STALE_THRESHOLD_SECONDS = 3600;
 interface PositionSnapshotMeta {
   snapshotExists: boolean;
   snapshotAge?: number;
+  currentDataRevisions?: Record<string, string>;
 }
 
 interface UsePositionSnapshotResult {
@@ -21,6 +23,10 @@ interface UsePositionSnapshotResult {
   stale: boolean;
   computing: boolean;
   error: string | null;
+  /** Accounts whose source data changed since this snapshot was computed --
+   *  the currency check (#339): stored inputsRevision behind the account's
+   *  live data revision. Empty when unknown (legacy rows carry no revision). */
+  staleDataAccountIds: string[];
   triggerCompute: () => Promise<void>;
 }
 
@@ -168,12 +174,25 @@ export function usePositionSnapshot(accountIds: string[]): UsePositionSnapshotRe
     }
   }
 
+  const staleDataAccountIds = useMemo(() => {
+    if (!snapshot || !meta.currentDataRevisions) {
+      return [];
+    }
+    return snapshot.accountValues
+      .filter((value) => {
+        const comparison = compareDataRevisions(value.inputsRevision ?? null, meta.currentDataRevisions?.[value.accountId] ?? null);
+        return comparison !== null && comparison < 0;
+      })
+      .map((value) => value.accountId);
+  }, [snapshot, meta.currentDataRevisions]);
+
   return {
     snapshot,
     loading,
     stale: Boolean(meta.snapshotAge && meta.snapshotAge > POSITION_SNAPSHOT_STALE_THRESHOLD_SECONDS),
     computing: snapshot?.status === "PENDING" || awaitingSnapshotId !== null,
     error,
+    staleDataAccountIds,
     triggerCompute,
   };
 }

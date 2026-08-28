@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { releaseImportExecutionLinks, listLinkedExecutionIdsForImport } from "@/lib/imports/import-execution-links";
 import { rebuildAccountLedger } from "@/lib/ledger/rebuild-account-ledger";
 import type { DeleteImportResponse } from "@/types/api";
+import { bumpAccountDataRevision } from "@/lib/accounts/data-revision";
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.length > 0)));
@@ -104,6 +105,10 @@ export async function DELETE(_request: Request, context: { params: { id: string 
     }
 
     const released = await releaseImportExecutionLinks(tx, importId, linkedExecutionIds);
+
+    // COMMITTED deletions already bump via rebuildAccountLedger above; this
+    // covers discarded uploads whose snapshot/cash rows were still removed.
+    await bumpAccountDataRevision(tx, [existingImport.accountId]);
 
     await tx.import.delete({
       where: { id: importId },
