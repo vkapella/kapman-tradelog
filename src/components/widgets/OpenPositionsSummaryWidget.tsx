@@ -18,6 +18,19 @@ function formatQuoteTimestamp(value: number | null): string {
   });
 }
 
+// Span, not a single timestamp: partially stale selections must read as such.
+function formatFreshnessSpan(freshness: { oldestRefreshedAt: number | null; newestRefreshedAt: number | null; accountsWithoutData: string[] }): string {
+  const { oldestRefreshedAt, newestRefreshedAt, accountsWithoutData } = freshness;
+  const missingSuffix = accountsWithoutData.length > 0 ? ` · ${accountsWithoutData.length} ${accountsWithoutData.length === 1 ? "account" : "accounts"} without data` : "";
+  if (oldestRefreshedAt === null || newestRefreshedAt === null) {
+    return accountsWithoutData.length > 0 ? `no data${missingSuffix}` : "—";
+  }
+  if (oldestRefreshedAt === newestRefreshedAt) {
+    return `${formatQuoteTimestamp(newestRefreshedAt)}${missingSuffix}`;
+  }
+  return `spans ${formatQuoteTimestamp(oldestRefreshedAt)} – ${formatQuoteTimestamp(newestRefreshedAt)}${missingSuffix}`;
+}
+
 export function OpenPositionsSummaryWidget() {
   const { selectedAccounts } = useAccountFilterContext();
   const snapshot = useSyncExternalStore(
@@ -35,7 +48,7 @@ export function OpenPositionsSummaryWidget() {
 
     let total = 0;
     for (const position of filtered) {
-      const mark = snapshot.quotes[position.instrumentKey];
+      const mark = snapshot.quotes[position.instrumentKey]?.mark;
       if (typeof mark !== "number") {
         return null;
       }
@@ -56,7 +69,7 @@ export function OpenPositionsSummaryWidget() {
         <p className={unrealized !== null && unrealized >= 0 ? "text-pos" : "text-red-300"}>
           Unrealized: {unrealized === null ? "—" : formatCurrency(unrealized)}
         </p>
-        <p>Last quoted: {formatQuoteTimestamp(snapshot.lastRefreshedAt)}</p>
+        <p>Last quoted: {formatFreshnessSpan(snapshot.freshness)}</p>
       </div>
       <Link href="/positions" className="mt-2 inline-block text-xs text-accent underline">
         View positions →

@@ -151,12 +151,17 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
   }, [reloadToken]);
 
   useEffect(() => {
-    if (availableAccounts.length === 0) {
+    // Hydrate at the SELECTED scope, and only once account load and persisted-
+    // selection restore have both completed (selection is restored in the same
+    // state update that populates availableAccounts). Hydrating at all-accounts
+    // scope made the store sync against the all-accounts snapshot key, whose
+    // stale row then overwrote fresher per-account state (#338).
+    if (accountsLoading || selectedAccounts.length === 0) {
       return;
     }
 
-    openPositionsStore.hydrate(availableAccounts);
-  }, [availableAccounts]);
+    openPositionsStore.hydrate(selectedAccounts);
+  }, [accountsLoading, selectedAccounts]);
 
   const value = useMemo<AccountFilterContextValue>(() => {
     const selectedSet = new Set(selectedAccounts);

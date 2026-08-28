@@ -49,6 +49,20 @@ function formatQuoteTimestamp(value: Date | null): string {
   if (!value) return "—";
   return value.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "medium" });
 }
+// Composed freshness is a span, never a single number: a selection mixing a
+// 5-second-old account with a 3-day-old one must say so, and a selected
+// account with no data at all makes the view explicitly incomplete.
+function formatFreshnessSpan(freshness: { oldestRefreshedAt: number | null; newestRefreshedAt: number | null; accountsWithoutData: string[] }): string {
+  const { oldestRefreshedAt, newestRefreshedAt, accountsWithoutData } = freshness;
+  const missingSuffix = accountsWithoutData.length > 0 ? ` · ${accountsWithoutData.length} ${accountsWithoutData.length === 1 ? "account" : "accounts"} without data` : "";
+  if (oldestRefreshedAt === null || newestRefreshedAt === null) {
+    return accountsWithoutData.length > 0 ? `no data${missingSuffix}` : "—";
+  }
+  if (oldestRefreshedAt === newestRefreshedAt) {
+    return `${formatQuoteTimestamp(new Date(newestRefreshedAt))}${missingSuffix}`;
+  }
+  return `spans ${formatQuoteTimestamp(new Date(oldestRefreshedAt))} – ${formatQuoteTimestamp(new Date(newestRefreshedAt))}${missingSuffix}`;
+}
 
 const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenPosition & { key: string; dte: number | null; mark: number | null; marketValue: number | null; unrealizedPnl: number | null; pnlPct: number | null; maePct: number | null; mfePct: number | null }; markLoading: boolean; }) {
   return (
@@ -81,12 +95,11 @@ export default function Page() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredPositions = useMemo(() => positions.filter((position) => isAccountInScope(selectedAccounts, position.accountId)), [positions, selectedAccounts]);
-  const lastQuoted = useMemo(() => (snapshot.lastRefreshedAt === null ? null : new Date(snapshot.lastRefreshedAt)), [snapshot.lastRefreshedAt]);
-  const hasPersistedSnapshot = snapshot.lastRefreshedAt !== null;
+  const hasPersistedSnapshot = snapshot.freshness.newestRefreshedAt !== null;
 
   const rows = useMemo(() => filteredPositions.map((position) => {
     const key = positionKey(position);
-    const mark = snapshot.quotes[position.instrumentKey] ?? null;
+    const mark = snapshot.quotes[position.instrumentKey]?.mark ?? null;
     const multiplier = position.assetClass === "OPTION" ? 100 : 1;
     const marketValue = mark === null ? null : mark * position.netQty * multiplier;
     const unrealizedPnl = marketValue === null ? null : marketValue - position.costBasis;
@@ -167,7 +180,7 @@ export default function Page() {
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-2">{table.sortedRows.length} positions</span>
-          <span className="text-xs text-text-2">Last quoted: {formatQuoteTimestamp(lastQuoted)}</span>
+          <span className="text-xs text-text-2">Last quoted: {formatFreshnessSpan(snapshot.freshness)}</span>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>

@@ -674,6 +674,9 @@ export interface PositionSnapshotComputeResponse {
 export interface PositionSnapshotResponseData {
   id: string;
   snapshotAt: string;
+  createdAt: string;
+  /** The account ids the snapshot was actually computed over (its stored scope). */
+  scopeAccountIds: string[];
   status: PositionSnapshotStatus;
   errorMessage?: string;
   positions: PositionSnapshotOpenPosition[];

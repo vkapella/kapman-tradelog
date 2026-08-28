@@ -32,8 +32,11 @@ describe("GET /api/positions/snapshot", () => {
     routeMocks.positionSnapshot.findUnique.mockResolvedValue({
       id: "snapshot-1",
       snapshotAt: new Date("2026-04-13T04:00:00.000Z"),
+      createdAt: new Date("2026-04-13T04:00:01.000Z"),
       status: "COMPLETE",
       errorMessage: null,
+      accountIds: JSON.stringify(["acct-internal-1"]),
+      accountValuesJson: JSON.stringify([{ accountId: "acct-internal-1", reconstructedNlv: "10050.00" }]),
       positionsJson: JSON.stringify([{ instrumentKey: "SPY", mark: 510 }]),
       unrealizedPnl: { toString: () => "25" },
       realizedPnl: { toString: () => "50" },
@@ -53,9 +56,11 @@ describe("GET /api/positions/snapshot", () => {
       data: {
         id: "snapshot-1",
         snapshotAt: "2026-04-13T04:00:00.000Z",
+        createdAt: "2026-04-13T04:00:01.000Z",
+        scopeAccountIds: ["acct-internal-1"],
         status: "COMPLETE",
         positions: [{ instrumentKey: "SPY", mark: 510 }],
-        accountValues: [],
+        accountValues: [{ accountId: "acct-internal-1", reconstructedNlv: "10050.00" }],
         unrealizedPnl: "25.00",
         realizedPnl: "50.00",
         cashAdjustments: "10.00",
@@ -88,7 +93,7 @@ describe("GET /api/positions/snapshot", () => {
     });
     expect(routeMocks.positionSnapshot.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]) },
+        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]), status: "COMPLETE" },
       }),
     );
   });
@@ -99,6 +104,7 @@ describe("GET /api/positions/snapshot", () => {
       // 8:58 PM on 2026-08-27 at UTC-4 lands on the next UTC day. Scoping by the
       // caller's local endDate used to bound this out and serve a stale snapshot.
       snapshotAt: new Date("2026-08-28T00:58:34.860Z"),
+      createdAt: new Date("2026-08-28T00:58:34.860Z"),
       status: "COMPLETE",
       errorMessage: null,
       accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]),
@@ -127,17 +133,20 @@ describe("GET /api/positions/snapshot", () => {
     expect(payload.data.currentNlv).toBe("199960.00");
     expect(routeMocks.positionSnapshot.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]) },
+        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]), status: "COMPLETE" },
       }),
     );
   });
 
-  it("returns the latest pending snapshot for an exact account scope", async () => {
-    routeMocks.positionSnapshot.findFirst.mockResolvedValue({
+  it("returns a pending snapshot when fetched by id (passive lookups are COMPLETE-only)", async () => {
+    routeMocks.positionSnapshot.findUnique.mockResolvedValue({
       id: "snapshot-pending",
       snapshotAt: new Date(Date.now() - 5_000),
+      createdAt: new Date(Date.now() - 5_000),
       status: "PENDING",
       errorMessage: null,
+      accountIds: "[]",
+      accountValuesJson: "[]",
       positionsJson: "[]",
       unrealizedPnl: null,
       realizedPnl: null,
@@ -150,13 +159,15 @@ describe("GET /api/positions/snapshot", () => {
     });
 
     const { GET } = await import("./route");
-    const response = await GET(new Request("http://localhost/api/positions/snapshot?accountIds=acct-internal-2,acct-internal-1"));
+    const response = await GET(new Request("http://localhost/api/positions/snapshot?snapshotId=snapshot-pending"));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       data: {
         id: "snapshot-pending",
         snapshotAt: expect.any(String),
+        createdAt: expect.any(String),
+        scopeAccountIds: [],
         status: "PENDING",
         positions: [],
         accountValues: [],
@@ -174,10 +185,6 @@ describe("GET /api/positions/snapshot", () => {
         snapshotAge: expect.any(Number),
       },
     });
-    expect(routeMocks.positionSnapshot.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { accountIds: JSON.stringify(["acct-internal-1", "acct-internal-2"]) },
-      }),
-    );
+    expect(routeMocks.positionSnapshot.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "snapshot-pending" } }));
   });
 });

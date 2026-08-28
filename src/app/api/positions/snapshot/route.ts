@@ -15,6 +15,7 @@ import type { PositionSnapshotResponse, PositionSnapshotResponseData } from "@/t
 type SnapshotRow = {
   id: string;
   snapshotAt: Date;
+  createdAt: Date;
   status: "PENDING" | "COMPLETE" | "FAILED";
   errorMessage: string | null;
   accountIds: string;
@@ -30,18 +31,22 @@ type SnapshotRow = {
   unexplainedDelta: { toString(): string } | null;
 };
 
+function parseScopeAccountIds(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function mapSnapshotRow(row: SnapshotRow): Promise<PositionSnapshotResponseData> {
   const positions = parsePositionSnapshotPositionsJson(row.positionsJson);
+  const scopeAccountIds = parseScopeAccountIds(row.accountIds);
   let accountValues = parsePositionSnapshotAccountValuesJson(row.accountValuesJson);
 
   if (row.status === "COMPLETE" && accountValues.length === 0 && row.accountIds) {
-    let accountIds: string[] = [];
-    try {
-      const parsed = JSON.parse(row.accountIds) as unknown;
-      accountIds = Array.isArray(parsed) ? parsed.map(String) : [];
-    } catch {
-      accountIds = [];
-    }
+    const accountIds = scopeAccountIds;
 
     const [accounts, balances] = await Promise.all([
       prisma.account.findMany({
@@ -66,6 +71,8 @@ async function mapSnapshotRow(row: SnapshotRow): Promise<PositionSnapshotRespons
   return {
     id: row.id,
     snapshotAt: row.snapshotAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    scopeAccountIds,
     status: row.status,
     errorMessage: row.errorMessage ?? undefined,
     positions,
@@ -92,6 +99,7 @@ export async function GET(request: Request) {
       select: {
         id: true,
         snapshotAt: true,
+        createdAt: true,
         status: true,
         errorMessage: true,
         accountIds: true,
@@ -116,12 +124,15 @@ export async function GET(request: Request) {
     // now" reading, and the caller's range end is a *local* calendar date: bounding
     // on it in UTC hid every snapshot computed after 20:00 UTC-4 behind the last
     // one from earlier in the day, so Refresh appeared to do nothing.
+    // Passive reads never surface PENDING/FAILED rows: an in-flight compute is
+    // only observable by the flow that started it (fetch-by-id, unfiltered).
     snapshot = await prisma.positionSnapshot.findFirst({
-      where: { accountIds: accountIdsJson },
+      where: { accountIds: accountIdsJson, status: "COMPLETE" },
       orderBy: [{ snapshotAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
         snapshotAt: true,
+        createdAt: true,
         status: true,
         errorMessage: true,
         accountIds: true,
