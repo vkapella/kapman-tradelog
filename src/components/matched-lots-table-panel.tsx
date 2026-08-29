@@ -124,7 +124,7 @@ export function MatchedLotsTablePanel() {
   const configs = useMemo<TableColumnConfig<MatchedLotRecord>[]>(() => [
     {
       definition: { id: "closeTradeDate", label: "Close Date", filterMode: "discrete", getFilterValues: (row) => row.closeTradeDate ?? row.openTradeDate, getFilterOptionLabel: (value) => value.slice(0, 10), sortMode: "date", getSortValue: (row) => row.closeTradeDate ?? row.openTradeDate, defaultSortDirection: "desc" },
-      width: "120px", mobileWidth: "minmax(76px, auto)",
+      stickyLeft: true, width: "120px", mobileWidth: "minmax(76px, auto)",
       renderCell: (row) => <div className="px-2 py-2">{(row.closeTradeDate ?? row.openTradeDate).slice(0, 10)}</div>,
     },
     {

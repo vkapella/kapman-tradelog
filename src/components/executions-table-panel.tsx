@@ -199,6 +199,7 @@ export function ExecutionsTablePanel() {
     },
       width: "190px",
       mobileWidth: "minmax(72px, auto)",
+      stickyLeft: true,
       renderCell: (row) => (
         <div className="px-2 py-2">
           <span className="max-md:hidden">{new Date(row.eventTimestamp).toLocaleString()}</span>

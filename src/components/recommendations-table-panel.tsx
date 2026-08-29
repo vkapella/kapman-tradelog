@@ -427,6 +427,7 @@ export function RecommendationsTablePanel() {
       width: config.width,
       mobileWidth: config.mobileWidth,
       tier: config.tier,
+      stickyLeft: config.definition.id === "asOf",
       renderCell: (row) => (
         <div
           className={["px-2 py-2", config.definition.align === "right" ? "text-right" : "", config.definition.id === "reason" ? "min-w-0" : ""]

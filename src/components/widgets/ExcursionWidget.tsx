@@ -314,10 +314,14 @@ export function ExcursionWidget() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto">
+          {/* One scroll container for both axes: horizontal sticky (pinned
+              Symbol) only tracks the nearest scrolling ancestor, so header and
+              rows must share it; the header pins to the top instead of living
+              outside the scroller. */}
+          <div className="max-h-80 overflow-auto">
             <div className="min-w-[900px]">
-              <div className="grid border-b border-border bg-surface-2 text-xs font-semibold text-text-2" style={{ gridTemplateColumns: EXCURSION_COLUMN_TEMPLATE }}>
-                <button type="button" className="px-2 py-2 text-left" onClick={() => toggleSort("symbol")}>Symbol</button>
+              <div className="sticky top-0 z-[2] grid border-b border-border bg-surface-2 text-xs font-semibold text-text-2" style={{ gridTemplateColumns: EXCURSION_COLUMN_TEMPLATE }}>
+                <button type="button" className="sticky left-0 z-[1] bg-inherit px-2 py-2 text-left" onClick={() => toggleSort("symbol")}>Symbol</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("realizedPnl")}>Realized</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("realizedReturnPct")}>Return</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("mfe")}>MFE $</button>
@@ -326,13 +330,13 @@ export function ExcursionWidget() {
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("maePct")}>MAE %</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("unpricedDays")}>Unpriced</button>
               </div>
-              <div className="max-h-80 overflow-y-auto text-xs text-text">
+              <div className="text-xs text-text">
                 {sortedRows.length === 0 ? (
                   <div className="border-b border-border px-2 py-3 text-text-2">No lots match the visible setup categories.</div>
                 ) : null}
                 {sortedRows.map((row) => (
                   <div key={row.id} className="grid border-b border-border" style={{ gridTemplateColumns: EXCURSION_COLUMN_TEMPLATE }}>
-                    <div className="px-2 py-2">{displaySymbol(row)}</div>
+                    <div className="sticky left-0 z-[1] bg-surface px-2 py-2">{displaySymbol(row)}</div>
                     <div className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</div>
                     <div className="px-2 py-2 text-right">{formatFractionPercent(row.realizedReturnPct)}</div>
                     <div className="px-2 py-2 text-right text-pos">{formatCurrency(safeNumber(row.mfe))}</div>

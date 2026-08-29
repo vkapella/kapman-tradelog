@@ -109,7 +109,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           "data-[open=true]:translate-x-0",
           "lg:static lg:z-auto lg:min-h-screen lg:w-auto lg:translate-x-0 lg:overflow-visible",
         ].join(" ")}
-        style={{ maxHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ maxHeight: "100dvh", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className="flex items-center gap-2 border-b border-border" style={{ height: "var(--topbar-h)", padding: "0 14px" }}>
           <span className="text-[14px] font-bold text-text" style={{ fontFamily: "var(--mono)" }}>
@@ -123,7 +123,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div ref={contentRef} data-shell-content="" className="min-w-0">
-        <header className="sticky top-0 z-[var(--z-topbar)] border-b border-border bg-surface lg:static">
+        <header
+          className="sticky top-0 z-[var(--z-topbar)] border-b border-border bg-surface lg:static"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        >
           <div className="flex items-center justify-between" style={{ minHeight: "calc(var(--topbar-h) - 1px)", padding: "0 14px" }}>
             <div className="flex min-w-0 items-center gap-2">
               <button

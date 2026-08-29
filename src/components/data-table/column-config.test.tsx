@@ -57,6 +57,12 @@ describe("column-config derivations", () => {
     expect(configCellClass(config("x", { mobileOnly: true }))).toBe("md:hidden");
   });
 
+  it("pins stickyLeft columns with an opaque body background and an inherited header background", () => {
+    expect(configCellClass(config("x", { stickyLeft: true }))).toBe("sticky left-0 z-[1] bg-surface");
+    expect(configCellClass(config("x", { stickyLeft: true }), "header")).toBe("sticky left-0 z-[1] bg-inherit");
+    expect(configCellClass(config("x", { stickyLeft: true, tier: 2 }))).toBe("max-md:hidden sticky left-0 z-[1] bg-surface");
+  });
+
   it("surfaces active sort/filter on columns invisible below md, and only those", () => {
     const hidden = deriveHiddenActiveState(configs, deriveDefinitions(configs), { columnId: "b", direction: "desc" }, { b: ["x"], a: ["y"] });
     expect(hidden.sortColumnId).toBe("b");

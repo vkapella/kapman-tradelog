@@ -42,6 +42,7 @@ export function buildPositionsColumnConfigs(
   return [
     {
       definition: { id: "symbol", label: "Symbol", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
+      stickyLeft: true,
       width: "120px",
       mobileWidth: "minmax(60px, auto)",
       renderCell: (row) => <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>,

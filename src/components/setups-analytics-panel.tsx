@@ -137,7 +137,7 @@ export function SetupsAnalyticsPanel() {
   const configs = useMemo<TableColumnConfig<SetupSummaryRecord>[]>(() => [
     {
       definition: { id: "tag", label: "Setup", filterMode: "discrete", getFilterValues: (row) => row.overrideTag ?? row.tag, sortMode: "string", getSortValue: (row) => row.overrideTag ?? row.tag },
-      width: "180px", mobileWidth: "minmax(88px, auto)",
+      stickyLeft: true, width: "180px", mobileWidth: "minmax(88px, auto)",
       renderCell: (row) => <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>,
     },
     {

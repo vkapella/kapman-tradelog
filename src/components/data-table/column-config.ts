@@ -18,6 +18,11 @@ export interface TableColumnConfig<Row> {
   tier?: 1 | 2;
   /** Renders only below md (e.g. the Details action). Excluded from the desktop template. */
   mobileOnly?: boolean;
+  /** Pins the column to the left edge of the horizontal scroller so wide
+   *  tables scroll underneath the row's identity (symbol/date). Works in
+   *  plain-row rendering; virtualized rows (>1000) use transforms, where
+   *  sticky may degrade to normal flow — acceptable, never broken. */
+  stickyLeft?: boolean;
   /** Include in the row detail sheet. Default true; the Details action sets false. */
   includeInDetails?: boolean;
   /** Custom header content instead of the standard filterable DataTableHeader. */
@@ -73,11 +78,20 @@ export function mobileColumnIds<Row>(visibleConfigs: TableColumnConfig<Row>[]): 
  * vanish below md. display:none grid items create no tracks, so the remaining
  * cells flow into the breakpoint's template — alignment by construction.
  */
-export function configCellClass<Row>(config: TableColumnConfig<Row>): string {
+export function configCellClass<Row>(config: TableColumnConfig<Row>, context: "header" | "cell" = "cell"): string {
+  const classes: string[] = [];
   if (config.mobileOnly) {
-    return "md:hidden";
+    classes.push("md:hidden");
+  } else if (configTier(config) === 2) {
+    classes.push("max-md:hidden");
   }
-  return configTier(config) === 2 ? "max-md:hidden" : "";
+  if (config.stickyLeft) {
+    // Header rows carry their own background class, so the pinned header cell
+    // inherits it; body rows are transparent, so the pinned body cell paints
+    // the section surface to occlude columns scrolling underneath.
+    classes.push("sticky left-0 z-[1]", context === "header" ? "bg-inherit" : "bg-surface");
+  }
+  return classes.join(" ");
 }
 
 /**

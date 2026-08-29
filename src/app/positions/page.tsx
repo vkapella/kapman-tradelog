@@ -197,14 +197,14 @@ export default function Page() {
             <VirtualGridHeaderRow className="bg-surface-2 text-text-2">
               {visibleConfigs.map((config) =>
                 config.renderHeader ? (
-                  <div key={config.definition.id} role="columnheader" className={["px-2 py-2", configCellClass(config)].join(" ")}>
+                  <div key={config.definition.id} role="columnheader" className={["px-2 py-2", configCellClass(config, "header")].join(" ")}>
                     {config.renderHeader()}
                   </div>
                 ) : (
                   <DataTableHeader
                     key={config.definition.id}
                     as="div"
-                    className={configCellClass(config)}
+                    className={configCellClass(config, "header")}
                     column={config.definition}
                     currentSortDirection={table.sort.columnId === config.definition.id ? table.sort.direction : null}
                     currentValues={table.filters[config.definition.id] ?? []}

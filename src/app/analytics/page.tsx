@@ -165,7 +165,7 @@ export default function Page() {
           mobileTemplate="minmax(92px, auto) minmax(44px, auto) minmax(84px, auto) minmax(64px, auto)"
         >
           <VirtualGridHeaderRow className="bg-surface-2 text-text-2">
-            <div className="px-2 py-2 text-left"><button type="button" className="touch-target" onClick={() => toggleSort("tag")}>Setup</button></div>
+            <div className="sticky left-0 z-[1] bg-inherit px-2 py-2 text-left"><button type="button" className="touch-target" onClick={() => toggleSort("tag")}>Setup</button></div>
             <div className="px-2 py-2 text-left max-md:hidden"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></div>
             <div className="px-2 py-2 text-right md:hidden"><span data-header-label="">Trades</span></div>
             <div className="px-2 py-2 text-right"><button type="button" className="touch-target" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></div>
@@ -179,7 +179,7 @@ export default function Page() {
             getRowKey={(row) => row.id}
             renderRow={(row) => (
               <>
-                <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>
+                <div className="sticky left-0 z-[1] bg-surface px-2 py-2">{row.overrideTag ?? row.tag}</div>
                 <div className="px-2 py-2 max-md:hidden">{row.underlyingSymbol}</div>
                 <div className="px-2 py-2 text-right md:hidden">{row.setupLotCount ?? 0}</div>
                 <div className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</div>
