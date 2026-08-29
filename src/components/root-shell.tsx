@@ -7,19 +7,26 @@ import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { RangeSelector } from "@/components/range-selector";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { AccountFilterContextProvider } from "@/contexts/AccountFilterContext";
+import { ProfileProvider } from "@/contexts/ProfileContext";
 import { TopbarSheetProvider } from "@/contexts/TopbarSheetContext";
 import { RangeFilterProvider } from "@/contexts/RangeFilterContext";
 import { getRouteTitle, getTopbarContextTags } from "@/lib/navigation";
 
-export function RootShell({ children }: { children: React.ReactNode }) {
+// Provider order is the two-stage hydration barrier (#344): ProfileProvider
+// withholds everything until the profile resolves; AccountFilterContextProvider
+// withholds the rest until the account scope is reconciled. Scope-sensitive
+// consumers (RangeFilterProvider, ShellContent, pages) mount only after both.
+export function RootShell({ children, identity }: { children: React.ReactNode; identity?: string | null }) {
   return (
-    <AccountFilterContextProvider>
-      <RangeFilterProvider>
-        <TopbarSheetProvider>
-          <ShellContent>{children}</ShellContent>
-        </TopbarSheetProvider>
-      </RangeFilterProvider>
-    </AccountFilterContextProvider>
+    <ProfileProvider identity={identity}>
+      <AccountFilterContextProvider>
+        <RangeFilterProvider>
+          <TopbarSheetProvider>
+            <ShellContent>{children}</ShellContent>
+          </TopbarSheetProvider>
+        </RangeFilterProvider>
+      </AccountFilterContextProvider>
+    </ProfileProvider>
   );
 }
 

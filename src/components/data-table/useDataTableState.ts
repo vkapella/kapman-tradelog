@@ -6,11 +6,11 @@ import {
   countActiveFilters,
   getVisibleColumns,
   normalizePersistedFilters,
-  normalizePersistedHiddenColumns,
   normalizePersistedSort,
   normalizeSelectedFilterValues,
   toggleHiddenColumn,
 } from "@/components/data-table/utils";
+import { useProfileContextOptional } from "@/contexts/ProfileContext";
 import type {
   DataTableColumnDefinition,
   DataTableFilterOption,
@@ -68,16 +68,46 @@ export function useDataTableState<Row>({
       }),
     [initialSort.columnId, initialSort.direction],
   );
+  // Hidden columns have ONE authority (#344): the per-user profile. In
+  // profile mode they seed from the hydrated profile (sanitized against this
+  // table's columns for display; the persisted value is untouched) and every
+  // visibility edit reports only this table's leaf upward. sessionStorage
+  // keeps persisting filters + sort ONLY — a stale hiddenColumns field left in
+  // an old session payload is ignored. Without a ProfileProvider (tests,
+  // isolated mounts) visibility is in-memory only.
+  const profile = useProfileContextOptional();
+  const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
+  const profileHiddenColumns = profile?.hiddenColumns[tableName];
+  const initialHiddenColumns = useCallback(
+    () => (profileHiddenColumns ?? []).filter((columnId) => columnIds.has(columnId)),
+    [profileHiddenColumns, columnIds],
+  );
+
   const [filters, setFilters] = useState<DataTableFiltersState>({});
   const [sort, setSort] = useState<DataTableSortState>(() => defaultSort);
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [hiddenColumns, setHiddenColumnsState] = useState<string[]>(initialHiddenColumns);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastPersistedPayloadRef = useRef<string | null>(null);
+  const appliedProfileGenerationRef = useRef<number | null>(null);
+
+  const hydrationGeneration = profile?.hydrationGeneration ?? null;
+  const reportHiddenColumns = profile?.reportHiddenColumns;
+
+  // Apply the profile's hidden columns exactly once per (identity, hydration
+  // generation) — a reset/re-hydration re-seeds; a same-generation re-render
+  // never overwrites a user edit.
+  useEffect(() => {
+    if (hydrationGeneration === null || appliedProfileGenerationRef.current === hydrationGeneration) {
+      return;
+    }
+    appliedProfileGenerationRef.current = hydrationGeneration;
+    const next = initialHiddenColumns();
+    setHiddenColumnsState((current) => (arraysEqual(current, next) ? current : next));
+  }, [hydrationGeneration, initialHiddenColumns]);
 
   useEffect(() => {
     let nextFilters: DataTableFiltersState = {};
     let nextSort = defaultSort;
-    let nextHiddenColumns: string[] = [];
 
     try {
       const raw = window.sessionStorage.getItem(storageKey);
@@ -85,17 +115,14 @@ export function useDataTableState<Row>({
         const parsed = JSON.parse(raw) as Partial<DataTablePersistedState>;
         nextFilters = normalizePersistedFilters(parsed.filters);
         nextSort = normalizePersistedSort(parsed.sort);
-        nextHiddenColumns = normalizePersistedHiddenColumns(parsed.hiddenColumns);
       }
     } catch {
       nextFilters = {};
       nextSort = defaultSort;
-      nextHiddenColumns = [];
     }
 
     setFilters((current) => (filtersEqual(current, nextFilters) ? current : nextFilters));
     setSort((current) => (sortsEqual(current, nextSort) ? current : nextSort));
-    setHiddenColumns((current) => (arraysEqual(current, nextHiddenColumns) ? current : nextHiddenColumns));
     setIsHydrated(true);
   }, [defaultSort, storageKey]);
 
@@ -104,7 +131,8 @@ export function useDataTableState<Row>({
       return;
     }
 
-    const payload = JSON.stringify({ filters, sort, hiddenColumns } satisfies DataTablePersistedState);
+    // Filters and sort only — hiddenColumns is deliberately NOT persisted here.
+    const payload = JSON.stringify({ filters, sort } satisfies DataTablePersistedState);
     if (payload === lastPersistedPayloadRef.current) {
       return;
     }
@@ -121,7 +149,30 @@ export function useDataTableState<Row>({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [filters, hiddenColumns, isHydrated, sort, storageKey]);
+  }, [filters, isHydrated, sort, storageKey]);
+
+  // User visibility edits report upward AFTER commit (an effect), never from
+  // inside the state updater — profile-seeded changes bypass this wrapper and
+  // therefore never report.
+  const pendingVisibilityReportRef = useRef<string[] | null>(null);
+  const setHiddenColumns = useCallback((updater: (current: string[]) => string[]) => {
+    setHiddenColumnsState((current) => {
+      const next = updater(current);
+      if (!arraysEqual(current, next)) {
+        pendingVisibilityReportRef.current = next;
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (pendingVisibilityReportRef.current === null) {
+      return;
+    }
+    const next = pendingVisibilityReportRef.current;
+    pendingVisibilityReportRef.current = null;
+    reportHiddenColumns?.(tableName, next);
+  }, [hiddenColumns, reportHiddenColumns, tableName]);
 
   const filterOptions = useMemo(() => {
     const entries = columns
@@ -166,13 +217,16 @@ export function useDataTableState<Row>({
     setSort(defaultSort);
   }, [defaultSort]);
 
-  const setColumnVisibility = useCallback((columnId: string, visible: boolean) => {
-    setHiddenColumns((current) => toggleHiddenColumn(current, columnId, visible));
-  }, []);
+  const setColumnVisibility = useCallback(
+    (columnId: string, visible: boolean) => {
+      setHiddenColumns((current) => toggleHiddenColumn(current, columnId, visible));
+    },
+    [setHiddenColumns],
+  );
 
   const resetColumnVisibility = useCallback(() => {
     setHiddenColumns((current) => (current.length === 0 ? current : []));
-  }, []);
+  }, [setHiddenColumns]);
 
   const visibleColumns = useMemo(() => getVisibleColumns(columns, hiddenColumns), [columns, hiddenColumns]);
 

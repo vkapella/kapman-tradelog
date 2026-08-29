@@ -5,6 +5,11 @@ import {
   accessConfig,
   verifyAccessJwt,
 } from "@/lib/auth/access-jwt";
+import {
+  DEV_IDENTITY,
+  PROFILE_IDENTITY_HEADER,
+  normalizeIdentity,
+} from "@/lib/auth/identity";
 
 // Cloudflare Access gate for the whole app (#336, replacing HTTP Basic auth).
 //
@@ -31,6 +36,13 @@ import {
 // directly and carries no JWT — can reach the app. Gating it would fail every
 // check and roll the deploy back. Next.js static assets are excluded via the
 // matcher below.
+//
+// Identity propagation (#344): the inbound x-kapman-user header is deleted
+// before ANY allow path is evaluated, and every allowed request forwards the
+// sanitized headers — so the only writer of that header is this middleware,
+// post-verification. It carries the normalized human email (or dev@local when
+// the gate is bypassed) and stays absent for health checks, bearer callers,
+// and Cloudflare service tokens, which have no profile.
 
 const HEALTH_PATH = "/api/health";
 
@@ -44,19 +56,24 @@ function unauthorized(): NextResponse {
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const headers = new Headers(request.headers);
+  headers.delete(PROFILE_IDENTITY_HEADER);
+  const forward = () => NextResponse.next({ request: { headers } });
+
   const access = accessConfig();
 
   // Access not configured -> allow through (local dev / tests / compose).
   if (!access) {
-    return NextResponse.next();
+    headers.set(PROFILE_IDENTITY_HEADER, DEV_IDENTITY);
+    return forward();
   }
 
-  // Let Fly's health check through without credentials.
+  // Let Fly's health check through without credentials — and without identity.
   if (request.nextUrl.pathname === HEALTH_PATH) {
-    return NextResponse.next();
+    return forward();
   }
 
-  // Machine callers: bearer token on /api routes only.
+  // Machine callers: bearer token on /api routes only; no identity header.
   if (
     bearerTokenOk(
       request.headers.get("authorization"),
@@ -64,7 +81,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       request.nextUrl.pathname,
     )
   ) {
-    return NextResponse.next();
+    return forward();
   }
 
   const identity = await verifyAccessJwt(
@@ -75,7 +92,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return unauthorized();
   }
 
-  return NextResponse.next();
+  if (!identity.isServiceToken) {
+    const email = normalizeIdentity(identity.email);
+    if (email) {
+      headers.set(PROFILE_IDENTITY_HEADER, email);
+    }
+  }
+
+  return forward();
 }
 
 export const config = {

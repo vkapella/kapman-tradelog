@@ -1,7 +1,7 @@
 "use client";
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DashboardWidgetColSpan,
   handleRemoveWidgetClick,
@@ -13,14 +13,12 @@ import { KpiCard } from "@/components/KpiCard";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { KpiPicker } from "@/components/widgets/KpiPicker";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { useProfileContext } from "@/contexts/ProfileContext";
 import { RangeFilterContext } from "@/contexts/RangeFilterContext";
 import { applyAccountIdsToSearchParams } from "@/lib/api/account-scope";
 import { DEFAULT_KPI_LAYOUT, KPI_REGISTRY } from "@/lib/registries/kpi-registry";
 import { DEFAULT_DASHBOARD_LAYOUT, WIDGET_REGISTRY } from "@/lib/widget-registry";
-import type { OverviewSummaryResponse } from "@/types/api";
-
-const WIDGET_LAYOUT_STORAGE_KEY = "kapman_dashboard_layout";
-const KPI_LAYOUT_STORAGE_KEY = "kapman_kpi_layout";
+import type { OverviewSummaryResponse, ProfileWidgetItem } from "@/types/api";
 
 interface OverviewPayload {
   data: OverviewSummaryResponse;
@@ -31,13 +29,21 @@ interface DashboardWidgetLayoutItem {
   colSpan: DashboardWidgetColSpan;
 }
 
-function sanitizeStoredLayout(value: unknown, validIds: ReadonlySet<string>, fallback: string[]): string[] {
-  if (!Array.isArray(value)) {
-    return fallback;
+// Display-only sanitization of profile layouts (#344): null = the app's
+// built-in layout; a genuinely stored [] = the user intentionally removed
+// everything and must round-trip as empty; invalid input (or a non-empty list
+// whose entries are all unknown ids) falls back to the built-ins. The
+// sanitized result is never written back to the profile.
+function sanitizeProfileKpiLayout(value: string[] | null, validIds: ReadonlySet<string>): string[] {
+  if (value === null) {
+    return [...DEFAULT_KPI_LAYOUT];
+  }
+  if (value.length === 0) {
+    return [];
   }
 
-  const filtered = value.filter((item): item is string => typeof item === "string" && validIds.has(item));
-  return filtered.length > 0 ? filtered : fallback;
+  const filtered = value.filter((id) => validIds.has(id));
+  return filtered.length > 0 ? filtered : [...DEFAULT_KPI_LAYOUT];
 }
 
 function clampColSpan(value: number): DashboardWidgetColSpan {
@@ -59,45 +65,21 @@ function buildDefaultWidgetLayout(): DashboardWidgetLayoutItem[] {
   }));
 }
 
-function sanitizeStoredWidgetLayout(value: unknown, validWidgetIds: ReadonlySet<string>): DashboardWidgetLayoutItem[] {
-  const fallback = buildDefaultWidgetLayout();
-
-  if (!Array.isArray(value)) {
-    return fallback;
+function sanitizeProfileWidgetLayout(
+  value: ProfileWidgetItem[] | null,
+  validWidgetIds: ReadonlySet<string>,
+): DashboardWidgetLayoutItem[] {
+  if (value === null) {
+    return buildDefaultWidgetLayout();
+  }
+  if (value.length === 0) {
+    return [];
   }
 
-  const filtered = value.flatMap((item) => {
-    if (typeof item === "string") {
-      if (!validWidgetIds.has(item)) {
-        return [];
-      }
-
-      return [
-        {
-          widgetId: item,
-          colSpan: clampColSpan(WIDGET_REGISTRY.find((widget) => widget.id === item)?.defaultColSpan ?? 1),
-        },
-      ];
-    }
-
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const candidate = item as { widgetId?: unknown; colSpan?: unknown };
-    if (typeof candidate.widgetId !== "string" || !validWidgetIds.has(candidate.widgetId)) {
-      return [];
-    }
-
-    return [
-      {
-        widgetId: candidate.widgetId,
-        colSpan: clampColSpan(Number(candidate.colSpan ?? 1)),
-      },
-    ];
-  });
-
-  return filtered.length > 0 ? filtered : fallback;
+  const filtered = value
+    .filter((item) => validWidgetIds.has(item.widgetId))
+    .map((item) => ({ widgetId: item.widgetId, colSpan: clampColSpan(item.colSpan) }));
+  return filtered.length > 0 ? filtered : buildDefaultWidgetLayout();
 }
 
 function reorder<T>(items: T[], from: number, to: number): T[] {
@@ -227,15 +209,21 @@ function DashboardTile({
 export default function Page() {
   const { selectedAccounts } = useAccountFilterContext();
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
+  const profile = useProfileContext();
   const widgetMap = useMemo(() => new Map(WIDGET_REGISTRY.map((widget) => [widget.id, widget])), []);
   const validWidgetIds = useMemo(() => new Set(WIDGET_REGISTRY.map((widget) => widget.id)), []);
   const kpiMap = useMemo(() => new Map(KPI_REGISTRY.map((kpi) => [kpi.id, kpi])), []);
   const validKpiIds = useMemo(() => new Set(KPI_REGISTRY.map((kpi) => kpi.id)), []);
 
-  const [layout, setLayout] = useState<DashboardWidgetLayoutItem[]>(buildDefaultWidgetLayout());
-  const [layoutHydrated, setLayoutHydrated] = useState(false);
-  const [kpiLayout, setKpiLayout] = useState<string[]>(DEFAULT_KPI_LAYOUT);
-  const [kpiLayoutHydrated, setKpiLayoutHydrated] = useState(false);
+  // Layouts are owned by the profile (#344): seeded from it here (the
+  // hydration barrier guarantees it resolved before this page mounts), edits
+  // report upward through the auto-save pipeline, and hydrationGeneration
+  // bumps (initial load, reset) re-seed WITHOUT reporting — hydrated state
+  // must never mark a profile leaf dirty.
+  const [layout, setLayout] = useState<DashboardWidgetLayoutItem[]>(() =>
+    sanitizeProfileWidgetLayout(profile.widgets, validWidgetIds),
+  );
+  const [kpiLayout, setKpiLayout] = useState<string[]>(() => sanitizeProfileKpiLayout(profile.kpis, validKpiIds));
   const [editMode, setEditMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [kpiPickerOpen, setKpiPickerOpen] = useState(false);
@@ -244,57 +232,36 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(WIDGET_LAYOUT_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as unknown;
-        setLayout(sanitizeStoredWidgetLayout(parsed, validWidgetIds));
-      }
-    } catch {
-      setLayout(buildDefaultWidgetLayout());
-    } finally {
-      setLayoutHydrated(true);
-    }
-  }, [validWidgetIds]);
+  const skipLayoutReportRef = useRef(true);
+  const skipKpiReportRef = useRef(true);
+
+  const { widgets: profileWidgets, kpis: profileKpis, hydrationGeneration, reportWidgets, reportKpis } = profile;
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(KPI_LAYOUT_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as unknown;
-        setKpiLayout(sanitizeStoredLayout(parsed, validKpiIds, DEFAULT_KPI_LAYOUT));
-      }
-    } catch {
-      setKpiLayout(DEFAULT_KPI_LAYOUT);
-    } finally {
-      setKpiLayoutHydrated(true);
-    }
-  }, [validKpiIds]);
+    skipLayoutReportRef.current = true;
+    skipKpiReportRef.current = true;
+    setLayout(sanitizeProfileWidgetLayout(profileWidgets, validWidgetIds));
+    setKpiLayout(sanitizeProfileKpiLayout(profileKpis, validKpiIds));
+    // Re-seed only on hydration/reset — profileWidgets/profileKpis otherwise
+    // just echo this page's own reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrationGeneration, validWidgetIds, validKpiIds]);
 
   useEffect(() => {
-    if (!layoutHydrated) {
+    if (skipLayoutReportRef.current) {
+      skipLayoutReportRef.current = false;
       return;
     }
-
-    try {
-      window.localStorage.setItem(WIDGET_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }, [layout, layoutHydrated]);
+    reportWidgets(layout);
+  }, [layout, reportWidgets]);
 
   useEffect(() => {
-    if (!kpiLayoutHydrated) {
+    if (skipKpiReportRef.current) {
+      skipKpiReportRef.current = false;
       return;
     }
-
-    try {
-      window.localStorage.setItem(KPI_LAYOUT_STORAGE_KEY, JSON.stringify(kpiLayout));
-    } catch {
-      // Ignore localStorage errors.
-    }
-  }, [kpiLayout, kpiLayoutHydrated]);
+    reportKpis(kpiLayout);
+  }, [kpiLayout, reportKpis]);
 
   useEffect(() => {
     let cancelled = false;
@@ -362,9 +329,18 @@ export default function Page() {
     <section className="space-y-5">
       <div className="flex items-center justify-end gap-2">
         {editMode ? (
-          <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
-            Done
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => profile.resetToDefaults()}
+              className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text-2 touch-target"
+            >
+              Reset view to app defaults
+            </button>
+            <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+              Done
+            </button>
+          </>
         ) : (
           <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text touch-target">
             Customize

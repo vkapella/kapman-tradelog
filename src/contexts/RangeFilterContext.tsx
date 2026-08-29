@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useProfileContextOptional } from "@/contexts/ProfileContext";
+import type { ProfileRange, RangePreset } from "@/types/api";
 
-export type RangePreset = "kapman-start" | "all" | "ytd" | "1yr" | "3yr" | "30d" | "7d" | "custom";
+export type { RangePreset };
 
 export interface RangeFilterState {
   preset: RangePreset;
@@ -19,7 +21,6 @@ export interface RangeFilterContextValue {
   applyRangeToSearchParams(params: URLSearchParams): void;
 }
 
-const STORAGE_KEY = "kapman_range_filter";
 export const KAPMAN_START_DATE = "2025-09-02";
 const ALL_TIME_RANGE: RangeFilterState = { preset: "all", startDate: null, endDate: null };
 
@@ -69,39 +70,27 @@ function getDefaultRange(): RangeFilterState {
   return computePresetRange("kapman-start");
 }
 
-function parseStoredRange(raw: string | null): RangeFilterState {
-  if (!raw) {
+/**
+ * Profile canonical form -> runtime state: non-custom presets expand to the
+ * computed daily window at use time (a "Kapman Start" saved today still
+ * resolves to today's window tomorrow); custom carries its stored dates.
+ */
+function fromCanonicalRange(range: ProfileRange): RangeFilterState {
+  if (range.preset === "custom" && range.startDate && range.endDate) {
+    return { preset: "custom", startDate: range.startDate, endDate: range.endDate };
+  }
+  if (range.preset === "custom") {
     return getDefaultRange();
   }
+  return computePresetRange(range.preset);
+}
 
-  try {
-    const parsed = JSON.parse(raw) as Partial<RangeFilterState>;
-    if (!parsed || typeof parsed !== "object") {
-      return getDefaultRange();
-    }
-
-    const preset = parsed.preset;
-    if (
-      preset !== "kapman-start" &&
-      preset !== "all" &&
-      preset !== "ytd" &&
-      preset !== "1yr" &&
-      preset !== "3yr" &&
-      preset !== "30d" &&
-      preset !== "7d" &&
-      preset !== "custom"
-    ) {
-      return getDefaultRange();
-    }
-
-    return {
-      preset,
-      startDate: typeof parsed.startDate === "string" ? parsed.startDate : null,
-      endDate: typeof parsed.endDate === "string" ? parsed.endDate : null,
-    };
-  } catch {
-    return getDefaultRange();
+/** Runtime state -> canonical persisted form: non-custom stores null dates. */
+function toCanonicalRange(state: RangeFilterState): ProfileRange {
+  if (state.preset === "custom") {
+    return { preset: "custom", startDate: state.startDate, endDate: state.endDate };
   }
+  return { preset: state.preset, startDate: null, endDate: null };
 }
 
 function getDisplayText(preset: RangePreset): string {
@@ -130,35 +119,46 @@ export const RangeFilterContext = React.createContext<RangeFilterContextValue>({
   },
 });
 
+// Range persistence moved to the per-user profile (#344): the provider seeds
+// from the profile's canonical range (the hydration barrier guarantees it is
+// resolved before this mounts) and reports canonical form upward on every
+// user change. The legacy kapman_range_filter localStorage key is gone.
 export function RangeFilterProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const [range, setRange] = useState<RangeFilterState>(() => getDefaultRange());
-  const [isHydrated, setIsHydrated] = useState(false);
+  const profile = useProfileContextOptional();
+  const [range, setRange] = useState<RangeFilterState>(() =>
+    profile ? fromCanonicalRange(profile.range) : getDefaultRange(),
+  );
 
+  // Re-seed only when the profile re-hydrates (initial load or reset) — never
+  // on ordinary profile.range updates, which echo this provider's own reports.
+  const hydrationGeneration = profile?.hydrationGeneration ?? 0;
   useEffect(() => {
-    const restored = parseStoredRange(window.localStorage.getItem(STORAGE_KEY));
-    setRange(restored);
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) {
+    if (!profile) {
       return;
     }
+    setRange(fromCanonicalRange(profile.range));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrationGeneration]);
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(range));
-  }, [range, isHydrated]);
+  const reportRange = profile?.reportRange;
 
-  const setPreset = useCallback((preset: Exclude<RangePreset, "custom">) => {
-    setRange(computePresetRange(preset));
-  }, []);
+  const setPreset = useCallback(
+    (preset: Exclude<RangePreset, "custom">) => {
+      const next = computePresetRange(preset);
+      setRange(next);
+      reportRange?.(toCanonicalRange(next));
+    },
+    [reportRange],
+  );
 
-  const setCustomRange = useCallback((startDate: string, endDate: string) => {
-    setRange({
-      preset: "custom",
-      startDate,
-      endDate,
-    });
-  }, []);
+  const setCustomRange = useCallback(
+    (startDate: string, endDate: string) => {
+      const next: RangeFilterState = { preset: "custom", startDate, endDate };
+      setRange(next);
+      reportRange?.(toCanonicalRange(next));
+    },
+    [reportRange],
+  );
 
   const applyRangeToSearchParams = useCallback((params: URLSearchParams) => {
     const computedRange = range.preset === "custom" ? range : computePresetRange(range.preset);
@@ -175,13 +175,13 @@ export function RangeFilterProvider({ children }: { children: React.ReactNode })
   const value = useMemo<RangeFilterContextValue>(
     () => ({
       range,
-      isHydrated,
+      isHydrated: true,
       setPreset,
       setCustomRange,
       displayText: getDisplayText(range.preset),
       applyRangeToSearchParams,
     }),
-    [range, isHydrated, setPreset, setCustomRange, applyRangeToSearchParams],
+    [range, setPreset, setCustomRange, applyRangeToSearchParams],
   );
 
   return <RangeFilterContext.Provider value={value}>{children}</RangeFilterContext.Provider>;

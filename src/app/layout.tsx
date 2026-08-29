@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { RootShell } from "@/components/root-shell";
+import { PROFILE_IDENTITY_HEADER } from "@/lib/auth/identity";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,6 +29,12 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Trusted identity snapshot (#344): middleware strips any inbound
+  // x-kapman-user before re-setting it post-verification, so this header is
+  // authoritative at render time. It bootstraps the client's profile session
+  // (cache/journal addressing) independently of the profile database.
+  const identity = headers().get(PROFILE_IDENTITY_HEADER);
+
   return (
     <html lang="en">
       <head>
@@ -38,7 +46,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         />
       </head>
       <body>
-        <RootShell>{children}</RootShell>
+        <RootShell identity={identity}>{children}</RootShell>
       </body>
     </html>
   );

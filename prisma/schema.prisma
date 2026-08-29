@@ -127,35 +127,35 @@ model LegalEntity {
 }
 
 model Account {
-  id              String   @id @default(cuid())
-  accountId       String   @unique @map("account_id")
+  id              String       @id @default(cuid())
+  accountId       String       @unique @map("account_id")
   label           String
-  displayLabel    String?  @map("display_label")
+  displayLabel    String?      @map("display_label")
   broker          Broker
-  brokerName      String?  @map("broker_name")
-  paperMoney      Boolean  @default(false) @map("paper_money")
+  brokerName      String?      @map("broker_name")
+  paperMoney      Boolean      @default(false) @map("paper_money")
   /// Legal owner of the account; null = unclassified (quarantined from all
   /// entity-scoped exports and denominators until the operator classifies it).
   legalEntityId   String?      @map("legal_entity_id")
   legalEntity     LegalEntity? @relation(fields: [legalEntityId], references: [id])
-  startingCapital Decimal? @map("starting_capital") @db.Decimal(20, 2)
+  startingCapital Decimal?     @map("starting_capital") @db.Decimal(20, 2)
   /// Monotonic source-data revision: bumped in the SAME transaction as every
   /// snapshot-relevant mutation (imports, adjustments, ledger rebuilds,
   /// starting-capital edits). Market-data ingestion deliberately does NOT bump
   /// it -- marks carry their own as-of provenance. Snapshots stamp the revision
   /// they observed, making "does this snapshot reflect current data" provable.
-  dataRevision    BigInt   @default(0) @map("data_revision")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  dataRevision    BigInt       @default(0) @map("data_revision")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  imports        Import[]
-  executions     Execution[]
-  snapshots      DailyAccountSnapshot[]
-  cashEvents     CashEvent[]
-  adjustments    ManualAdjustment[]
-  setupGroups    SetupGroup[]
-  matchedLots    MatchedLot[]
-  valueSnapshots AccountValueSnapshot[]
+  imports         Import[]
+  executions      Execution[]
+  snapshots       DailyAccountSnapshot[]
+  cashEvents      CashEvent[]
+  adjustments     ManualAdjustment[]
+  setupGroups     SetupGroup[]
+  matchedLots     MatchedLot[]
+  valueSnapshots  AccountValueSnapshot[]
   snapshotResults PositionSnapshotAccount[]
 
   @@map("accounts")
@@ -697,14 +697,14 @@ model QueueItem {
 }
 
 model QueueDeclaration {
-  id               String         @id @default(cuid())
-  declarationId    String         @unique @map("declaration_id")
-  proposalHash     String         @map("proposal_hash")
-  statement        QueueStatement
-  overrideReading  Json?          @map("override_reading")
-  operatorNote     String?        @map("operator_note")
-  statedAt         DateTime       @map("stated_at")
-  createdAt        DateTime       @default(now()) @map("created_at")
+  id              String         @id @default(cuid())
+  declarationId   String         @unique @map("declaration_id")
+  proposalHash    String         @map("proposal_hash")
+  statement       QueueStatement
+  overrideReading Json?          @map("override_reading")
+  operatorNote    String?        @map("operator_note")
+  statedAt        DateTime       @map("stated_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
 
   queueItemId String    @map("queue_item_id")
   queueItem   QueueItem @relation(fields: [queueItemId], references: [queueItemId], onDelete: Cascade)
@@ -728,4 +728,17 @@ model QueueOutcome {
   queueItem   QueueItem @relation(fields: [queueItemId], references: [queueItemId], onDelete: Cascade)
 
   @@map("queue_outcomes")
+}
+
+// Per-user profile documents (#344): one row per Cloudflare Access identity.
+// `revision` is the optimistic-concurrency token (the #339 dataRevision idiom);
+// `settings` holds one versioned JSON document merged at leaf granularity.
+model UserProfile {
+  email     String   @id
+  settings  Json
+  revision  BigInt   @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
 }

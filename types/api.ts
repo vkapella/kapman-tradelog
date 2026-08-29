@@ -1070,3 +1070,83 @@ export interface RecommendationLineageSummaryRecord {
   passes: Record<string, number>;
   dispositions: Record<string, number>;
 }
+
+// ---------------------------------------------------------------------------
+// Per-user profiles (#344): identity-keyed auto-saved views.
+// ---------------------------------------------------------------------------
+
+/// Range presets shared by the range filter UI and the profile document.
+export type RangePreset = "kapman-start" | "all" | "ytd" | "1yr" | "3yr" | "30d" | "7d" | "custom";
+
+export type ProfileWidgetColSpan = 1 | 2 | 3;
+
+export interface ProfileWidgetItem {
+  widgetId: string;
+  colSpan: ProfileWidgetColSpan;
+}
+
+export interface ProfileRange {
+  preset: RangePreset;
+  /// Canonical form: non-custom presets store null dates (windows are derived
+  /// at query time); custom stores both as YYYY-MM-DD with startDate <= endDate.
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export interface ProfileSettingsV1 {
+  version: 1;
+  accounts: {
+    /// EXTERNAL account ids (e.g. "18528700SCHW"), NOT internal cuids —
+    /// profiles must survive DB rebuilds/reseeds where cuids change.
+    selected: string[];
+  };
+  range: ProfileRange;
+  dashboard: {
+    /// null = the app's built-in layout; [] = intentionally no widgets.
+    widgets: ProfileWidgetItem[] | null;
+    /// null = the app's built-in layout; [] = intentionally no KPIs.
+    kpis: string[] | null;
+  };
+  tables: {
+    /// tableName -> hidden column ids. Filters/sorts stay session-ephemeral.
+    hiddenColumns: Record<string, string[]>;
+  };
+}
+
+/// Strict partial patch, merged per logical leaf: accounts | range |
+/// dashboard.widgets | dashboard.kpis | tables.hiddenColumns[tableName].
+export interface ProfilePatchV1 {
+  accounts?: { selected: string[] };
+  range?: ProfileRange;
+  dashboard?: {
+    widgets?: ProfileWidgetItem[] | null;
+    kpis?: string[] | null;
+  };
+  tables?: {
+    /// null (or []) deletes that table's entry.
+    hiddenColumns: Record<string, string[] | null>;
+  };
+}
+
+export interface ProfileGetResponse {
+  email: string;
+  settings: ProfileSettingsV1;
+  /// true iff no USABLE stored document backs `settings` (missing, malformed,
+  /// or unsupported-version row) — not "equals defaults".
+  isDefault: boolean;
+  /// false iff the stored version is newer than this app supports; the client
+  /// then renders read-only defaults and stops autosaving.
+  writable: boolean;
+  /// BigInt revision serialized as a string; "0" when no row exists.
+  revision: string;
+  updatedAt: string | null;
+}
+
+export interface ProfilePutResponse {
+  settings: ProfileSettingsV1;
+  revision: string;
+  updatedAt: string;
+}
+
+export type ProfileGetApiResponse = ApiDetailResponse<ProfileGetResponse> | ApiErrorResponse;
+export type ProfilePutApiResponse = ApiDetailResponse<ProfilePutResponse> | ApiErrorResponse;
