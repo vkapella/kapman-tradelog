@@ -7,12 +7,16 @@ import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
 import { useTopbarSheet } from "@/contexts/TopbarSheetContext";
 import { useIsBelowMd } from "@/hooks/useBreakpoint";
 
-export function AccountSelector() {
+export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | "mobile" } = {}) {
   const [localOpen, setLocalOpen] = useState(false);
   const sheet = useTopbarSheet("accounts");
   const belowMd = useIsBelowMd();
   // Sheet presentation below md, topbar-owned open state (one at a time, #340).
-  const usingSheet = belowMd && sheet !== null;
+  // The desktop topbar row mounts a second, CSS-hidden instance; it must
+  // NEVER present a sheet or two portals would stack and fight over the
+  // scroll lock and focus restore. Only the mobile-row instance is
+  // sheet-capable, and only below md.
+  const usingSheet = variant === "mobile" && belowMd && sheet !== null;
   const open = usingSheet ? sheet.open : localOpen;
   const setOpen = usingSheet ? sheet.setOpen : setLocalOpen;
   const { accountsError, accountsLoading, availableAccounts, getAccountMeta, reloadAccounts, selectedAccounts, selectionWarnings, setSelectedAccounts } =

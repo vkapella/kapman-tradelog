@@ -17,7 +17,7 @@ export const RANGE_PRESETS: Array<{ value: RangePreset; label: string }> = [
   { value: "custom", label: "Custom" },
 ];
 
-export function RangeSelector() {
+export function RangeSelector({ variant = "mobile" }: { variant?: "desktop" | "mobile" } = {}) {
   const { range, setPreset, setCustomRange, displayText } = useContext(RangeFilterContext);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [localOpen, setLocalOpen] = useState(false);
@@ -26,7 +26,11 @@ export function RangeSelector() {
   // Below md with a topbar provider present, presentation switches to a
   // body-portaled bottom sheet and open-state is owned by the topbar so only
   // one scope selector can be open at a time (#340).
-  const usingSheet = belowMd && sheet !== null;
+  // The desktop topbar row mounts a second, CSS-hidden instance; it must
+  // NEVER present a sheet or two portals would stack and fight over the
+  // scroll lock and focus restore. Only the mobile-row instance is
+  // sheet-capable, and only below md.
+  const usingSheet = variant === "mobile" && belowMd && sheet !== null;
   const open = usingSheet ? sheet.open : localOpen;
   const setOpen = usingSheet ? sheet.setOpen : setLocalOpen;
   const [draftStartDate, setDraftStartDate] = useState("");

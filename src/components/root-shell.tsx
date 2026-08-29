@@ -159,8 +159,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="hidden items-center gap-2 lg:flex">
-              <RangeSelector />
-              <AccountSelector />
+              <RangeSelector variant="desktop" />
+              <AccountSelector variant="desktop" />
             </div>
           </div>
           {/* Mobile scope-controls row: the two selectors that were previously

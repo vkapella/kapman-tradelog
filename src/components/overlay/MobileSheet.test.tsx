@@ -42,6 +42,48 @@ describe("MobileSheet", () => {
     outside.remove();
   });
 
+  it("never strands the body scroll lock when two sheets stack (the iPhone frozen-scroll regression)", () => {
+    const { rerender } = render(
+      <>
+        <MobileSheet open onClose={() => {}} title="A"><p>a</p></MobileSheet>
+        <MobileSheet open onClose={() => {}} title="B"><p>b</p></MobileSheet>
+      </>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(
+      <>
+        <MobileSheet open={false} onClose={() => {}} title="A"><p>a</p></MobileSheet>
+        <MobileSheet open={false} onClose={() => {}} title="B"><p>b</p></MobileSheet>
+      </>,
+    );
+    // Reference counting: whichever cleanup runs last, the lock fully releases.
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("keeps the lock while one of two stacked sheets remains open", () => {
+    const { rerender } = render(
+      <>
+        <MobileSheet open onClose={() => {}} title="A"><p>a</p></MobileSheet>
+        <MobileSheet open onClose={() => {}} title="B"><p>b</p></MobileSheet>
+      </>,
+    );
+    rerender(
+      <>
+        <MobileSheet open={false} onClose={() => {}} title="A"><p>a</p></MobileSheet>
+        <MobileSheet open onClose={() => {}} title="B"><p>b</p></MobileSheet>
+      </>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+    rerender(
+      <>
+        <MobileSheet open={false} onClose={() => {}} title="A"><p>a</p></MobileSheet>
+        <MobileSheet open={false} onClose={() => {}} title="B"><p>b</p></MobileSheet>
+      </>,
+    );
+    expect(document.body.style.overflow).toBe("");
+  });
+
   it("closes on Escape and on scrim click", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

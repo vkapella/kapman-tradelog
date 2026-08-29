@@ -10,6 +10,28 @@ interface MobileSheetProps {
   children: React.ReactNode;
 }
 
+// Body scroll lock is reference-counted at module level: stacked or duplicated
+// sheets must never strand `overflow: hidden` on the body (#340 follow-up —
+// two shell-mounted selector instances once double-locked and froze scrolling
+// on iPhone until relaunch).
+let scrollLockCount = 0;
+let scrollLockPreviousOverflow = "";
+
+function acquireScrollLock() {
+  if (scrollLockCount === 0) {
+    scrollLockPreviousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  scrollLockCount += 1;
+}
+
+function releaseScrollLock() {
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = scrollLockPreviousOverflow;
+  }
+}
+
 /**
  * Bottom-sheet primitive (#340). Portaled to document.body so a sticky
  * ancestor's stacking context can never trap it; layered via the sheet tokens
@@ -29,8 +51,7 @@ export function MobileSheet({ open, onClose, title, children }: MobileSheetProps
     restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     panelRef.current?.focus();
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    acquireScrollLock();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -41,7 +62,7 @@ export function MobileSheet({ open, onClose, title, children }: MobileSheetProps
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       restoreFocusRef.current?.focus();
     };
   }, [open, onClose]);

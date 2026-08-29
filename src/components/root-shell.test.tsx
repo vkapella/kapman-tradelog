@@ -13,14 +13,17 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-function mockMatchMedia() {
-  const mql = {
-    matches: false,
-    media: "",
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  };
-  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue(mql));
+function mockMatchMedia(phone = false) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      // Phone mode: max-width queries match, min-width queries don't.
+      matches: phone ? query.includes("max-width") : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
   window.matchMedia = globalThis.matchMedia as typeof window.matchMedia;
 }
 
@@ -75,6 +78,22 @@ describe("RootShell drawer", () => {
     const drawerDashboard = dashboardLinks.find((link) => aside.contains(link));
     await user.click(drawerDashboard as HTMLElement);
     await waitFor(() => expect(aside.getAttribute("data-open")).toBe("false"));
+  });
+
+  it("opens exactly ONE accounts sheet on phones and releases the scroll lock on close (frozen-dashboard regression)", async () => {
+    mockMatchMedia(true);
+    const user = userEvent.setup();
+    render(<RootShell><p>page content</p></RootShell>);
+
+    const accountButtons = screen.getAllByRole("button", { name: /Accounts:/ });
+    // Two instances mount (desktop row CSS-hidden + mobile row); tap the mobile one.
+    await user.click(accountButtons[accountButtons.length - 1]);
+    await waitFor(() => expect(document.querySelectorAll("[data-mobile-sheet]").length).toBe(1));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await user.click(screen.getByRole("button", { name: "Close Account filter" }));
+    await waitFor(() => expect(document.querySelectorAll("[data-mobile-sheet]").length).toBe(0));
+    expect(document.body.style.overflow).toBe("");
   });
 
   it("mounts exactly one SidebarNav (no duplicated stats fetches)", () => {
