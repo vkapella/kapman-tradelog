@@ -21,7 +21,7 @@ interface OverviewSummaryPayload {
   };
 }
 
-export function SidebarNav() {
+export function SidebarNav({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { selectedAccounts } = useAccountFilterContext();
   const [accountTotal, setAccountTotal] = useState(0);
@@ -105,8 +105,11 @@ export function SidebarNav() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={[
-                      "flex items-center justify-between border-l-2 transition-colors hover:bg-surface-2",
+                      // touch-target min-height applies only under coarse-pointer
+                      // phone media; desktop rows keep their exact 12px/6px metrics.
+                      "flex items-center justify-between border-l-2 transition-colors hover:bg-surface-2 max-lg:min-h-[44px]",
                       isActive ? "" : "border-transparent",
                     ].join(" ")}
                     style={{

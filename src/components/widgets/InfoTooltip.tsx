@@ -56,13 +56,13 @@ export function InfoTooltip({ label, content }: InfoTooltipProps) {
         type="button"
         aria-label={`About ${label}`}
         onClick={() => setOpen((current) => !current)}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-[10px] text-text-2 hover:text-text"
+        className="touch-target flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-[10px] text-text-2 hover:text-text"
       >
         ?
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-7 z-40 w-72 rounded-lg border border-border bg-surface p-3 text-left shadow-2xl">
+        <div className="absolute right-0 top-7 z-[var(--z-page-controls)] w-72 rounded-lg border border-border bg-surface p-3 text-left shadow-2xl">
           <p className="text-xs font-semibold text-text">{label}</p>
           <p className="mt-2 text-[11px] text-text-2">
             <span className="font-semibold text-text">Formula:</span> {content.formula}

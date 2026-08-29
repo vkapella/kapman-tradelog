@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
-import { DataTableHeader } from "@/components/data-table/DataTableHeader";
-import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
+import { deriveDefinitions, type TableColumnConfig } from "@/components/data-table/column-config";
+import { ConfigVirtualTable } from "@/components/data-table/ConfigVirtualTable";
+import { detailsColumnConfig } from "@/components/data-table/details-column";
+import { HiddenStateChips } from "@/components/data-table/HiddenStateChips";
+import { RowDetailSheet } from "@/components/data-table/RowDetailSheet";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -21,7 +23,6 @@ import type { ApiDetailResponse, ExecutionDetailRecord, ExecutionRecord, ImportR
 
 interface ExecutionDetailPayload extends ApiDetailResponse<ExecutionDetailRecord> {}
 
-const EXECUTIONS_COLUMN_TEMPLATE = "190px 120px 90px 78px 64px 96px 110px 110px 190px 130px 420px 130px 130px";
 
 function displayExecutionSymbol(row: Pick<ExecutionRecord, "symbol" | "underlyingSymbol">): string {
   return row.underlyingSymbol ?? row.symbol;
@@ -43,68 +44,6 @@ function shortId(value: string): string {
   return `${value.slice(0, 8)}...`;
 }
 
-const ExecutionsTableRow = memo(function ExecutionsTableRow({
-  row,
-  importLabelById,
-  onSelectExecution,
-}: {
-  row: ExecutionRecord;
-  importLabelById: Map<string, string>;
-  onSelectExecution: (executionId: string) => void;
-}) {
-  return (
-    <>
-          <div className="px-2 py-2">{new Date(row.eventTimestamp).toLocaleString()}</div>
-          <div className="px-2 py-2">{row.tradeDate.slice(0, 10)}</div>
-          <div className="px-2 py-2">{displayExecutionSymbol(row)}</div>
-          <div className="px-2 py-2">
-            {row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : "-"}
-          </div>
-          <div className="px-2 py-2 text-right">{row.quantity}</div>
-          <div className="px-2 py-2 text-right">{row.price ?? "~"}</div>
-          <div className="px-2 py-2">{row.eventType}</div>
-          <div className="px-2 py-2">
-            {row.openingClosingEffect === "TO_OPEN" ? (
-              <Badge variant="to-open">TO_OPEN</Badge>
-            ) : row.openingClosingEffect === "TO_CLOSE" ? (
-              <Badge variant="to-close">TO_CLOSE</Badge>
-            ) : (
-              "UNKNOWN"
-            )}
-          </div>
-          <div className="px-2 py-2">
-            {row.optionType ? (
-              <span className="inline-flex items-center gap-1">
-                <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge>
-                <span className="font-mono">
-                  {row.strike ?? "-"} {row.expirationDate?.slice(0, 10) ?? "-"}
-                </span>
-              </span>
-            ) : (
-              "-"
-            )}
-          </div>
-          <div className="px-2 py-2">
-            <AccountLabel accountId={row.accountId} />
-          </div>
-          <div className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</div>
-          <div className="px-2 py-2 font-mono">
-            <button type="button" onClick={() => onSelectExecution(row.id)} className="text-accent underline">
-              {shortId(row.id)}
-            </button>
-          </div>
-          <div className="px-2 py-2">
-            {canInvestigateExecution(row) ? (
-              <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-accent underline">
-                Case file
-              </Link>
-            ) : (
-              "-"
-            )}
-          </div>
-    </>
-  );
-});
 
 export function ExecutionsTablePanel() {
   const searchParams = useSearchParams();
@@ -243,8 +182,11 @@ export function ExecutionsTablePanel() {
     return new Map(imports.map((entry) => [entry.id, `${entry.filename} (${getAccountDisplayText(entry.accountId)})`]));
   }, [getAccountDisplayText, imports]);
 
-  const columns = useMemo<DataTableColumnDefinition<ExecutionRecord>[]>(() => [
+  const [detailRow, setDetailRow] = useState<ExecutionRecord | null>(null);
+  // Tier-1 (approved §0.4 / T1): Event Time (date), Symbol, Side, Qty, Price.
+  const configs = useMemo<TableColumnConfig<ExecutionRecord>[]>(() => [
     {
+      definition: {
       id: "eventTimestamp",
       label: "Event Time",
       filterMode: "discrete",
@@ -255,7 +197,17 @@ export function ExecutionsTablePanel() {
       defaultSortDirection: "desc",
       panelWidthClassName: "w-80",
     },
+      width: "190px",
+      mobileWidth: "minmax(72px, auto)",
+      renderCell: (row) => (
+        <div className="px-2 py-2">
+          <span className="max-md:hidden">{new Date(row.eventTimestamp).toLocaleString()}</span>
+          <span className="md:hidden">{row.eventTimestamp.slice(0, 10)}</span>
+        </div>
+      ),
+    },
     {
+      definition: {
       id: "tradeDate",
       label: "Trade Date",
       filterMode: "discrete",
@@ -265,7 +217,12 @@ export function ExecutionsTablePanel() {
       getSortValue: (row) => row.tradeDate,
       defaultSortDirection: "desc",
     },
+      width: "120px",
+      tier: 2,
+      renderCell: (row) => <div className="px-2 py-2">{row.tradeDate.slice(0, 10)}</div>,
+    },
     {
+      definition: {
       id: "symbol",
       label: "Symbol",
       filterMode: "discrete",
@@ -273,7 +230,12 @@ export function ExecutionsTablePanel() {
       sortMode: "string",
       getSortValue: (row) => displayExecutionSymbol(row),
     },
+      width: "90px",
+      mobileWidth: "minmax(52px, auto)",
+      renderCell: (row) => <div className="px-2 py-2">{displayExecutionSymbol(row)}</div>,
+    },
     {
+      definition: {
       id: "side",
       label: "Side",
       filterMode: "discrete",
@@ -281,7 +243,14 @@ export function ExecutionsTablePanel() {
       sortMode: "string",
       getSortValue: (row) => row.side ?? "-",
     },
+      width: "78px",
+      mobileWidth: "minmax(48px, auto)",
+      renderCell: (row) => (
+        <div className="px-2 py-2">{row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : "-"}</div>
+      ),
+    },
     {
+      definition: {
       id: "quantity",
       label: "Qty",
       align: "right",
@@ -290,7 +259,12 @@ export function ExecutionsTablePanel() {
       sortMode: "number",
       getSortValue: (row) => Number(row.quantity),
     },
+      width: "64px",
+      mobileWidth: "minmax(36px, auto)",
+      renderCell: (row) => <div className="px-2 py-2 text-right">{row.quantity}</div>,
+    },
     {
+      definition: {
       id: "price",
       label: "Unit Price",
       align: "right",
@@ -300,7 +274,12 @@ export function ExecutionsTablePanel() {
       sortMode: "number",
       getSortValue: (row) => (row.price === null ? null : Number(row.price)),
     },
+      width: "96px",
+      mobileWidth: "minmax(52px, auto)",
+      renderCell: (row) => <div className="px-2 py-2 text-right">{row.price ?? "~"}</div>,
+    },
     {
+      definition: {
       id: "eventType",
       label: "Event",
       filterMode: "discrete",
@@ -308,7 +287,12 @@ export function ExecutionsTablePanel() {
       sortMode: "string",
       getSortValue: (row) => row.eventType,
     },
+      width: "110px",
+      tier: 2,
+      renderCell: (row) => <div className="px-2 py-2">{row.eventType}</div>,
+    },
     {
+      definition: {
       id: "effect",
       label: "Effect",
       filterMode: "discrete",
@@ -316,7 +300,22 @@ export function ExecutionsTablePanel() {
       sortMode: "string",
       getSortValue: (row) => row.openingClosingEffect ?? "UNKNOWN",
     },
+      width: "110px",
+      tier: 2,
+      renderCell: (row) => (
+        <div className="px-2 py-2">
+          {row.openingClosingEffect === "TO_OPEN" ? (
+            <Badge variant="to-open">TO_OPEN</Badge>
+          ) : row.openingClosingEffect === "TO_CLOSE" ? (
+            <Badge variant="to-close">TO_CLOSE</Badge>
+          ) : (
+            "UNKNOWN"
+          )}
+        </div>
+      ),
+    },
     {
+      definition: {
       id: "option",
       label: "Option",
       filterMode: "discrete",
@@ -325,7 +324,25 @@ export function ExecutionsTablePanel() {
       getSortValue: (row) => renderOptionValue(row),
       panelWidthClassName: "w-80",
     },
+      width: "190px",
+      tier: 2,
+      renderCell: (row) => (
+        <div className="px-2 py-2">
+          {row.optionType ? (
+            <span className="inline-flex items-center gap-1">
+              <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge>
+              <span className="font-mono">
+                {row.strike ?? "-"} {row.expirationDate?.slice(0, 10) ?? "-"}
+              </span>
+            </span>
+          ) : (
+            "-"
+          )}
+        </div>
+      ),
+    },
     {
+      definition: {
       id: "accountId",
       label: "Account",
       filterMode: "discrete",
@@ -335,7 +352,12 @@ export function ExecutionsTablePanel() {
       getSortValue: (row) => getAccountDisplayText(row.accountId),
       panelWidthClassName: "w-80",
     },
+      width: "130px",
+      tier: 2,
+      renderCell: (row) => <div className="px-2 py-2"><AccountLabel accountId={row.accountId} /></div>,
+    },
     {
+      definition: {
       id: "importId",
       label: "Import",
       filterMode: "discrete",
@@ -345,7 +367,12 @@ export function ExecutionsTablePanel() {
       getSortValue: (row) => importLabelById.get(row.importId) ?? row.importId,
       panelWidthClassName: "w-80",
     },
+      width: "420px",
+      tier: 2,
+      renderCell: (row) => <div className="px-2 py-2">{importLabelById.get(row.importId) ?? shortId(row.importId)}</div>,
+    },
     {
+      definition: {
       id: "executionId",
       label: "Execution ID",
       filterMode: "discrete",
@@ -355,7 +382,18 @@ export function ExecutionsTablePanel() {
       getSortValue: (row) => row.id,
       panelWidthClassName: "w-80",
     },
+      width: "130px",
+      tier: 2,
+      renderCell: (row) => (
+        <div className="px-2 py-2 font-mono">
+          <button type="button" onClick={() => setSelectedExecutionId(row.id)} className="text-accent underline">
+            {shortId(row.id)}
+          </button>
+        </div>
+      ),
+    },
     {
+      definition: {
       id: "investigate",
       label: "Investigate",
       filterMode: "discrete",
@@ -363,7 +401,23 @@ export function ExecutionsTablePanel() {
       sortMode: "string",
       getSortValue: (row) => (canInvestigateExecution(row) ? "Case file" : "-"),
     },
+      width: "130px",
+      tier: 2,
+      renderCell: (row) => (
+        <div className="px-2 py-2">
+          {canInvestigateExecution(row) ? (
+            <Link href={buildDiagnosticCaseHref({ kind: "execution", executionId: row.id })} className="text-accent underline">
+              Case file
+            </Link>
+          ) : (
+            "-"
+          )}
+        </div>
+      ),
+    },
+    detailsColumnConfig<ExecutionRecord>(setDetailRow),
   ], [getAccountDisplayText, importLabelById]);
+  const columns = useMemo(() => deriveDefinitions(configs), [configs]);
 
   const table = useDataTableState({
     tableName: "executions",
@@ -398,15 +452,6 @@ export function ExecutionsTablePanel() {
   const totalRows = table.sortedRows.length;
   const hasRows = table.sortedRows.length > 0;
 
-  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
-    setTableColumnFilter(columnId, values);
-    if (direction) {
-      table.setSort({ columnId, direction });
-    } else if (table.sort.columnId === columnId) {
-      table.setSort({ columnId: null, direction: null });
-    }
-  }
-
   async function copyInstrumentKey() {
     if (!detail?.instrumentKey) {
       return;
@@ -421,7 +466,7 @@ export function ExecutionsTablePanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6 max-md:p-2">
       <header className="space-y-1">
         <h2 className="text-xl font-semibold text-text">Execution Audit Table (T1)</h2>
         <p className="text-sm text-text-2">Filter and inspect normalized execution events with import/account context for auditability.</p>
@@ -434,6 +479,7 @@ export function ExecutionsTablePanel() {
         }}
         totalRows={totalRows}
       />
+      <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-neg">{error}</p> : null}
@@ -450,31 +496,16 @@ export function ExecutionsTablePanel() {
 
       {!loading && !error && hasRows ? (
         <div className="space-y-3">
-          <VirtualGridTableShell scrollContainerRef={scrollContainerRef}>
-            <VirtualGridHeaderRow columnTemplate={EXECUTIONS_COLUMN_TEMPLATE}>
-              {columns.map((column) => (
-                <DataTableHeader
-                  key={column.id}
-                  as="div"
-                  column={column}
-                  currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                  currentValues={table.filters[column.id] ?? []}
-                  isOpen={openColumnId === column.id}
-                  onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                  onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                  onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                  options={table.filterOptions[column.id] ?? []}
-                />
-              ))}
-            </VirtualGridHeaderRow>
-            <VirtualGridBody
-              columnTemplate={EXECUTIONS_COLUMN_TEMPLATE}
-              rows={table.sortedRows}
-              scrollContainerRef={scrollContainerRef}
-              getRowKey={(row) => row.id}
-              renderRow={(row) => <ExecutionsTableRow row={row} importLabelById={importLabelById} onSelectExecution={setSelectedExecutionId} />}
-            />
-          </VirtualGridTableShell>
+          <ConfigVirtualTable
+            configs={configs}
+            table={table}
+            openColumnId={openColumnId}
+            setOpenColumnId={setOpenColumnId}
+            scrollContainerRef={scrollContainerRef}
+            getRowKey={(row) => row.id}
+            onRowClick={setDetailRow}
+          />
+          <RowDetailSheet configs={configs} row={detailRow} title="Execution details" onClose={() => setDetailRow(null)} />
         </div>
       ) : null}
 

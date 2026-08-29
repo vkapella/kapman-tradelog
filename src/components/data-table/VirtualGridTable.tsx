@@ -14,24 +14,38 @@ interface VirtualGridTableShellProps {
   children: ReactNode;
   height?: number | string;
   scrollContainerRef: RefObject<HTMLDivElement>;
+  /** Config-derived responsive templates (#340). When set, header/body rows
+   *  consume var(--vgrid-cols), resolved per breakpoint by a global rule —
+   *  no inline template on rows, no !important. */
+  desktopTemplate?: string;
+  mobileTemplate?: string;
 }
 
 export function VirtualGridTableShell({
   children,
   height,
   scrollContainerRef,
+  desktopTemplate,
+  mobileTemplate,
 }: VirtualGridTableShellProps) {
+  const templateVars = desktopTemplate
+    ? ({
+        "--vgrid-cols-desktop": desktopTemplate,
+        ...(mobileTemplate ? { "--vgrid-cols-mobile": mobileTemplate } : {}),
+      } as React.CSSProperties)
+    : undefined;
   return (
     <div
       ref={scrollContainerRef}
       data-virtual-grid-shell=""
       style={{
-        height: height ?? "calc(100vh - 280px)",
+        ...(height !== undefined ? { height } : {}),
         overflowY: "auto",
         overflowX: "auto",
         position: "relative",
+        ...templateVars,
       }}
-      className="rounded border border-border"
+      className={["rounded border border-border", height === undefined ? "vgrid-default-height" : ""].join(" ")}
     >
       {children}
     </div>
@@ -40,7 +54,9 @@ export function VirtualGridTableShell({
 
 interface VirtualGridHeaderRowProps {
   children: ReactNode;
-  columnTemplate: string;
+  /** Legacy inline template. Omit on config-migrated tables: rows then consume
+   *  the shell's responsive var(--vgrid-cols). */
+  columnTemplate?: string;
   className?: string;
 }
 
@@ -53,7 +69,7 @@ export function VirtualGridHeaderRow({
     <div
       className={["sticky top-0 z-10 grid min-w-max text-xs", className].join(" ")}
       data-virtual-grid-header=""
-      style={{ gridTemplateColumns: columnTemplate, position: "sticky", top: 0, zIndex: 2 }}
+      style={{ gridTemplateColumns: columnTemplate ?? "var(--vgrid-cols)", position: "sticky", top: 0, zIndex: 2 }}
       role="row"
     >
       {children}
@@ -62,7 +78,7 @@ export function VirtualGridHeaderRow({
 }
 
 interface VirtualGridBodyProps<TRow> {
-  columnTemplate: string;
+  columnTemplate?: string;
   estimateSize?: number;
   getRowKey?: (row: TRow, index: number) => string;
   overscan?: number;
@@ -70,6 +86,15 @@ interface VirtualGridBodyProps<TRow> {
   rowClassName?: string;
   rows: TRow[];
   scrollContainerRef: RefObject<HTMLDivElement>;
+  /** Pointer convenience only (#340): opens the row detail sheet below md.
+   *  The Details button column is the accessible activation path; clicks on
+   *  child interactive controls (links, buttons, inputs) are ignored so
+   *  drill-throughs keep working. Rows keep row semantics — no role=button. */
+  onRowClick?: (row: TRow) => void;
+}
+
+function shouldIgnoreRowClick(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("a, button, input, select, [role=\"button\"]") !== null;
 }
 
 export function VirtualGridBody<TRow>({
@@ -81,7 +106,19 @@ export function VirtualGridBody<TRow>({
   rowClassName = "border-t border-border text-text",
   rows,
   scrollContainerRef,
+  onRowClick,
 }: VirtualGridBodyProps<TRow>) {
+  const handleRowClick = onRowClick
+    ? (row: TRow) => (event: React.MouseEvent) => {
+        if (shouldIgnoreRowClick(event.target)) {
+          return;
+        }
+        if (!window.matchMedia("(max-width: 767px)").matches) {
+          return;
+        }
+        onRowClick(row);
+      }
+    : undefined;
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollContainerRef.current,
@@ -102,7 +139,8 @@ export function VirtualGridBody<TRow>({
             className={["grid w-full", rowClassName].join(" ")}
             data-virtual-grid-row=""
             role="row"
-            style={{ gridTemplateColumns: columnTemplate }}
+            onClick={handleRowClick ? handleRowClick(row) : undefined}
+            style={{ gridTemplateColumns: columnTemplate ?? "var(--vgrid-cols)" }}
           >
             {renderRow(row, index)}
           </div>
@@ -123,8 +161,9 @@ export function VirtualGridBody<TRow>({
             className={["absolute left-0 top-0 grid w-full", rowClassName].join(" ")}
             data-virtual-grid-row=""
             role="row"
+            onClick={handleRowClick ? handleRowClick(row) : undefined}
             style={{
-              gridTemplateColumns: columnTemplate,
+              gridTemplateColumns: columnTemplate ?? "var(--vgrid-cols)",
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >

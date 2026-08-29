@@ -91,3 +91,24 @@ export function getTopbarContextTags(pathname: string): string[] {
 
   return [];
 }
+
+
+/** Bottom-tab destinations (#340, fixed decision: five slots, this order). */
+export const BOTTOM_TABS = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/today", label: "Today" },
+  { href: "/positions", label: "Positions" },
+  { href: "/recommendations", label: "Recs" },
+  { href: "/analytics", label: "Analytics" },
+] as const;
+
+export type BottomTabHref = (typeof BOTTOM_TABS)[number]["href"];
+
+/** Pure active-tab resolution — unit-tested; "/" lands on /dashboard. */
+export function resolveActiveTab(pathname: string): BottomTabHref | null {
+  if (pathname === "/" || pathname === "") {
+    return "/dashboard";
+  }
+  const match = BOTTOM_TABS.find((tab) => pathname === tab.href || pathname.startsWith(tab.href + "/"));
+  return match ? match.href : null;
+}

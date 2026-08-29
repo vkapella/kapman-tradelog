@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
-import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
+import { deriveDefinitions, type TableColumnConfig } from "@/components/data-table/column-config";
+import { ConfigVirtualTable } from "@/components/data-table/ConfigVirtualTable";
+import { detailsColumnConfig } from "@/components/data-table/details-column";
+import { HiddenStateChips } from "@/components/data-table/HiddenStateChips";
+import { RowDetailSheet } from "@/components/data-table/RowDetailSheet";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
@@ -22,24 +26,7 @@ import type { ApiDetailResponse, SetupDetailResponse, SetupSummaryRecord } from 
 
 interface SetupDetailPayload extends ApiDetailResponse<SetupDetailResponse> {}
 
-const SETUPS_COLUMN_TEMPLATE = "180px 140px 160px 150px 130px 170px 120px 120px 120px";
 const SETUP_LOTS_COLUMN_TEMPLATE = "140px 80px 150px 110px 110px 190px 190px";
-
-const SetupsTableRow = memo(function SetupsTableRow({ row, pathname }: { row: SetupSummaryRecord; pathname: string }) {
-  return (
-    <>
-      <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>
-      <div className="px-2 py-2">{row.underlyingSymbol}</div>
-      <div className="px-2 py-2"><AccountLabel accountId={row.accountId} /></div>
-      <div className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</div>
-      <div className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</div>
-      <div className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</div>
-      <div className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</div>
-      <div className="px-2 py-2"><Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">View detail</Link></div>
-      <div className="px-2 py-2"><Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">Case file</Link></div>
-    </>
-  );
-});
 
 export function SetupsAnalyticsPanel() {
   const pathname = usePathname();
@@ -142,17 +129,65 @@ export function SetupsAnalyticsPanel() {
     };
   }, [selectedAccounts, selectedSetupId, range.startDate, range.endDate, applyRangeToSearchParams]);
 
-  const columns = useMemo<DataTableColumnDefinition<SetupSummaryRecord>[]>(() => [
-    { id: "tag", label: "Tag", filterMode: "discrete", getFilterValues: (row) => row.overrideTag ?? row.tag, sortMode: "string", getSortValue: (row) => row.overrideTag ?? row.tag },
-    { id: "underlyingSymbol", label: "Underlying", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
-    { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },
-    { id: "realizedPnl", label: "Realized P&L ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.realizedPnl ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.realizedPnl) },
-    { id: "winRate", label: "Win Rate (%)", align: "right", title: "Percent of closed lots with positive outcome. Flat lots excluded.", filterMode: "discrete", getFilterValues: (row) => (row.winRate === null ? "-" : String(Math.round(safeNumber(row.winRate) * 1000) / 10)), sortMode: "number", getSortValue: (row) => (row.winRate === null ? null : safeNumber(row.winRate)) },
-    { id: "expectancy", label: "Expectancy ($ / lot)", align: "right", title: "Average realized P&L per matched lot in this setup.", filterMode: "discrete", getFilterValues: (row) => row.expectancy ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.expectancy) },
-    { id: "averageHoldDays", label: "Avg Hold", align: "right", filterMode: "discrete", getFilterValues: (row) => row.averageHoldDays ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.averageHoldDays) },
-    { id: "detail", label: "Detail", filterMode: "discrete", getFilterValues: () => "View detail", sortMode: "string", getSortValue: () => "View detail" },
-    { id: "investigate", label: "Investigate", filterMode: "discrete", getFilterValues: () => "Case file", sortMode: "string", getSortValue: () => "Case file" },
-  ], [getAccountDisplayText]);
+  const [detailRow, setDetailRow] = useState<SetupSummaryRecord | null>(null);
+  // Tier-1 (approved §0.4 / T3), field mappings pinned: Setup = overrideTag ?? tag,
+  // Symbol = underlyingSymbol, Lot Count = setupLotCount, Realized P&L = realizedPnl.
+  // Lot Count is mobileOnly: it joins the phone tier without adding a desktop
+  // column (desktop pixel-equivalence).
+  const configs = useMemo<TableColumnConfig<SetupSummaryRecord>[]>(() => [
+    {
+      definition: { id: "tag", label: "Setup", filterMode: "discrete", getFilterValues: (row) => row.overrideTag ?? row.tag, sortMode: "string", getSortValue: (row) => row.overrideTag ?? row.tag },
+      width: "180px", mobileWidth: "minmax(88px, auto)",
+      renderCell: (row) => <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>,
+    },
+    {
+      definition: { id: "underlyingSymbol", label: "Underlying", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
+      width: "140px", mobileWidth: "minmax(56px, auto)",
+      renderCell: (row) => <div className="px-2 py-2">{row.underlyingSymbol}</div>,
+    },
+    {
+      definition: { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },
+      width: "160px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2"><AccountLabel accountId={row.accountId} /></div>,
+    },
+    {
+      definition: { id: "setupLotCount", label: "Lots", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.setupLotCount ?? 0), sortMode: "number", getSortValue: (row) => row.setupLotCount ?? 0 },
+      width: "56px", mobileOnly: true,
+      renderCell: (row) => <div className="px-2 py-2 text-right">{row.setupLotCount ?? 0}</div>,
+    },
+    {
+      definition: { id: "realizedPnl", label: "Realized P&L ($)", align: "right", filterMode: "discrete", getFilterValues: (row) => row.realizedPnl ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.realizedPnl) },
+      width: "150px", mobileWidth: "minmax(84px, auto)",
+      renderCell: (row) => <div className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</div>,
+    },
+    {
+      definition: { id: "winRate", label: "Win Rate (%)", align: "right", title: "Percent of closed lots with positive outcome. Flat lots excluded.", filterMode: "discrete", getFilterValues: (row) => (row.winRate === null ? "-" : String(Math.round(safeNumber(row.winRate) * 1000) / 10)), sortMode: "number", getSortValue: (row) => (row.winRate === null ? null : safeNumber(row.winRate)) },
+      width: "130px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</div>,
+    },
+    {
+      definition: { id: "expectancy", label: "Expectancy ($ / lot)", align: "right", title: "Average realized P&L per matched lot in this setup.", filterMode: "discrete", getFilterValues: (row) => row.expectancy ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.expectancy) },
+      width: "170px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2 text-right">{`${formatCurrency(safeNumber(row.expectancy))} / lot`}</div>,
+    },
+    {
+      definition: { id: "averageHoldDays", label: "Avg Hold", align: "right", filterMode: "discrete", getFilterValues: (row) => row.averageHoldDays ?? "0", sortMode: "number", getSortValue: (row) => safeNumber(row.averageHoldDays) },
+      width: "120px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</div>,
+    },
+    {
+      definition: { id: "detail", label: "Detail", filterMode: "discrete", getFilterValues: () => "View detail", sortMode: "string", getSortValue: () => "View detail" },
+      width: "120px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2"><Link href={`${pathname}?setup=${row.id}#setup-detail`} className="text-accent underline">View detail</Link></div>,
+    },
+    {
+      definition: { id: "investigate", label: "Investigate", filterMode: "discrete", getFilterValues: () => "Case file", sortMode: "string", getSortValue: () => "Case file" },
+      width: "120px", tier: 2,
+      renderCell: (row) => <div className="px-2 py-2"><Link href={buildDiagnosticCaseHref({ kind: "setup", setupId: row.id })} className="text-accent underline">Case file</Link></div>,
+    },
+    detailsColumnConfig<SetupSummaryRecord>(setDetailRow),
+  ], [getAccountDisplayText, pathname]);
+  const columns = useMemo(() => deriveDefinitions(configs), [configs]);
 
   const table = useDataTableState({ tableName: "setups", rows, columns, initialSort: { columnId: "realizedPnl", direction: "desc" } });
 
@@ -184,17 +219,8 @@ export function SetupsAnalyticsPanel() {
     return { totalPnl, averageWinRate: averageWinRateRatio === null ? null : averageWinRateRatio * 100, averageExpectancy, averageHoldDays };
   }, [table.sortedRows]);
 
-  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
-    table.setColumnFilter(columnId, values);
-    if (direction) {
-      table.setSort({ columnId, direction });
-    } else if (table.sort.columnId === columnId) {
-      table.setSort({ columnId: null, direction: null });
-    }
-  }
-
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6 max-md:p-2">
       <header className="space-y-1">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold text-text">Setup Analytics (T3)</h2>
@@ -224,31 +250,19 @@ export function SetupsAnalyticsPanel() {
       {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && table.sortedRows.length > 0 ? (
-        <VirtualGridTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
-          <VirtualGridHeaderRow columnTemplate={SETUPS_COLUMN_TEMPLATE}>
-            {columns.map((column) => (
-              <DataTableHeader
-                key={column.id}
-                as="div"
-                column={column}
-                currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                currentValues={table.filters[column.id] ?? []}
-                isOpen={openColumnId === column.id}
-                onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                options={table.filterOptions[column.id] ?? []}
-              />
-            ))}
-          </VirtualGridHeaderRow>
-          <VirtualGridBody
-            columnTemplate={SETUPS_COLUMN_TEMPLATE}
-            rows={table.sortedRows}
+        <>
+          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
+          <ConfigVirtualTable
+            configs={configs}
+            table={table}
+            openColumnId={openColumnId}
+            setOpenColumnId={setOpenColumnId}
             scrollContainerRef={scrollContainerRef}
             getRowKey={(row) => row.id}
-            renderRow={(row) => <SetupsTableRow row={row} pathname={pathname} />}
+            onRowClick={setDetailRow}
           />
-        </VirtualGridTableShell>
+          <RowDetailSheet configs={configs} row={detailRow} title="Setup details" onClose={() => setDetailRow(null)} />
+        </>
       ) : null}
 
       {selectedSetupId ? (

@@ -188,7 +188,7 @@ function DashboardTile({
             ref={setActivatorNodeRef}
             type="button"
             aria-label="Drag tile"
-            className="absolute left-2 top-2 z-30 flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
+            className="absolute left-2 top-2 z-[var(--z-page-controls)] flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
@@ -198,7 +198,7 @@ function DashboardTile({
             type="button"
             onPointerDown={stopDashboardControlPropagation}
             onClick={(event) => handleRemoveWidgetClick(event, { editMode, remove })}
-            className="absolute right-2 top-2 z-30 rounded border border-border bg-surface px-2 py-0.5 text-xs text-text-2"
+            className="absolute right-2 top-2 z-[var(--z-page-controls)] rounded border border-border bg-surface px-2 py-0.5 text-xs text-text-2"
           >
             ×
           </button>
@@ -207,7 +207,7 @@ function DashboardTile({
               type="button"
               aria-label="Resize widget"
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-2 right-2 z-30 flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text"
+              className="absolute bottom-2 right-2 z-[var(--z-page-controls)] flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text"
             >
               <>
                 <span className="sr-only">Resize</span>
@@ -366,7 +366,7 @@ export default function Page() {
             Done
           </button>
         ) : (
-          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text touch-target">
             Customize
           </button>
         )}
@@ -377,7 +377,7 @@ export default function Page() {
 
       {!loading && !error && summary ? (
         <DndContext onDragEnd={onKpiDragEnd}>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {kpiLayout.map((kpiId, index) => {
               const definition = kpiMap.get(kpiId);
               if (!definition) {

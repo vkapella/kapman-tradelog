@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { configCellClass, deriveDefinitions, type TableColumnConfig } from "@/components/data-table/column-config";
+import { RowDetailSheet } from "@/components/data-table/RowDetailSheet";
 import { latestPass1Summary } from "@/lib/recommendations/lineage-summary";
 import type { RecommendationLineageSummaryRecord } from "@/types/api";
 
@@ -240,6 +242,47 @@ export default function TodayPage() {
     void load();
   }, [load]);
 
+  const [recDetailRow, setRecDetailRow] = useState<RecommendationRow | null>(null);
+  const recConfigs = useMemo<TableColumnConfig<RecommendationRow>[]>(() => {
+    const taken = (rec: RecommendationRow) => {
+      const verdict = pva.get(rec.recId);
+      return verdict ? (verdict.taken ? "yes" : verdict.partialLegs ? "partial" : "no") : "—";
+    };
+    const fillVsRange = (rec: RecommendationRow) => {
+      const verdict = pva.get(rec.recId);
+      return verdict?.taken && verdict.fillVsRange
+        ? verdict.fillVsRange === "INSIDE"
+          ? "inside"
+          : `${verdict.fillVsRange.toLowerCase()} ${verdict.rangeDeviationPct !== null ? `${verdict.rangeDeviationPct > 0 ? "+" : ""}${verdict.rangeDeviationPct}%` : ""}`
+        : "—";
+    };
+    return [
+      { definition: { id: "asOf", label: "As of" }, width: "auto", renderCell: (rec) => rec.asOf.slice(0, 10) },
+      { definition: { id: "ticker", label: "Ticker" }, width: "auto", renderCell: (rec) => <span className="font-mono font-medium">{rec.ticker}</span> },
+      { definition: { id: "structure", label: "Structure" }, width: "auto", renderCell: (rec) => rec.structure ?? "—" },
+      {
+        definition: { id: "entryRange", label: "Entry range" }, width: "auto", tier: 2,
+        renderCell: (rec) => (
+          <span className="font-mono">{rec.entryRangeLow !== null && rec.entryRangeHigh !== null ? `${rec.entryRangeLow}–${rec.entryRangeHigh}` : "—"}</span>
+        ),
+      },
+      { definition: { id: "chain", label: "Chain" }, width: "auto", tier: 2, renderCell: (rec) => rec.chainQuality ?? "—" },
+      { definition: { id: "taken", label: "Taken" }, width: "auto", renderCell: taken },
+      { definition: { id: "fillVsRange", label: "Fill vs range" }, width: "auto", tier: 2, renderCell: (rec) => <span className="font-mono">{fillVsRange(rec)}</span> },
+      {
+        definition: { id: "__details", label: "Details" }, width: "auto", mobileOnly: true, includeInDetails: false,
+        renderHeader: () => <span className="sr-only">Details</span>,
+        renderCell: (rec) => (
+          <button type="button" onClick={() => setRecDetailRow(rec)} aria-haspopup="dialog" aria-label="Recommendation details" className="touch-target rounded border border-border bg-surface-2 text-text-2">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        ),
+      },
+    ];
+  }, [pva]);
+  // Keeps the config invariant honest even without a data-table state here.
+  void deriveDefinitions(recConfigs);
+
   const open = useMemo(() => (items ?? []).filter((i) => i.status !== "CONSUMED"), [items]);
   const consumed = useMemo(() => (items ?? []).filter((i) => i.status === "CONSUMED").slice(0, 10), [items]);
 
@@ -294,47 +337,32 @@ export default function TodayPage() {
           <p className="text-sm text-text-2">No recommendations ingested yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border">
+            {/* Config-migrated th/td generation (#340, approved Option A): Tier-1 =
+                As-of, Ticker, Structure, Taken; remaining values via the shared
+                detail sheet. Uses the shared config model without VirtualGrid. */}
             <table className="w-full text-left text-xs">
               <thead className="text-[10px] uppercase tracking-[0.08em] text-text-2">
                 <tr>
-                  <th className="px-3 py-2">As of</th>
-                  <th className="px-3 py-2">Ticker</th>
-                  <th className="px-3 py-2">Structure</th>
-                  <th className="px-3 py-2">Entry range</th>
-                  <th className="px-3 py-2">Chain</th>
-                  <th className="px-3 py-2">Taken</th>
-                  <th className="px-3 py-2">Fill vs range</th>
+                  {recConfigs.map((config) => (
+                    <th key={config.definition.id} className={["px-3 py-2", configCellClass(config)].join(" ")}>
+                      {config.renderHeader ? config.renderHeader() : config.definition.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="text-text">
-                {recs.map((rec) => {
-                  const verdict = pva.get(rec.recId);
-                  return (
-                    <tr key={rec.recId} className="border-t border-border">
-                      <td className="px-3 py-2">{rec.asOf.slice(0, 10)}</td>
-                      <td className="px-3 py-2 font-mono font-medium">{rec.ticker}</td>
-                      <td className="px-3 py-2">{rec.structure ?? "—"}</td>
-                      <td className="px-3 py-2 font-mono">
-                        {rec.entryRangeLow !== null && rec.entryRangeHigh !== null
-                          ? `${rec.entryRangeLow}–${rec.entryRangeHigh}`
-                          : "—"}
+                {recs.map((rec) => (
+                  <tr key={rec.recId} className="border-t border-border">
+                    {recConfigs.map((config) => (
+                      <td key={config.definition.id} className={["px-3 py-2", configCellClass(config)].join(" ")}>
+                        {config.renderCell(rec)}
                       </td>
-                      <td className="px-3 py-2">{rec.chainQuality ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        {verdict ? (verdict.taken ? "yes" : verdict.partialLegs ? "partial" : "no") : "—"}
-                      </td>
-                      <td className="px-3 py-2 font-mono">
-                        {verdict?.taken && verdict.fillVsRange
-                          ? verdict.fillVsRange === "INSIDE"
-                            ? "inside"
-                            : `${verdict.fillVsRange.toLowerCase()} ${verdict.rangeDeviationPct !== null ? `${verdict.rangeDeviationPct > 0 ? "+" : ""}${verdict.rangeDeviationPct}%` : ""}`
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
+            <RowDetailSheet configs={recConfigs} row={recDetailRow} title="Recommendation details" onClose={() => setRecDetailRow(null)} />
           </div>
         )}
       </section>

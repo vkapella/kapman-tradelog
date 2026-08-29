@@ -643,7 +643,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
       ) : null}
 
       {deleteConfirmationImport ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-bg px-4">
+        <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-bg px-4">
           <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5">
             <h3 className="text-lg font-semibold text-text">Delete committed import?</h3>
             <dl className="mt-3 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-sm text-text">

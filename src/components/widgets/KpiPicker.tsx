@@ -33,7 +33,7 @@ export function KpiPicker({ open, kpis, onClose, onSelect }: KpiPickerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--bg)_80%,transparent)] p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-[color:color-mix(in_srgb,var(--bg)_80%,transparent)] p-4" onClick={onClose}>
       <div className="max-h-[80vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-border bg-surface p-4" onClick={(event) => event.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text">Add KPI</h2>

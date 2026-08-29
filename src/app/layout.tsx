@@ -1,10 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { RootShell } from "@/components/root-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "KapMan Trading Journal",
   description: "Containerized trading journal for imports, FIFO lots, and setup analytics.",
+  appleWebApp: {
+    capable: true,
+    title: "KapMan",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+// Next 14 deprecates viewport fields inside `metadata`; typed export (#340).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#111318",
+  colorScheme: "dark",
 };
 
 // This is a runtime, database-backed dashboard rendered per request; opt the

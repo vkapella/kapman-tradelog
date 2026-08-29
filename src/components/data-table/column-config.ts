@@ -1,0 +1,126 @@
+import type { ReactNode } from "react";
+import type { DataTableColumnDefinition, DataTableFiltersState, DataTableSortState } from "@/components/data-table/types";
+
+/**
+ * Unified page-level column configuration (#340). Every rendered artifact —
+ * DataTableColumnDefinition set, desktop/mobile grid templates, header cells,
+ * row cells, and detail-sheet fields — derives from ONE config array, so they
+ * cannot desynchronize. The Recommendations panel's COLUMN_CONFIGS was the
+ * starting point; this is the finished shared invariant.
+ */
+export interface TableColumnConfig<Row> {
+  definition: DataTableColumnDefinition<Row>;
+  /** Desktop grid track (e.g. "120px", "minmax(320px, 1fr)"). */
+  width: string;
+  /** Tier-1 track below md; defaults to `width`. */
+  mobileWidth?: string;
+  /** Tier 1 renders on phones; tier 2 is CSS-hidden below md. Default 1. */
+  tier?: 1 | 2;
+  /** Renders only below md (e.g. the Details action). Excluded from the desktop template. */
+  mobileOnly?: boolean;
+  /** Include in the row detail sheet. Default true; the Details action sets false. */
+  includeInDetails?: boolean;
+  /** Custom header content instead of the standard filterable DataTableHeader. */
+  renderHeader?: () => ReactNode;
+  renderCell: (row: Row) => ReactNode;
+  /** Detail-sheet value; defaults to renderCell. */
+  renderDetailValue?: (row: Row) => ReactNode;
+}
+
+export function configTier<Row>(config: TableColumnConfig<Row>): 1 | 2 {
+  return config.tier ?? 1;
+}
+
+/** The complete definition set — useDataTableState always filters/sorts against this. */
+export function deriveDefinitions<Row>(configs: TableColumnConfig<Row>[]): DataTableColumnDefinition<Row>[] {
+  return configs.map((config) => config.definition);
+}
+
+/** Configs surviving the user's persisted column visibility, in config order. */
+export function visibleConfigsFor<Row>(
+  configs: TableColumnConfig<Row>[],
+  visibleColumns: DataTableColumnDefinition<Row>[],
+): TableColumnConfig<Row>[] {
+  const visibleIds = new Set(visibleColumns.map((column) => column.id));
+  return configs.filter((config) => visibleIds.has(config.definition.id));
+}
+
+/** Desktop template: every visible, non-mobileOnly config's track. */
+export function desktopTemplate<Row>(visibleConfigs: TableColumnConfig<Row>[]): string {
+  return visibleConfigs.filter((config) => !config.mobileOnly).map((config) => config.width).join(" ");
+}
+
+/** Mobile template: visible tier-1 + mobileOnly configs. */
+export function mobileTemplate<Row>(visibleConfigs: TableColumnConfig<Row>[]): string {
+  return visibleConfigs
+    .filter((config) => config.mobileOnly || configTier(config) === 1)
+    .map((config) => config.mobileWidth ?? config.width)
+    .join(" ");
+}
+
+/** Column ids occupying desktop tracks, in order (ID-based alignment tests). */
+export function desktopColumnIds<Row>(visibleConfigs: TableColumnConfig<Row>[]): string[] {
+  return visibleConfigs.filter((config) => !config.mobileOnly).map((config) => config.definition.id);
+}
+
+/** Column ids occupying mobile tracks, in order (ID-based alignment tests). */
+export function mobileColumnIds<Row>(visibleConfigs: TableColumnConfig<Row>[]): string[] {
+  return visibleConfigs.filter((config) => config.mobileOnly || configTier(config) === 1).map((config) => config.definition.id);
+}
+
+/**
+ * Per-cell responsive class: mobileOnly cells vanish at md+, tier-2 cells
+ * vanish below md. display:none grid items create no tracks, so the remaining
+ * cells flow into the breakpoint's template — alignment by construction.
+ */
+export function configCellClass<Row>(config: TableColumnConfig<Row>): string {
+  if (config.mobileOnly) {
+    return "md:hidden";
+  }
+  return configTier(config) === 2 ? "max-md:hidden" : "";
+}
+
+/**
+ * Detail sheet derives from the COMPLETE config array — never the
+ * persisted-visible or tier-1 subsets — so user-hidden columns stay reachable.
+ * Only includeInDetails: false (the Details action itself) is excluded.
+ */
+export function detailConfigs<Row>(configs: TableColumnConfig<Row>[]): TableColumnConfig<Row>[] {
+  return configs.filter((config) => config.includeInDetails !== false);
+}
+
+export interface HiddenActiveState {
+  sortLabel: string | null;
+  sortColumnId: string | null;
+  filters: Array<{ columnId: string; label: string; count: number }>;
+}
+
+/**
+ * Sort/filter state whose column is not visible below md (tier-2 or
+ * user-hidden): surfaced as chips so hidden state is never silent.
+ */
+export function deriveHiddenActiveState<Row>(
+  configs: TableColumnConfig<Row>[],
+  visibleColumns: DataTableColumnDefinition<Row>[],
+  sort: DataTableSortState,
+  filters: DataTableFiltersState,
+): HiddenActiveState {
+  const visibleIds = new Set(visibleColumns.map((column) => column.id));
+  const mobileVisibleIds = new Set(
+    configs
+      .filter((config) => visibleIds.has(config.definition.id) && (config.mobileOnly || configTier(config) === 1))
+      .map((config) => config.definition.id),
+  );
+  const labelById = new Map(configs.map((config) => [config.definition.id, config.definition.label]));
+
+  const sortHidden = sort.columnId !== null && !mobileVisibleIds.has(sort.columnId);
+  const filterEntries = Object.entries(filters)
+    .filter(([columnId, values]) => values.length > 0 && !mobileVisibleIds.has(columnId))
+    .map(([columnId, values]) => ({ columnId, label: labelById.get(columnId) ?? columnId, count: values.length }));
+
+  return {
+    sortLabel: sortHidden ? `${labelById.get(sort.columnId as string) ?? sort.columnId} ${sort.direction === "desc" ? "↓" : "↑"}` : null,
+    sortColumnId: sortHidden ? sort.columnId : null,
+    filters: filterEntries,
+  };
+}

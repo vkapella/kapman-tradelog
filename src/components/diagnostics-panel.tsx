@@ -160,7 +160,7 @@ export function DiagnosticsPanel() {
                         <p className="mt-1 text-xs text-amber-200">{group.summary}</p>
                       </div>
                       {group.caseRef ? (
-                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="shrink-0 text-xs text-accent underline">
+                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="text-xs text-accent underline max-md:shrink md:shrink-0">
                           Open case file
                         </Link>
                       ) : null}
@@ -187,7 +187,7 @@ export function DiagnosticsPanel() {
                         <p className="mt-1 text-xs text-amber-100">{group.summary}</p>
                       </div>
                       {group.caseRef ? (
-                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="shrink-0 text-xs text-accent underline">
+                        <Link href={buildDiagnosticCaseHref(group.caseRef)} className="text-xs text-accent underline max-md:shrink md:shrink-0">
                           Open case file
                         </Link>
                       ) : null}

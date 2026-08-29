@@ -1,13 +1,15 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { ColumnChooserControl } from "@/components/data-table/ColumnChooserControl";
-import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
-import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
-import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
+import { deriveDefinitions, type TableColumnConfig } from "@/components/data-table/column-config";
+import { ConfigVirtualTable } from "@/components/data-table/ConfigVirtualTable";
+import { detailsColumnConfig } from "@/components/data-table/details-column";
+import { HiddenStateChips } from "@/components/data-table/HiddenStateChips";
+import { RowDetailSheet } from "@/components/data-table/RowDetailSheet";
 import { useDataTableState } from "@/components/data-table/useDataTableState";
 import type { DataTableColumnDefinition, SortDirection } from "@/components/data-table/types";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -63,6 +65,9 @@ function dash(value: string | null | undefined): string {
 interface RecommendationColumnConfig {
   definition: DataTableColumnDefinition<RecommendationRecord>;
   width: string;
+  mobileWidth?: string;
+  /** Tier-1 (approved §0.4): As-of, Ticker, Disposition, Structure, Direction. */
+  tier?: 1 | 2;
   render: (row: RecommendationRecord) => JSX.Element | string;
 }
 
@@ -76,6 +81,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       defaultSortDirection: "desc",
     },
     width: "96px",
+    mobileWidth: "minmax(72px, auto)",
     render: (row) => row.asOf.slice(0, 10),
   },
   {
@@ -87,6 +93,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       defaultSortDirection: "desc",
     },
     width: "170px",
+    tier: 2,
     render: (row) => (row.decidedAt ? new Date(row.decidedAt).toLocaleString() : "—"),
   },
   {
@@ -97,6 +104,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.lineageId,
     },
     width: "180px",
+    tier: 2,
     render: (row) => <span className="font-mono">{row.lineageId}</span>,
   },
   {
@@ -107,6 +115,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.recId,
     },
     width: "220px",
+    tier: 2,
     render: (row) => <span className="font-mono">{row.recId}</span>,
   },
   {
@@ -120,6 +129,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.ticker,
     },
     width: "84px",
+    mobileWidth: "minmax(56px, auto)",
     render: (row) => <span className="font-mono font-medium">{row.ticker}</span>,
   },
   {
@@ -132,6 +142,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.pass,
     },
     width: "78px",
+    tier: 2,
     render: (row) => row.pass,
   },
   {
@@ -144,6 +155,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.disposition,
     },
     width: "110px",
+    mobileWidth: "minmax(72px, auto)",
     render: (row) =>
       row.disposition === "ELIGIBLE" || row.disposition === "VALIDATED" ? (
         <Badge variant="buy">{row.disposition}</Badge>
@@ -163,6 +175,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.structure,
     },
     width: "150px",
+    mobileWidth: "minmax(80px, auto)",
     render: (row) => dash(row.structure),
   },
   {
@@ -175,6 +188,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.direction,
     },
     width: "96px",
+    mobileWidth: "minmax(56px, auto)",
     render: (row) => dash(row.direction),
   },
   {
@@ -187,6 +201,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.optionType,
     },
     width: "104px",
+    tier: 2,
     render: (row) =>
       row.optionType ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge> : "—",
   },
@@ -200,6 +215,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.sizingBand,
     },
     width: "104px",
+    tier: 2,
     render: (row) => dash(row.sizingBand),
   },
   {
@@ -211,6 +227,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => (row.underlyingRef === null ? null : Number(row.underlyingRef)),
     },
     width: "110px",
+    tier: 2,
     render: (row) => <span className="font-mono">{formatDecimal(row.underlyingRef)}</span>,
   },
   {
@@ -223,6 +240,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => (row.strike === null ? null : Number(row.strike)),
     },
     width: "120px",
+    tier: 2,
     render: (row) => <span className="font-mono">{formatStrikes(row)}</span>,
   },
   {
@@ -233,6 +251,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.expirationDate,
     },
     width: "100px",
+    tier: 2,
     render: (row) => (row.expirationDate ? row.expirationDate.slice(0, 10) : "—"),
   },
   {
@@ -244,6 +263,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => (row.entryRangeLow === null ? null : Number(row.entryRangeLow)),
     },
     width: "120px",
+    tier: 2,
     render: (row) => <span className="font-mono">{formatEntryRange(row)}</span>,
   },
   {
@@ -256,6 +276,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.chainQuality,
     },
     width: "110px",
+    tier: 2,
     render: (row) => dash(row.chainQuality),
   },
   {
@@ -266,6 +287,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       getSortValue: (row) => row.reason,
     },
     width: "minmax(320px, 1fr)",
+    tier: 2,
     render: (row) =>
       row.reason ? (
         <span className="block truncate" title={row.reason}>
@@ -276,36 +298,6 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       ),
   },
 ];
-
-const RecommendationsTableRow = memo(function RecommendationsTableRow({
-  row,
-  configs,
-  showOutcomePlaceholder,
-}: {
-  row: RecommendationRecord;
-  configs: RecommendationColumnConfig[];
-  showOutcomePlaceholder: boolean;
-}) {
-  return (
-    <>
-      {configs.map((config) => (
-        <div
-          key={config.definition.id}
-          className={["px-2 py-2", config.definition.align === "right" ? "text-right" : "", config.definition.id === "reason" ? "min-w-0" : ""]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          {config.render(row)}
-        </div>
-      ))}
-      {showOutcomePlaceholder ? (
-        <div className="border-l border-dashed border-border px-2 py-2 text-text-3" title={OUTCOME_TOOLTIP}>
-          —
-        </div>
-      ) : null}
-    </>
-  );
-});
 
 function RunChip({
   active,
@@ -425,7 +417,44 @@ export function RecommendationsTablePanel() {
     };
   }, [lineageInitialized, selectedLineage]);
 
-  const columns = useMemo(() => COLUMN_CONFIGS.map((config) => config.definition), []);
+  const [detailRow, setDetailRow] = useState<RecommendationRecord | null>(null);
+  // Every rendered track is config-derived (#340): the reserved "Outcome"
+  // column (a future story fills it with viewer forward-log verdicts) and the
+  // mobile Details action are real config entries, not template concatenation.
+  const configs = useMemo<TableColumnConfig<RecommendationRecord>[]>(() => [
+    ...COLUMN_CONFIGS.map((config): TableColumnConfig<RecommendationRecord> => ({
+      definition: config.definition,
+      width: config.width,
+      mobileWidth: config.mobileWidth,
+      tier: config.tier,
+      renderCell: (row) => (
+        <div
+          className={["px-2 py-2", config.definition.align === "right" ? "text-right" : "", config.definition.id === "reason" ? "min-w-0" : ""]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {config.render(row)}
+        </div>
+      ),
+    })),
+    {
+      definition: { id: "outcome", label: "Outcome", alwaysVisible: true },
+      width: "140px",
+      tier: 2,
+      renderHeader: () => (
+        <span className="border-l border-dashed border-border pl-2 font-medium text-text-3" title={OUTCOME_TOOLTIP}>
+          Outcome
+        </span>
+      ),
+      renderCell: () => (
+        <div className="border-l border-dashed border-border px-2 py-2 text-text-3" title={OUTCOME_TOOLTIP}>
+          —
+        </div>
+      ),
+    },
+    detailsColumnConfig<RecommendationRecord>(setDetailRow),
+  ], []);
+  const columns = useMemo(() => deriveDefinitions(configs), [configs]);
 
   const table = useDataTableState({
     tableName: "recommendations",
@@ -434,32 +463,11 @@ export function RecommendationsTablePanel() {
     initialSort: { columnId: "asOf", direction: "desc" },
   });
 
-  const visibleConfigs = useMemo(() => {
-    const visibleIds = new Set(table.visibleColumns.map((column) => column.id));
-    return COLUMN_CONFIGS.filter((config) => visibleIds.has(config.definition.id));
-  }, [table.visibleColumns]);
-
-  // Trailing 140px column: the reserved "Outcome" group a future story fills
-  // with viewer forward-log verdicts.
-  const columnTemplate = useMemo(
-    () => [...visibleConfigs.map((config) => config.width), "140px"].join(" "),
-    [visibleConfigs],
-  );
-
   const totalRows = table.sortedRows.length;
   const hasRows = totalRows > 0;
 
-  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
-    table.setColumnFilter(columnId, values);
-    if (direction) {
-      table.setSort({ columnId, direction });
-    } else if (table.sort.columnId === columnId) {
-      table.setSort({ columnId: null, direction: null });
-    }
-  }
-
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6">
+    <section className="space-y-4 rounded-2xl border border-border bg-surface p-6 max-md:p-2">
       <header className="space-y-1">
         <h2 className="text-xl font-semibold text-text">Recommendations Explorer</h2>
         <p className="text-sm text-text-2">
@@ -515,40 +523,19 @@ export function RecommendationsTablePanel() {
       ) : null}
 
       {!loading && !error && hasRows ? (
-        <VirtualGridTableShell scrollContainerRef={scrollContainerRef}>
-          <VirtualGridHeaderRow columnTemplate={columnTemplate}>
-            {visibleConfigs.map((config) => (
-              <DataTableHeader
-                key={config.definition.id}
-                as="div"
-                column={config.definition}
-                currentSortDirection={table.sort.columnId === config.definition.id ? table.sort.direction : null}
-                currentValues={table.filters[config.definition.id] ?? []}
-                isOpen={openColumnId === config.definition.id}
-                onApply={(values, direction) => applyColumnState(config.definition.id, values, direction)}
-                onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, config.definition.id))}
-                onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, config.definition.id))}
-                options={table.filterOptions[config.definition.id] ?? []}
-              />
-            ))}
-            <div
-              className="border-l border-dashed border-border px-2 py-2 font-medium text-text-3"
-              role="columnheader"
-              title={OUTCOME_TOOLTIP}
-            >
-              Outcome
-            </div>
-          </VirtualGridHeaderRow>
-          <VirtualGridBody
-            columnTemplate={columnTemplate}
-            rows={table.sortedRows}
+        <>
+          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
+          <ConfigVirtualTable
+            configs={configs}
+            table={table}
+            openColumnId={openColumnId}
+            setOpenColumnId={setOpenColumnId}
             scrollContainerRef={scrollContainerRef}
             getRowKey={(row) => row.recId}
-            renderRow={(row) => (
-              <RecommendationsTableRow row={row} configs={visibleConfigs} showOutcomePlaceholder />
-            )}
+            onRowClick={setDetailRow}
           />
-        </VirtualGridTableShell>
+          <RowDetailSheet configs={configs} row={detailRow} title="Recommendation details" onClose={() => setDetailRow(null)} />
+        </>
       ) : null}
     </section>
   );

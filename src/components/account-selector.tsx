@@ -2,10 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
+import { MobileSheet } from "@/components/overlay/MobileSheet";
 import { useAccountFilterContext } from "@/contexts/AccountFilterContext";
+import { useTopbarSheet } from "@/contexts/TopbarSheetContext";
+import { useIsBelowMd } from "@/hooks/useBreakpoint";
 
 export function AccountSelector() {
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const sheet = useTopbarSheet("accounts");
+  const belowMd = useIsBelowMd();
+  // Sheet presentation below md, topbar-owned open state (one at a time, #340).
+  const usingSheet = belowMd && sheet !== null;
+  const open = usingSheet ? sheet.open : localOpen;
+  const setOpen = usingSheet ? sheet.setOpen : setLocalOpen;
   const { accountsError, accountsLoading, availableAccounts, getAccountMeta, reloadAccounts, selectedAccounts, selectionWarnings, setSelectedAccounts } =
     useAccountFilterContext();
 
@@ -40,19 +49,8 @@ export function AccountSelector() {
     setSelectedAccounts([...selectedAccounts, accountId]);
   }
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={`rounded-lg border px-3 py-2 text-xs font-medium text-text ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface"}`}
-      >
-        {hasWarnings ? "⚠ " : ""}
-        {label}
-      </button>
-
-      {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
+  const panelBody = (
+    <>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-wide text-text-2">Account Filter</p>
             <button
@@ -115,6 +113,29 @@ export function AccountSelector() {
               ))}
             </div>
           ) : null}
+    </>
+  );
+
+  return (
+    <div className="relative max-lg:min-w-0 max-lg:flex-1">
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface"}`}
+      >
+        {hasWarnings ? "⚠ " : ""}
+        {label}
+      </button>
+
+      {usingSheet ? (
+        <MobileSheet open={open} onClose={() => setOpen(false)} title="Account filter">
+          <div className="p-1">{panelBody}</div>
+        </MobileSheet>
+      ) : open ? (
+        <div className="absolute right-0 z-[var(--z-page-controls)] mt-2 w-64 rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
+          {panelBody}
         </div>
       ) : null}
     </div>

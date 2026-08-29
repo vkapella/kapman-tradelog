@@ -47,3 +47,76 @@ body {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ---------------------------------------------------------------------------
+ * Mobile shell (#340): layer contract, tab-bar sizing, responsive grid
+ * templates, and touch targets. Layer tokens are the ONLY sanctioned z-index
+ * source for shell/overlay code — raw z-* utilities are migrated to these.
+ * ------------------------------------------------------------------------- */
+:root {
+  --z-page-controls: 30; /* in-page sticky/popover controls (pre-existing level) */
+  --z-topbar:        40;
+  --z-tabbar:        42;
+  --z-drawer-scrim:  60;
+  --z-drawer:        61;
+  --z-sheet-scrim:   70;
+  --z-sheet:         71;
+  --z-modal:         80; /* modals + portaled filter/chooser panels: topmost */
+
+  --tabbar-h: 56px;
+  /* Total bottom obstruction: tab bar + home indicator. Collapses to 0 at md+
+   * so desktop height math is untouched. */
+  --tabbar-total: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --tabbar-total: 0px;
+  }
+}
+
+/* Responsive VirtualGrid template: the shell sets --vgrid-cols-desktop /
+ * --vgrid-cols-mobile inline from its config array; rows consume --vgrid-cols.
+ * No !important, no inline template on rows (config-migrated tables only). */
+[data-virtual-grid-shell] {
+  --vgrid-cols: var(--vgrid-cols-desktop);
+}
+@media (max-width: 767px) {
+  [data-virtual-grid-shell] {
+    --vgrid-cols: var(--vgrid-cols-mobile, var(--vgrid-cols-desktop));
+  }
+}
+
+/* Default table height: dvh-aware and clear of the fixed tab bar. The vh line
+ * is the fallback for engines without dvh. */
+.vgrid-default-height {
+  height: calc(100vh - 280px);
+  height: calc(100dvh - 280px - var(--tabbar-total));
+}
+
+/* Touch targets: real box growth, scoped by BOTH pointer capability and
+ * viewport so touchscreen desktops stay pixel-equivalent. No pseudo-element
+ * overlap targets. */
+@media (pointer: coarse) and (max-width: 1023px) {
+  .touch-target {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Mobile data-grid density: header labels wrap and tighten below md so the
+ * approved tier-1 sets fit the phone width without panning. */
+@media (max-width: 767px) {
+  [data-virtual-grid-header] [data-header-label] {
+    white-space: normal;
+    font-size: 10px;
+    line-height: 1.15;
+  }
+  [data-virtual-grid-header] > * {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

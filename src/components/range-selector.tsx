@@ -1,7 +1,10 @@
 "use client";
 
 import { useContext, useEffect, useRef, useState } from "react";
+import { MobileSheet } from "@/components/overlay/MobileSheet";
 import { RangeFilterContext, type RangePreset } from "@/contexts/RangeFilterContext";
+import { useTopbarSheet } from "@/contexts/TopbarSheetContext";
+import { useIsBelowMd } from "@/hooks/useBreakpoint";
 
 export const RANGE_PRESETS: Array<{ value: RangePreset; label: string }> = [
   { value: "kapman-start", label: "Kapman Start" },
@@ -17,13 +20,21 @@ export const RANGE_PRESETS: Array<{ value: RangePreset; label: string }> = [
 export function RangeSelector() {
   const { range, setPreset, setCustomRange, displayText } = useContext(RangeFilterContext);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const sheet = useTopbarSheet("range");
+  const belowMd = useIsBelowMd();
+  // Below md with a topbar provider present, presentation switches to a
+  // body-portaled bottom sheet and open-state is owned by the topbar so only
+  // one scope selector can be open at a time (#340).
+  const usingSheet = belowMd && sheet !== null;
+  const open = usingSheet ? sheet.open : localOpen;
+  const setOpen = usingSheet ? sheet.setOpen : setLocalOpen;
   const [draftStartDate, setDraftStartDate] = useState("");
   const [draftEndDate, setDraftEndDate] = useState("");
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || usingSheet) {
       return;
     }
 
@@ -39,7 +50,7 @@ export function RangeSelector() {
 
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
+  }, [open, usingSheet, setOpen]);
 
   function handlePresetClick(preset: RangePreset) {
     if (preset === "custom") {
@@ -63,20 +74,8 @@ export function RangeSelector() {
 
   const canApplyCustom = draftStartDate.length > 0 && draftEndDate.length > 0 && draftStartDate <= draftEndDate;
 
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text"
-      >
-        <span className="text-text-2">Range:</span> {displayText}
-      </button>
-
-      {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-[360px] rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
+  const panelBody = (
+    <>
           <div role="radiogroup" aria-label="Date range" className="flex flex-wrap gap-1">
             {RANGE_PRESETS.map((preset) => {
               const selected = preset.value === range.preset || (preset.value === "custom" && showCustomForm);
@@ -148,6 +147,28 @@ export function RangeSelector() {
               </div>
             </div>
           ) : null}
+    </>
+  );
+
+  return (
+    <div ref={containerRef} className="relative max-lg:min-w-0 max-lg:flex-1">
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="touch-target w-full truncate rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text lg:w-auto"
+      >
+        <span className="text-text-2">Range:&nbsp;</span>{displayText}
+      </button>
+
+      {usingSheet ? (
+        <MobileSheet open={open} onClose={() => setOpen(false)} title="Date range">
+          <div className="p-1">{panelBody}</div>
+        </MobileSheet>
+      ) : open ? (
+        <div className="absolute right-0 z-[var(--z-page-controls)] mt-2 w-[360px] rounded-xl border border-border bg-surface-2 p-3 shadow-2xl">
+          {panelBody}
         </div>
       ) : null}
     </div>

@@ -172,7 +172,7 @@ export function ColumnFilterPanel<Row>({
         maxWidth: "calc(100vw - 24px)",
       }}
       className={[
-        "fixed z-50 min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-border bg-bg p-3 text-xs text-text shadow-2xl",
+        "fixed z-[var(--z-modal)] min-w-[200px] max-w-[320px] overflow-hidden rounded-lg border border-border bg-bg p-3 text-xs text-text shadow-2xl",
         column.panelWidthClassName ?? "w-72",
       ].join(" ")}
     >

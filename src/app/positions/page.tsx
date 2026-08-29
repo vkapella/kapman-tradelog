@@ -1,9 +1,18 @@
 "use client";
 
-import { memo, useMemo, useRef, useState } from "react";
-import { AccountLabel } from "@/components/accounts/AccountLabel";
-import { Badge } from "@/components/Badge";
+import { useMemo, useRef, useState } from "react";
+import { buildPositionsColumnConfigs, type PositionsRow } from "@/app/positions/columns";
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
+import {
+  configCellClass,
+  deriveDefinitions,
+  desktopTemplate,
+  mobileTemplate,
+  visibleConfigsFor,
+} from "@/components/data-table/column-config";
+import { detailsColumnConfig } from "@/components/data-table/details-column";
+import { HiddenStateChips } from "@/components/data-table/HiddenStateChips";
+import { RowDetailSheet } from "@/components/data-table/RowDetailSheet";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import { DataTableToolbar } from "@/components/data-table/DataTableToolbar";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
@@ -16,8 +25,6 @@ import { isAccountInScope } from "@/lib/api/account-scope";
 import { openPositionsStore } from "@/store/openPositionsStore";
 import type { OpenPosition } from "@/types/api";
 
-const POSITIONS_COLUMN_TEMPLATE = "120px 100px 100px 130px 80px 90px 140px 110px 140px 150px 110px 90px 90px 160px";
-
 function positionKey(position: OpenPosition): string {
   return position.accountId + "::" + position.instrumentKey;
 }
@@ -28,23 +35,12 @@ function formatSignedCurrency(value: number): string {
   const formatted = formatCurrency(Math.abs(value));
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
-function formatPercent(value: number): string {
-  return value.toFixed(2) + "%";
-}
-function formatExcursionPct(value: number | null): string {
-  if (value === null) return "—";
-  const pct = value * 100;
-  return (pct > 0 ? "+" : "") + pct.toFixed(1) + "%";
-}
 function getDte(expirationDate: string | null): number | null {
   if (!expirationDate) return null;
   const expiration = new Date(expirationDate);
   return Math.ceil((expiration.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 }
 // expirationDate is a UTC-midnight date-only value; format in UTC so it doesn't shift a day back in local time.
-function formatExpiry(value: string): string {
-  return new Date(value).toLocaleDateString("en-US", { timeZone: "UTC" });
-}
 function formatQuoteTimestamp(value: Date | null): string {
   if (!value) return "—";
   return value.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "medium" });
@@ -64,40 +60,20 @@ function formatFreshnessSpan(freshness: { oldestRefreshedAt: number | null; newe
   return `spans ${formatQuoteTimestamp(new Date(oldestRefreshedAt))} – ${formatQuoteTimestamp(new Date(newestRefreshedAt))}${missingSuffix}`;
 }
 
-const PositionRow = memo(function PositionRow({ row, markLoading }: { row: OpenPosition & { key: string; dte: number | null; mark: number | null; marketValue: number | null; unrealizedPnl: number | null; pnlPct: number | null; maePct: number | null; mfePct: number | null }; markLoading: boolean; }) {
-  return (
-    <>
-      <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>
-      <div className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge variant="stub">EQUITY</Badge>}</div>
-      <div className="px-2 py-2 text-right font-mono">{row.strike ?? "—"}</div>
-      <div className="px-2 py-2">{row.expirationDate ? formatExpiry(row.expirationDate) : "—"}</div>
-      <div className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text"].join(" ")}>{row.dte ?? "—"}</div>
-      <div className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</div>
-      <div className="px-2 py-2 text-right font-mono">{formatCurrency(row.costBasis)}</div>
-      <div className="px-2 py-2 text-right font-mono">{markLoading ? <span className="text-text-2">...</span> : row.mark === null ? "—" : formatCurrency(row.mark)}</div>
-      <div className="px-2 py-2 text-right font-mono">{row.marketValue === null ? "—" : formatCurrency(row.marketValue)}</div>
-      <div className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</div>
-      <div className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</div>
-      <div className={row.maePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-red-300"}>{formatExcursionPct(row.maePct)}</div>
-      <div className={row.mfePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-green-300"}>{formatExcursionPct(row.mfePct)}</div>
-      <div className="px-2 py-2 text-text-2"><AccountLabel accountId={row.accountId} /></div>
-    </>
-  );
-});
-
 export default function Page() {
   const { positions, loading, error } = useOpenPositions();
   const { selectedAccounts, getAccountDisplayText } = useAccountFilterContext();
   const snapshot = openPositionsStore.getSnapshot(selectedAccounts);
   const [openColumnId, setOpenColumnId] = useState<string | null>(null);
   const [snapshotCopyStatus, setSnapshotCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const [snapshotCopyError, setSnapshotCopyError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredPositions = useMemo(() => positions.filter((position) => isAccountInScope(selectedAccounts, position.accountId)), [positions, selectedAccounts]);
   const hasPersistedSnapshot = snapshot.freshness.newestRefreshedAt !== null;
 
-  const rows = useMemo(() => filteredPositions.map((position) => {
+  const rows = useMemo<PositionsRow[]>(() => filteredPositions.map((position) => {
     const key = positionKey(position);
     const mark = snapshot.quotes[position.instrumentKey]?.mark ?? null;
     const multiplier = position.assetClass === "OPTION" ? 100 : 1;
@@ -108,24 +84,17 @@ export default function Page() {
     return { ...position, key, dte: getDte(position.expirationDate), mark, marketValue, unrealizedPnl, pnlPct, maePct: excursion?.maePct ?? null, mfePct: excursion?.mfePct ?? null };
   }), [filteredPositions, snapshot.quotes, snapshot.excursions]);
 
-  const columns = useMemo<DataTableColumnDefinition<(typeof rows)[number]>[]>(() => [
-    { id: "symbol", label: "Symbol", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
-    { id: "assetClass", label: "Type", filterMode: "discrete", getFilterValues: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"), sortMode: "string", getSortValue: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY") },
-    { id: "strike", label: "Strike", align: "right", filterMode: "discrete", getFilterValues: (row) => row.strike ?? "—", sortMode: "number", getSortValue: (row) => (row.strike === null ? null : Number(row.strike)) },
-    { id: "expirationDate", label: "Expiry", filterMode: "discrete", getFilterValues: (row) => row.expirationDate ?? "—", getFilterOptionLabel: (value) => (value === "—" ? value : formatExpiry(value)), sortMode: "date", getSortValue: (row) => row.expirationDate, defaultSortDirection: "asc" },
-    { id: "dte", label: "DTE", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.dte === null ? "—" : String(row.dte)), sortMode: "number", getSortValue: (row) => row.dte },
-    { id: "netQty", label: "Qty", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.netQty), sortMode: "number", getSortValue: (row) => row.netQty },
-    { id: "costBasis", label: "Cost Basis", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.costBasis), sortMode: "number", getSortValue: (row) => row.costBasis },
-    { id: "mark", label: "Mark", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.mark === null ? "—" : String(row.mark)), sortMode: "number", getSortValue: (row) => row.mark },
-    { id: "marketValue", label: "Mkt Value", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.marketValue === null ? "—" : String(row.marketValue)), sortMode: "number", getSortValue: (row) => row.marketValue },
-    { id: "unrealizedPnl", label: "Unrealized P&L", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.unrealizedPnl === null ? "—" : String(row.unrealizedPnl)), sortMode: "number", getSortValue: (row) => row.unrealizedPnl },
-    { id: "pnlPct", label: "P&L %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.pnlPct === null ? "—" : String(row.pnlPct)), sortMode: "number", getSortValue: (row) => row.pnlPct },
-    { id: "maePct", label: "MAE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.maePct === null ? "—" : String(row.maePct)), sortMode: "number", getSortValue: (row) => row.maePct },
-    { id: "mfePct", label: "MFE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.mfePct === null ? "—" : String(row.mfePct)), sortMode: "number", getSortValue: (row) => row.mfePct },
-    { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },
-  ], [getAccountDisplayText]);
+  const markLoadingRef = useRef(false);
+  markLoadingRef.current = snapshot.isLoading;
+  const [detailRow, setDetailRow] = useState<PositionsRow | null>(null);
+  const configs = useMemo(() => {
+    const base = buildPositionsColumnConfigs(getAccountDisplayText, () => markLoadingRef.current);
+    return [...base, detailsColumnConfig<PositionsRow>(setDetailRow)];
+  }, [getAccountDisplayText]);
+  const columns = useMemo(() => deriveDefinitions(configs), [configs]);
 
   const table = useDataTableState({ tableName: "positions", rows, columns, initialSort: { columnId: "unrealizedPnl", direction: "desc" } });
+  const visibleConfigs = useMemo(() => visibleConfigsFor(configs, table.visibleColumns), [configs, table.visibleColumns]);
 
   const totals = useMemo(() => {
     const totalCostBasis = table.sortedRows.reduce((sum, row) => sum + row.costBasis, 0);
@@ -175,21 +144,32 @@ export default function Page() {
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-4 max-md:p-2">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-2">{table.sortedRows.length} positions</span>
           <span className="text-xs text-text-2">Last quoted: {formatFreshnessSpan(snapshot.freshness)}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Copy snapshot JSON is a desk workflow: behind the overflow menu on phones. */}
+          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50 max-md:hidden" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+          <div className="relative md:hidden">
+            <button type="button" onClick={() => setOverflowOpen((current) => !current)} aria-haspopup="true" aria-expanded={overflowOpen} aria-label="More actions" className="touch-target rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text">⋯</button>
+            {overflowOpen ? (
+              <div className="absolute right-0 z-[var(--z-page-controls)] mt-1 w-48 rounded-lg border border-border bg-surface-2 p-1 shadow-2xl">
+                <button type="button" onClick={() => { setOverflowOpen(false); void handleCopySnapshot(); }} className="touch-target w-full rounded px-2 py-1.5 text-left text-xs text-text hover:bg-surface">
+                  {snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}
+                </button>
+              </div>
+            ) : null}
+          </div>
           {snapshotCopyStatus === "failed" && snapshotCopyError ? (
             <p className="max-w-md text-[11px] text-amber-200" title={snapshotCopyError}>
               {snapshotCopyError}
             </p>
           ) : null}
-          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
+          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="touch-target rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
         </div>
       </header>
 
@@ -207,32 +187,53 @@ export default function Page() {
           {totals.hasMissingMarketValue && hasPersistedSnapshot ? <p className="text-xs text-amber-200">Some marks are unavailable in the current snapshot.</p> : null}
 
           <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
+          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
 
-          <VirtualGridTableShell height="calc(100vh - 340px)" scrollContainerRef={scrollContainerRef}>
-            <VirtualGridHeaderRow columnTemplate={POSITIONS_COLUMN_TEMPLATE} className="bg-surface-2 text-text-2">
-              {columns.map((column) => (
-                <DataTableHeader
-                  key={column.id}
-                  as="div"
-                  column={column}
-                  currentSortDirection={table.sort.columnId === column.id ? table.sort.direction : null}
-                  currentValues={table.filters[column.id] ?? []}
-                  isOpen={openColumnId === column.id}
-                  onApply={(values, direction) => applyColumnState(column.id, values, direction)}
-                  onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, column.id))}
-                  onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, column.id))}
-                  options={table.filterOptions[column.id] ?? []}
-                />
-              ))}
+          <VirtualGridTableShell
+            scrollContainerRef={scrollContainerRef}
+            desktopTemplate={desktopTemplate(visibleConfigs)}
+            mobileTemplate={mobileTemplate(visibleConfigs)}
+          >
+            <VirtualGridHeaderRow className="bg-surface-2 text-text-2">
+              {visibleConfigs.map((config) =>
+                config.renderHeader ? (
+                  <div key={config.definition.id} role="columnheader" className={["px-2 py-2", configCellClass(config)].join(" ")}>
+                    {config.renderHeader()}
+                  </div>
+                ) : (
+                  <DataTableHeader
+                    key={config.definition.id}
+                    as="div"
+                    className={configCellClass(config)}
+                    column={config.definition}
+                    currentSortDirection={table.sort.columnId === config.definition.id ? table.sort.direction : null}
+                    currentValues={table.filters[config.definition.id] ?? []}
+                    isOpen={openColumnId === config.definition.id}
+                    onApply={(values, direction) => applyColumnState(config.definition.id, values, direction)}
+                    onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, config.definition.id))}
+                    onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, config.definition.id))}
+                    options={table.filterOptions[config.definition.id] ?? []}
+                  />
+                ),
+              )}
             </VirtualGridHeaderRow>
             <VirtualGridBody
-              columnTemplate={POSITIONS_COLUMN_TEMPLATE}
               rows={table.sortedRows}
               scrollContainerRef={scrollContainerRef}
               getRowKey={(row) => row.key}
-              renderRow={(row) => <PositionRow row={row} markLoading={snapshot.isLoading} />}
+              onRowClick={setDetailRow}
+              renderRow={(row) => (
+                <>
+                  {visibleConfigs.map((config) => (
+                    <div key={config.definition.id} className={configCellClass(config)} data-cell={config.definition.id}>
+                      {config.renderCell(row)}
+                    </div>
+                  ))}
+                </>
+              )}
             />
           </VirtualGridTableShell>
+          <RowDetailSheet configs={configs} row={detailRow} title="Position details" onClose={() => setDetailRow(null)} />
         </div>
       ) : null}
     </section>

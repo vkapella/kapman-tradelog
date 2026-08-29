@@ -193,3 +193,5 @@ export function useDataTableState<Row>({
     visibleColumns,
   };
 }
+
+export type DataTableState<Row> = ReturnType<typeof useDataTableState<Row>>;

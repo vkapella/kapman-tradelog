@@ -18,7 +18,6 @@ import type { DiagnosticsResponse, MatchedLotRecord, SetupSummaryRecord } from "
 type SortColumn = "tag" | "underlyingSymbol" | "realizedPnl" | "winRate" | "expectancy" | "averageHoldDays";
 type SortDirection = "asc" | "desc";
 
-const ANALYTICS_SETUPS_COLUMN_TEMPLATE = "220px 180px 170px 150px 190px 130px";
 
 interface SetupsPayload { data: SetupSummaryRecord[]; }
 interface MatchedLotsPayload { data: MatchedLotRecord[]; }
@@ -132,7 +131,7 @@ export default function Page() {
 
   return (
     <section className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Total P&L" value={formatCurrency(kpis.totalPnl)} colorVariant={kpis.totalPnl >= 0 ? "pos" : "neg"} helpText={analyticsKpiHelpText.totalPnl} />
         <KpiCard label="Win Rate (%)" value={formatNullablePercent(kpis.winRate, 1)} colorVariant="accent" helpText={analyticsKpiHelpText.winRate} />
         <KpiCard label="Avg Hold" value={kpis.avgHold.toFixed(2) + "d"} colorVariant="accent" helpText={analyticsKpiHelpText.avgHold} />
@@ -157,28 +156,36 @@ export default function Page() {
 
       <article className="rounded-xl border border-border bg-surface p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold text-text">Setup Analytics Table</h2><span className="text-xs text-text-2">{sortedTableRows.length} rows</span></div>
-        <VirtualGridTableShell height="calc(100vh - 480px)" scrollContainerRef={scrollContainerRef}>
-          <VirtualGridHeaderRow columnTemplate={ANALYTICS_SETUPS_COLUMN_TEMPLATE} className="bg-surface-2 text-text-2">
-            <div className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("tag")}>Tag</button></div>
-            <div className="px-2 py-2 text-left"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></div>
-            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></div>
-            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</button></div>
-            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</button></div>
-            <div className="px-2 py-2 text-right"><button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button></div>
+        {/* Tier-1 (approved §0.4): Setup, Trades (setupLotCount, mobileOnly so the
+            desktop table is untouched), Win Rate, Total P&L (realizedPnl). */}
+        <VirtualGridTableShell
+          height="calc(100vh - 480px)"
+          scrollContainerRef={scrollContainerRef}
+          desktopTemplate="220px 180px 170px 150px 190px 130px"
+          mobileTemplate="minmax(92px, auto) minmax(44px, auto) minmax(84px, auto) minmax(64px, auto)"
+        >
+          <VirtualGridHeaderRow className="bg-surface-2 text-text-2">
+            <div className="px-2 py-2 text-left"><button type="button" className="touch-target" onClick={() => toggleSort("tag")}>Setup</button></div>
+            <div className="px-2 py-2 text-left max-md:hidden"><button type="button" onClick={() => toggleSort("underlyingSymbol")}>Underlying</button></div>
+            <div className="px-2 py-2 text-right md:hidden"><span data-header-label="">Trades</span></div>
+            <div className="px-2 py-2 text-right"><button type="button" className="touch-target" onClick={() => toggleSort("realizedPnl")}>Realized P&amp;L ($)</button></div>
+            <div className="px-2 py-2 text-right"><button type="button" className="touch-target" onClick={() => toggleSort("winRate")} title="Percent of closed lots with positive outcome. Flat lots excluded.">Win Rate (%)</button></div>
+            <div className="px-2 py-2 text-right max-md:hidden"><button type="button" onClick={() => toggleSort("expectancy")} title="Average realized P&L per matched lot in this setup.">Expectancy ($ / lot)</button></div>
+            <div className="px-2 py-2 text-right max-md:hidden"><button type="button" onClick={() => toggleSort("averageHoldDays")}>Avg Hold</button></div>
           </VirtualGridHeaderRow>
           <VirtualGridBody
-            columnTemplate={ANALYTICS_SETUPS_COLUMN_TEMPLATE}
             rows={sortedTableRows}
             scrollContainerRef={scrollContainerRef}
             getRowKey={(row) => row.id}
             renderRow={(row) => (
               <>
                 <div className="px-2 py-2">{row.overrideTag ?? row.tag}</div>
-                <div className="px-2 py-2">{row.underlyingSymbol}</div>
+                <div className="px-2 py-2 max-md:hidden">{row.underlyingSymbol}</div>
+                <div className="px-2 py-2 text-right md:hidden">{row.setupLotCount ?? 0}</div>
                 <div className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.realizedPnl))}</div>
                 <div className="px-2 py-2 text-right">{formatNullablePercent(row.winRate === null ? null : safeNumber(row.winRate) * 100, 1)}</div>
-                <div className="px-2 py-2 text-right">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</div>
-                <div className="px-2 py-2 text-right">{safeNumber(row.averageHoldDays).toFixed(2)}</div>
+                <div className="px-2 py-2 text-right max-md:hidden">{formatCurrency(safeNumber(row.expectancy)) + " / lot"}</div>
+                <div className="px-2 py-2 text-right max-md:hidden">{safeNumber(row.averageHoldDays).toFixed(2)}</div>
               </>
             )}
           />
