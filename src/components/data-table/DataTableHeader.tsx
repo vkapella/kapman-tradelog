@@ -85,7 +85,7 @@ function DataTableHeaderInner<Row>({
           ref={filterButtonRef}
           type="button"
           onClick={onToggle}
-          className={(isActive ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] p-1 text-accent" : "rounded border border-transparent p-1 text-inherit hover:border-border hover:bg-surface-2") + " max-md:hidden"}
+          className={(isActive ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] p-1 text-accent" : "rounded border border-transparent p-1 text-inherit hover:border-border hover:bg-surface-3") + " max-md:hidden"}
           aria-label={`Filter ${column.label}`}
           aria-expanded={isOpen}
         >

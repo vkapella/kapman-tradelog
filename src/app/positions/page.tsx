@@ -158,7 +158,7 @@ export default function Page() {
             <button type="button" onClick={() => setOverflowOpen((current) => !current)} aria-haspopup="true" aria-expanded={overflowOpen} aria-label="More actions" className="touch-target rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text">⋯</button>
             {overflowOpen ? (
               <div className="absolute right-0 z-[var(--z-page-controls)] mt-1 w-48 rounded-lg border border-border bg-surface-2 p-1 shadow-2xl">
-                <button type="button" onClick={() => { setOverflowOpen(false); void handleCopySnapshot(); }} className="touch-target w-full rounded px-2 py-1.5 text-left text-xs text-text hover:bg-surface">
+                <button type="button" onClick={() => { setOverflowOpen(false); void handleCopySnapshot(); }} className="touch-target w-full rounded px-2 py-1.5 text-left text-xs text-text hover:bg-surface-3">
                   {snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}
                 </button>
               </div>

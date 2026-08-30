@@ -69,7 +69,7 @@ export function ColumnChooserControl<Row>({
         Columns{hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ""}
       </button>
       {isOpen ? (
-        <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 w-60 rounded-lg border border-border bg-bg p-3 text-xs text-text shadow-2xl">
+        <div className="absolute right-0 top-full z-[var(--z-modal)] mt-2 w-60 rounded-lg border border-border bg-surface-2 p-3 text-xs text-text shadow-2xl">
           <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
             <p className="font-semibold text-text">Visible columns</p>
             <button type="button" onClick={onResetColumnVisibility} className="text-accent underline">
@@ -78,7 +78,7 @@ export function ColumnChooserControl<Row>({
           </div>
           <div className="mt-2 max-h-72 space-y-1 overflow-y-auto">
             {hideableColumns.map((column) => (
-              <label key={column.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-surface-2">
+              <label key={column.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-surface-3">
                 <input
                   type="checkbox"
                   checked={!hiddenColumns.includes(column.id)}
