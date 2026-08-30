@@ -91,6 +91,7 @@ function reorder<T>(items: T[], from: number, to: number): T[] {
 
 function DashboardTile({
   slotId,
+  widgetName,
   colSpan,
   editMode,
   remove,
@@ -98,6 +99,7 @@ function DashboardTile({
   children,
 }: {
   slotId: string;
+  widgetName: string;
   colSpan?: DashboardWidgetColSpan;
   editMode: boolean;
   remove: () => void;
@@ -169,7 +171,7 @@ function DashboardTile({
           <button
             ref={setActivatorNodeRef}
             type="button"
-            aria-label="Drag tile"
+            aria-label={`Drag ${widgetName}`}
             className="absolute left-2 top-2 z-[var(--z-page-controls)] flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface-3 text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
             {...attributes}
             {...listeners}
@@ -180,6 +182,7 @@ function DashboardTile({
             type="button"
             onPointerDown={stopDashboardControlPropagation}
             onClick={(event) => handleRemoveWidgetClick(event, { editMode, remove })}
+            aria-label={`Remove ${widgetName}`}
             className="absolute right-2 top-2 z-[var(--z-page-controls)] rounded border border-border bg-surface-3 px-2 py-0.5 text-xs text-text-2"
           >
             ×
@@ -187,7 +190,7 @@ function DashboardTile({
           {onResize ? (
             <button
               type="button"
-              aria-label="Resize widget"
+              aria-label={`Resize ${widgetName}`}
               onPointerDown={handleResizePointerDown}
               className="absolute bottom-2 right-2 z-[var(--z-page-controls)] flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface-3 text-[10px] text-text-2 hover:text-text"
             >
@@ -367,6 +370,7 @@ export default function Page() {
                 <DashboardTile
                   key={kpiId + "-" + String(index)}
                   slotId={`kpi-slot-${String(index)}`}
+                  widgetName={definition.name}
                   editMode={editMode}
                   remove={() => setKpiLayout((current) => current.filter((_value, valueIndex) => valueIndex !== index))}
                 >
@@ -407,6 +411,7 @@ export default function Page() {
               <DashboardTile
                 key={entry.widgetId + "-" + String(index)}
                 slotId={`widget-slot-${String(index)}`}
+                widgetName={definition.name}
                 colSpan={entry.colSpan}
                 editMode={editMode}
                 remove={() => setLayout((current) => current.filter((_value, valueIndex) => valueIndex !== index))}

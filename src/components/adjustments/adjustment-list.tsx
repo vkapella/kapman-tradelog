@@ -35,7 +35,7 @@ const AdjustmentRow = memo(function AdjustmentRow({ record, onReverse, reversing
       <div className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-text-2">{JSON.stringify(record.payload)}</div>
       <div className="max-w-[260px] px-2 py-2 text-text-2">{record.reason}</div>
       <div className="px-2 py-2"><span className={record.status === "ACTIVE" ? "text-pos" : "text-text-2"}>{record.status}</span>{record.status === "ACTIVE" && supersededIds.has(record.id) ? <span className="ml-1 text-[10px] text-amber-300">(SUPERSEDED)</span> : null}</div>
-      <div className="px-2 py-2 text-right"><button type="button" disabled={record.status !== "ACTIVE" || reversingId === record.id} onClick={() => onReverse(record.id)} className="rounded border border-border bg-surface-3 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50">{reversingId === record.id ? "Reversing..." : "Reverse"}</button></div>
+      <div className="px-2 py-2 text-right"><button type="button" aria-label={`Reverse adjustment for ${record.symbol}`} disabled={record.status !== "ACTIVE" || reversingId === record.id} onClick={() => onReverse(record.id)} className="rounded border border-border bg-surface-3 px-2 py-1 text-[11px] text-text disabled:cursor-not-allowed disabled:opacity-50">{reversingId === record.id ? "Reversing..." : "Reverse"}</button></div>
     </>
   );
 });
