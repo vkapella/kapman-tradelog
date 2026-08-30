@@ -5,7 +5,9 @@ import {
   buildFilterOptions,
   countActiveFilters,
   getVisibleColumns,
+  normalizePersistedColumnOrder,
   normalizePersistedFilters,
+  normalizePersistedRangeFilters,
   normalizePersistedSort,
   normalizeSelectedFilterValues,
   toggleHiddenColumn,
@@ -16,6 +18,8 @@ import type {
   DataTableFilterOption,
   DataTableFiltersState,
   DataTablePersistedState,
+  DataTableRangeFiltersState,
+  DataTableRangeState,
   DataTableSortState,
 } from "@/components/data-table/types";
 
@@ -84,6 +88,8 @@ export function useDataTableState<Row>({
   );
 
   const [filters, setFilters] = useState<DataTableFiltersState>({});
+  const [rangeFilters, setRangeFilters] = useState<DataTableRangeFiltersState>({});
+  const [columnOrder, setColumnOrderState] = useState<string[]>([]);
   const [sort, setSort] = useState<DataTableSortState>(() => defaultSort);
   const [hiddenColumns, setHiddenColumnsState] = useState<string[]>(initialHiddenColumns);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -107,6 +113,8 @@ export function useDataTableState<Row>({
 
   useEffect(() => {
     let nextFilters: DataTableFiltersState = {};
+    let nextRangeFilters: DataTableRangeFiltersState = {};
+    let nextColumnOrder: string[] = [];
     let nextSort = defaultSort;
 
     try {
@@ -115,13 +123,21 @@ export function useDataTableState<Row>({
         const parsed = JSON.parse(raw) as Partial<DataTablePersistedState>;
         nextFilters = normalizePersistedFilters(parsed.filters);
         nextSort = normalizePersistedSort(parsed.sort);
+        // v2-only fields (UI-2). A v1 payload has no schema key and no such
+        // fields — it keeps loading exactly as before.
+        nextRangeFilters = normalizePersistedRangeFilters(parsed.rangeFilters);
+        nextColumnOrder = normalizePersistedColumnOrder(parsed.columnOrder);
       }
     } catch {
       nextFilters = {};
+      nextRangeFilters = {};
+      nextColumnOrder = [];
       nextSort = defaultSort;
     }
 
     setFilters((current) => (filtersEqual(current, nextFilters) ? current : nextFilters));
+    setRangeFilters(nextRangeFilters);
+    setColumnOrderState((current) => (arraysEqual(current, nextColumnOrder) ? current : nextColumnOrder));
     setSort((current) => (sortsEqual(current, nextSort) ? current : nextSort));
     setIsHydrated(true);
   }, [defaultSort, storageKey]);
@@ -131,8 +147,9 @@ export function useDataTableState<Row>({
       return;
     }
 
-    // Filters and sort only — hiddenColumns is deliberately NOT persisted here.
-    const payload = JSON.stringify({ filters, sort } satisfies DataTablePersistedState);
+    // Filters, ranges, column order, and sort — hiddenColumns is deliberately
+    // NOT persisted here (its authority is the per-user profile, #344).
+    const payload = JSON.stringify({ schema: 2, filters, rangeFilters, columnOrder, sort } satisfies DataTablePersistedState);
     if (payload === lastPersistedPayloadRef.current) {
       return;
     }
@@ -149,7 +166,7 @@ export function useDataTableState<Row>({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [filters, isHydrated, sort, storageKey]);
+  }, [columnOrder, filters, isHydrated, rangeFilters, sort, storageKey]);
 
   // User visibility edits report upward AFTER commit (an effect), never from
   // inside the state updater — profile-seeded changes bypass this wrapper and
@@ -182,9 +199,9 @@ export function useDataTableState<Row>({
     return Object.fromEntries(entries) as Record<string, DataTableFilterOption[]>;
   }, [columns, rows]);
 
-  const filteredRows = useMemo(() => applyDataTableFilters(rows, columns, filters), [columns, filters, rows]);
+  const filteredRows = useMemo(() => applyDataTableFilters(rows, columns, filters, rangeFilters), [columns, filters, rangeFilters, rows]);
   const sortedRows = useMemo(() => applyDataTableSort(filteredRows, columns, sort), [columns, filteredRows, sort]);
-  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters]);
+  const activeFilterCount = useMemo(() => countActiveFilters(filters, rangeFilters), [filters, rangeFilters]);
 
   const setColumnFilter = useCallback((columnId: string, values: string[]) => {
     setFilters((current) => {
@@ -212,8 +229,32 @@ export function useDataTableState<Row>({
     });
   }, []);
 
+  const setColumnRange = useCallback((columnId: string, range: DataTableRangeState | null) => {
+    setRangeFilters((current) => {
+      const active = range !== null && (range.from !== null || range.to !== null);
+      const existing = current[columnId];
+      if (!active) {
+        if (!existing) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[columnId];
+        return next;
+      }
+      if (existing && existing.from === range.from && existing.to === range.to) {
+        return current;
+      }
+      return { ...current, [columnId]: { from: range.from, to: range.to } };
+    });
+  }, []);
+
+  const setColumnOrder = useCallback((order: string[]) => {
+    setColumnOrderState((current) => (arraysEqual(current, order) ? current : [...order]));
+  }, []);
+
   const clearAllFilters = useCallback(() => {
     setFilters({});
+    setRangeFilters({});
     setSort(defaultSort);
   }, [defaultSort]);
 
@@ -233,12 +274,16 @@ export function useDataTableState<Row>({
   return {
     activeFilterCount,
     clearAllFilters,
+    columnOrder,
     filterOptions,
     filters,
     hiddenColumns,
     isHydrated,
+    rangeFilters,
     resetColumnVisibility,
     setColumnFilter,
+    setColumnOrder,
+    setColumnRange,
     setColumnVisibility,
     setFilters,
     setSort,

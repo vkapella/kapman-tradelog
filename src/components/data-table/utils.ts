@@ -2,6 +2,8 @@ import type {
   DataTableColumnDefinition,
   DataTableFilterOption,
   DataTableFiltersState,
+  DataTableRangeFiltersState,
+  DataTableRangeState,
   DataTableSortMode,
   DataTableSortState,
   SortDirection,
@@ -102,14 +104,39 @@ export function buildFilterOptions<Row>(rows: Row[], column: DataTableColumnDefi
     .sort((left, right) => compareStringValues(left.label, right.label));
 }
 
-export function applyDataTableFilters<Row>(rows: Row[], columns: DataTableColumnDefinition<Row>[], filters: DataTableFiltersState): Row[] {
-  const filterableColumns = columns.filter((column) => column.filterMode === "discrete" && column.getFilterValues);
-  if (filterableColumns.length === 0) {
+/** UI-2: a column offers the numeric min/max range when it sorts numerically —
+ *  no per-column flag, so every numeric column gets the affordance. */
+export function columnSupportsRange<Row>(column: DataTableColumnDefinition<Row>): boolean {
+  return column.sortMode === "number" && Boolean(column.getSortValue ?? column.getFilterValues);
+}
+
+function resolveRangeValue<Row>(column: DataTableColumnDefinition<Row>, row: Row): number | null {
+  const value = resolveSortValue(column, row);
+  if (value === null) {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function rangeIsActive(range: DataTableRangeState | undefined): range is DataTableRangeState {
+  return Boolean(range && (range.from !== null || range.to !== null));
+}
+
+export function applyDataTableFilters<Row>(
+  rows: Row[],
+  columns: DataTableColumnDefinition<Row>[],
+  filters: DataTableFiltersState,
+  rangeFilters: DataTableRangeFiltersState = {},
+): Row[] {
+  const setColumns = columns.filter((column) => column.filterMode === "discrete" && column.getFilterValues);
+  const rangeColumns = columns.filter((column) => columnSupportsRange(column) && rangeIsActive(rangeFilters[column.id]));
+  if (setColumns.length === 0 && rangeColumns.length === 0) {
     return rows;
   }
 
   return rows.filter((row) => {
-    return filterableColumns.every((column) => {
+    const setPass = setColumns.every((column) => {
       const selectedValues = filters[column.id] ?? [];
       if (selectedValues.length === 0) {
         return true;
@@ -117,6 +144,22 @@ export function applyDataTableFilters<Row>(rows: Row[], columns: DataTableColumn
 
       const rowValues = normalizeRowFilterValues(column, row);
       return rowValues.some((value) => selectedValues.includes(value));
+    });
+    if (!setPass) {
+      return false;
+    }
+
+    // Set and range AND together on the same column (UI-2 acceptance).
+    return rangeColumns.every((column) => {
+      const range = rangeFilters[column.id];
+      const value = resolveRangeValue(column, row);
+      if (value === null) {
+        return false; // an active numeric bound excludes rows with no number
+      }
+      if (range.from !== null && value < range.from) {
+        return false;
+      }
+      return !(range.to !== null && value > range.to);
     });
   });
 }
@@ -139,8 +182,10 @@ export function applyDataTableSort<Row>(rows: Row[], columns: DataTableColumnDef
   return sorted;
 }
 
-export function countActiveFilters(filters: DataTableFiltersState): number {
-  return Object.values(filters).filter((values) => values.length > 0).length;
+export function countActiveFilters(filters: DataTableFiltersState, rangeFilters: DataTableRangeFiltersState = {}): number {
+  const setActive = Object.values(filters).filter((values) => values.length > 0).length;
+  const rangeActive = Object.values(rangeFilters).filter((range) => rangeIsActive(range)).length;
+  return setActive + rangeActive;
 }
 
 export function getNextSortDirection(currentSort: DataTableSortState, columnId: string, defaultDirection: SortDirection = "asc"): SortDirection {
@@ -173,6 +218,37 @@ export function normalizePersistedSort(sort: unknown): DataTableSortState {
     columnId: typeof candidate.columnId === "string" ? candidate.columnId : null,
     direction: candidate.direction === "asc" || candidate.direction === "desc" ? candidate.direction : null,
   };
+}
+
+export function normalizePersistedRangeFilters(value: unknown): DataTableRangeFiltersState {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, candidate]) => {
+      if (!candidate || typeof candidate !== "object") {
+        return null;
+      }
+      const record = candidate as { from?: unknown; to?: unknown };
+      const from = typeof record.from === "number" && Number.isFinite(record.from) ? record.from : null;
+      const to = typeof record.to === "number" && Number.isFinite(record.to) ? record.to : null;
+      if (from === null && to === null) {
+        return null;
+      }
+      return [key, { from, to }] as const;
+    })
+    .filter((entry): entry is readonly [string, DataTableRangeState] => entry !== null);
+
+  return Object.fromEntries(entries);
+}
+
+export function normalizePersistedColumnOrder(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(new Set(value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)));
 }
 
 export function normalizeSelectedFilterValues(values: string[]): string[] {
