@@ -218,6 +218,11 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 36px; min-height: 36px;
+  /* explicit: the box is the min-size + centring, never inherited padding.
+     Tailwind preflight zeroes button padding, so this was invisible here —
+     a plain-CSS consumer with its own `button { padding }` base had that
+     padding leak into the primitive and grow the control (Screener UI-1). */
+  padding: 0;
   border-radius: var(--r); border: 1px solid var(--border);
   background: transparent; color: var(--text-3); cursor: pointer;
 }
