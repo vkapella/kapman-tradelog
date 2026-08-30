@@ -97,6 +97,17 @@ function shouldIgnoreRowClick(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("a, button, input, select, [role=\"button\"]") !== null;
 }
 
+/** UI-7: the pre-measurement estimate follows the theme token (--row-h) so
+ *  the virtualizer and the CSS scale cannot drift. Rows are still measured
+ *  after mount (measureElement), so this is the estimate, not the height. */
+function resolveRowHeightEstimate(): number {
+  if (typeof window === "undefined") {
+    return 36;
+  }
+  const parsed = Number.parseInt(getComputedStyle(document.documentElement).getPropertyValue("--row-h"), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 36;
+}
+
 export function VirtualGridBody<TRow>({
   columnTemplate,
   estimateSize,
@@ -123,7 +134,7 @@ export function VirtualGridBody<TRow>({
     count: rows.length,
     getScrollElement: () => scrollContainerRef.current,
     getItemKey: (index) => (getRowKey ? getRowKey(rows[index] as TRow, index) : index),
-    estimateSize: () => estimateSize ?? 36,
+    estimateSize: () => estimateSize ?? resolveRowHeightEstimate(),
     initialRect: { width: 0, height: VIRTUAL_GRID_FALLBACK_HEIGHT },
     overscan: overscan ?? 5,
     useAnimationFrameWithResizeObserver: true,
