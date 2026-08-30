@@ -9,7 +9,9 @@ interface HiddenStateChipsProps<Row> {
   sort: DataTableSortState;
   filters: DataTableFiltersState;
   setSort: (sort: { columnId: string | null; direction: SortDirection | null }) => void;
+  rangeFilters?: import("@/components/data-table/types").DataTableRangeFiltersState;
   setColumnFilter: (columnId: string, values: string[]) => void;
+  setColumnRange?: (columnId: string, range: null) => void;
 }
 
 /**
@@ -17,8 +19,9 @@ interface HiddenStateChipsProps<Row> {
  * or user-hidden) is surfaced as clearable chips — hidden state is never
  * silent (#340). Table state itself is untouched by tiering.
  */
-export function HiddenStateChips<Row>({ configs, visibleColumns, sort, filters, setSort, setColumnFilter }: HiddenStateChipsProps<Row>) {
-  const hidden = deriveHiddenActiveState(configs, visibleColumns, sort, filters);
+export function HiddenStateChips<Row>({ configs, visibleColumns, sort, filters,
+  rangeFilters, setSort, setColumnFilter, setColumnRange }: HiddenStateChipsProps<Row>) {
+  const hidden = deriveHiddenActiveState(configs, visibleColumns, sort, filters, rangeFilters);
   if (hidden.sortLabel === null && hidden.filters.length === 0) {
     return null;
   }
@@ -44,7 +47,7 @@ export function HiddenStateChips<Row>({ configs, visibleColumns, sort, filters, 
           <button
             type="button"
             aria-label={`Clear filter on ${entry.label}`}
-            onClick={() => setColumnFilter(entry.columnId, [])}
+            onClick={() => { setColumnFilter(entry.columnId, []); setColumnRange?.(entry.columnId, null); }}
             className="touch-target -m-1 p-1 text-text"
           >
             ✕

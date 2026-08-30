@@ -188,7 +188,7 @@ export default function Page() {
           {totals.hasMissingMarketValue && hasPersistedSnapshot ? <p className="text-xs text-amber-200">Some marks are unavailable in the current snapshot.</p> : null}
 
           <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
-          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
+          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} rangeFilters={table.rangeFilters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} setColumnRange={table.setColumnRange} />
 
           <VirtualGridTableShell
             scrollContainerRef={scrollContainerRef}

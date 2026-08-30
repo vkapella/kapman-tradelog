@@ -1,10 +1,14 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import {
   configCellClass,
   desktopTemplate,
+  dropColumnInOrder,
   mobileTemplate,
+  movableColumnIds,
+  moveColumnInOrder,
+  orderVisibleConfigs,
   visibleConfigsFor,
   type TableColumnConfig,
 } from "@/components/data-table/column-config";
@@ -45,7 +49,24 @@ export function ConfigVirtualTable<Row>({
   height,
   estimateSize,
 }: ConfigVirtualTableProps<Row>) {
-  const visibleConfigs = visibleConfigsFor(configs, table.visibleColumns);
+  const visibleConfigs = orderVisibleConfigs(visibleConfigsFor(configs, table.visibleColumns), table.columnOrder);
+  const reorderableIds = movableColumnIds(visibleConfigs);
+  // UI-2 drag-reorder: native HTML5 drag between header cells; the grip
+  // button also takes ArrowLeft/ArrowRight so the reorder is keyboardable.
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  function commitDrop(targetId: string) {
+    if (dragColumnId && dragColumnId !== targetId) {
+      table.setColumnOrder(dropColumnInOrder(reorderableIds, dragColumnId, targetId));
+    }
+    setDragColumnId(null);
+    setDropTargetId(null);
+  }
+
+  function moveColumn(columnId: string, delta: number) {
+    table.setColumnOrder(moveColumnInOrder(reorderableIds, columnId, delta));
+  }
 
   function applyColumnState(columnId: string, values: string[], direction: SortDirection | null, range: DataTableRangeState | null) {
     table.setColumnFilter(columnId, values);
@@ -65,28 +86,64 @@ export function ConfigVirtualTable<Row>({
       mobileTemplate={mobileTemplate(visibleConfigs)}
     >
       <VirtualGridHeaderRow className={headerClassName}>
-        {visibleConfigs.map((config) =>
-          config.renderHeader ? (
-            <div key={config.definition.id} role="columnheader" className={["px-2 py-2", configCellClass(config, "header")].join(" ")}>
-              {config.renderHeader()}
+        {visibleConfigs.map((config) => {
+          const columnId = config.definition.id;
+          const isReorderable = reorderableIds.includes(columnId);
+          const isDropTarget = dropTargetId === columnId && dragColumnId !== null && dragColumnId !== columnId;
+
+          if (config.renderHeader) {
+            return (
+              <div key={columnId} role="columnheader" className={["px-2 py-2", configCellClass(config, "header")].join(" ")}>
+                {config.renderHeader()}
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={columnId}
+              className={["group/reorder relative", configCellClass(config, "header"), isDropTarget ? "shadow-[inset_2px_0_0_var(--accent)]" : ""].join(" ")}
+              onDragOver={isReorderable ? (event) => { event.preventDefault(); setDropTargetId(columnId); } : undefined}
+              onDragLeave={isReorderable ? () => setDropTargetId((current) => (current === columnId ? null : current)) : undefined}
+              onDrop={isReorderable ? (event) => { event.preventDefault(); commitDrop(columnId); } : undefined}
+            >
+              {isReorderable ? (
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", columnId);
+                    setDragColumnId(columnId);
+                  }}
+                  onDragEnd={() => { setDragColumnId(null); setDropTargetId(null); }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowLeft") { event.preventDefault(); moveColumn(columnId, -1); }
+                    if (event.key === "ArrowRight") { event.preventDefault(); moveColumn(columnId, 1); }
+                  }}
+                  aria-label={`Reorder ${config.definition.label} column (arrow keys move it)`}
+                  title="Drag to reorder; arrow keys move"
+                  className="absolute left-0 top-1/2 z-[1] -translate-y-1/2 cursor-grab rounded px-0.5 py-1 text-[9px] leading-none opacity-40 focus-visible:opacity-100 hover:opacity-100 active:cursor-grabbing max-md:hidden"
+                  style={{ color: "var(--border-strong)" }}
+                >
+                  ⠿
+                </button>
+              ) : null}
+              <DataTableHeader
+                as="div"
+                column={config.definition}
+                currentSortDirection={table.sort.columnId === columnId ? table.sort.direction : null}
+                currentValues={table.filters[columnId] ?? []}
+                currentRange={table.rangeFilters[columnId] ?? null}
+                isOpen={openColumnId === columnId}
+                onApply={(values, direction, range) => applyColumnState(columnId, values, direction, range)}
+                onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, columnId))}
+                onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, columnId))}
+                options={table.filterOptions[columnId] ?? []}
+              />
             </div>
-          ) : (
-            <DataTableHeader
-              key={config.definition.id}
-              as="div"
-              className={configCellClass(config, "header")}
-              column={config.definition}
-              currentSortDirection={table.sort.columnId === config.definition.id ? table.sort.direction : null}
-              currentValues={table.filters[config.definition.id] ?? []}
-              currentRange={table.rangeFilters[config.definition.id] ?? null}
-              isOpen={openColumnId === config.definition.id}
-              onApply={(values, direction, range) => applyColumnState(config.definition.id, values, direction, range)}
-              onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, config.definition.id))}
-              onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, config.definition.id))}
-              options={table.filterOptions[config.definition.id] ?? []}
-            />
-          ),
-        )}
+          );
+        })}
       </VirtualGridHeaderRow>
       <VirtualGridBody
         rows={table.sortedRows}

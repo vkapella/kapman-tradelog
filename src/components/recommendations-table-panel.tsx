@@ -526,7 +526,7 @@ export function RecommendationsTablePanel() {
 
       {!loading && !error && hasRows ? (
         <>
-          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} />
+          <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} rangeFilters={table.rangeFilters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} setColumnRange={table.setColumnRange} />
           <ConfigVirtualTable
             configs={configs}
             table={table}

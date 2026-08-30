@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { DataTableColumnDefinition, DataTableFiltersState, DataTableSortState } from "@/components/data-table/types";
+import type { DataTableColumnDefinition, DataTableFiltersState, DataTableRangeFiltersState, DataTableSortState } from "@/components/data-table/types";
 
 /**
  * Unified page-level column configuration (#340). Every rendered artifact —
@@ -48,6 +48,71 @@ export function visibleConfigsFor<Row>(
 ): TableColumnConfig<Row>[] {
   const visibleIds = new Set(visibleColumns.map((column) => column.id));
   return configs.filter((config) => visibleIds.has(config.definition.id));
+}
+
+/**
+ * UI-2: apply the user's drag-reorder to the visible configs. Identity
+ * columns (stickyLeft) stay pinned leading and the mobileOnly Details action
+ * stays trailing — only the scrolling data columns reorder. Ids missing from
+ * columnOrder (new columns) keep their config position after ordered ones.
+ */
+export function orderVisibleConfigs<Row>(
+  visibleConfigs: TableColumnConfig<Row>[],
+  columnOrder: string[],
+): TableColumnConfig<Row>[] {
+  if (columnOrder.length === 0) {
+    return visibleConfigs;
+  }
+
+  const lead = visibleConfigs.filter((config) => config.stickyLeft);
+  const trail = visibleConfigs.filter((config) => !config.stickyLeft && config.mobileOnly);
+  const movable = visibleConfigs.filter((config) => !config.stickyLeft && !config.mobileOnly);
+
+  const orderIndex = new Map(columnOrder.map((id, index) => [id, index]));
+  const configIndex = new Map(movable.map((config, index) => [config.definition.id, index]));
+  const ordered = [...movable].sort((left, right) => {
+    const leftKey = orderIndex.get(left.definition.id) ?? columnOrder.length + (configIndex.get(left.definition.id) ?? 0);
+    const rightKey = orderIndex.get(right.definition.id) ?? columnOrder.length + (configIndex.get(right.definition.id) ?? 0);
+    return leftKey - rightKey;
+  });
+
+  return [...lead, ...ordered, ...trail];
+}
+
+/** The reorderable subset's ids, in their current effective order. */
+export function movableColumnIds<Row>(orderedVisibleConfigs: TableColumnConfig<Row>[]): string[] {
+  return orderedVisibleConfigs
+    .filter((config) => !config.stickyLeft && !config.mobileOnly)
+    .map((config) => config.definition.id);
+}
+
+/** Pure move: shift columnId by delta within the order; clamps at the ends. */
+export function moveColumnInOrder(orderedIds: string[], columnId: string, delta: number): string[] {
+  const from = orderedIds.indexOf(columnId);
+  if (from === -1) {
+    return orderedIds;
+  }
+  const to = Math.max(0, Math.min(orderedIds.length - 1, from + delta));
+  if (to === from) {
+    return orderedIds;
+  }
+  const next = [...orderedIds];
+  next.splice(from, 1);
+  next.splice(to, 0, columnId);
+  return next;
+}
+
+/** Pure drop: place draggedId at targetId's position. */
+export function dropColumnInOrder(orderedIds: string[], draggedId: string, targetId: string): string[] {
+  const from = orderedIds.indexOf(draggedId);
+  const to = orderedIds.indexOf(targetId);
+  if (from === -1 || to === -1 || from === to) {
+    return orderedIds;
+  }
+  const next = [...orderedIds];
+  next.splice(from, 1);
+  next.splice(to, 0, draggedId);
+  return next;
 }
 
 /** Desktop template: every visible, non-mobileOnly config's track. */
@@ -118,6 +183,7 @@ export function deriveHiddenActiveState<Row>(
   visibleColumns: DataTableColumnDefinition<Row>[],
   sort: DataTableSortState,
   filters: DataTableFiltersState,
+  rangeFilters: DataTableRangeFiltersState = {},
 ): HiddenActiveState {
   const visibleIds = new Set(visibleColumns.map((column) => column.id));
   const mobileVisibleIds = new Set(
@@ -128,9 +194,21 @@ export function deriveHiddenActiveState<Row>(
   const labelById = new Map(configs.map((config) => [config.definition.id, config.definition.label]));
 
   const sortHidden = sort.columnId !== null && !mobileVisibleIds.has(sort.columnId);
-  const filterEntries = Object.entries(filters)
-    .filter(([columnId, values]) => values.length > 0 && !mobileVisibleIds.has(columnId))
-    .map(([columnId, values]) => ({ columnId, label: labelById.get(columnId) ?? columnId, count: values.length }));
+  const rangeCount = (columnId: string) => {
+    const range = rangeFilters[columnId];
+    return range && (range.from !== null || range.to !== null) ? 1 : 0;
+  };
+  const activeIds = new Set([
+    ...Object.entries(filters).filter(([, values]) => values.length > 0).map(([columnId]) => columnId),
+    ...Object.keys(rangeFilters).filter((columnId) => rangeCount(columnId) > 0),
+  ]);
+  const filterEntries = Array.from(activeIds)
+    .filter((columnId) => !mobileVisibleIds.has(columnId))
+    .map((columnId) => ({
+      columnId,
+      label: labelById.get(columnId) ?? columnId,
+      count: (filters[columnId]?.length ?? 0) + rangeCount(columnId),
+    }));
 
   return {
     sortLabel: sortHidden ? `${labelById.get(sort.columnId as string) ?? sort.columnId} ${sort.direction === "desc" ? "↓" : "↑"}` : null,

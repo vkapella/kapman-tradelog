@@ -68,3 +68,42 @@ describe("UI-2 typed filter model (schema 2)", () => {
     expect(countActiveFilters({}, {})).toBe(0);
   });
 });
+
+import { dropColumnInOrder, moveColumnInOrder, orderVisibleConfigs, type TableColumnConfig } from "@/components/data-table/column-config";
+
+describe("UI-2 column reorder helpers", () => {
+  const mk = (id: string, extra: Partial<TableColumnConfig<Row>> = {}): TableColumnConfig<Row> => ({
+    definition: { id, label: id },
+    width: "80px",
+    renderCell: () => null,
+    ...extra,
+  });
+
+  it("keeps sticky leading and mobileOnly trailing while reordering the middle", () => {
+    const configs = [mk("symbol", { stickyLeft: true }), mk("a"), mk("b"), mk("c"), mk("details", { mobileOnly: true })];
+    const ordered = orderVisibleConfigs(configs, ["c", "a", "b"]);
+    expect(ordered.map((config) => config.definition.id)).toEqual(["symbol", "c", "a", "b", "details"]);
+  });
+
+  it("ids missing from the order (new columns) follow the ordered ones in config order", () => {
+    const configs = [mk("a"), mk("b"), mk("newcol"), mk("c")];
+    const ordered = orderVisibleConfigs(configs, ["c", "a"]);
+    expect(ordered.map((config) => config.definition.id)).toEqual(["c", "a", "b", "newcol"]);
+  });
+
+  it("empty order is a no-op (v1 documents)", () => {
+    const configs = [mk("a"), mk("b")];
+    expect(orderVisibleConfigs(configs, [])).toBe(configs);
+  });
+
+  it("moveColumnInOrder clamps at the ends", () => {
+    expect(moveColumnInOrder(["a", "b", "c"], "a", -1)).toEqual(["a", "b", "c"]);
+    expect(moveColumnInOrder(["a", "b", "c"], "a", 1)).toEqual(["b", "a", "c"]);
+    expect(moveColumnInOrder(["a", "b", "c"], "c", 5)).toEqual(["a", "b", "c"]);
+  });
+
+  it("dropColumnInOrder places the dragged id at the target position", () => {
+    expect(dropColumnInOrder(["a", "b", "c", "d"], "a", "c")).toEqual(["b", "c", "a", "d"]);
+    expect(dropColumnInOrder(["a", "b", "c", "d"], "d", "a")).toEqual(["d", "a", "b", "c"]);
+  });
+});
