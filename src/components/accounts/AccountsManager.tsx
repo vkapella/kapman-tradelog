@@ -205,7 +205,7 @@ export function AccountsManager() {
                         type="text"
                         value={draft.displayLabel}
                         onChange={(event) => updateDraft(row.id, "displayLabel", event.target.value)}
-                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       />
                     </td>
                     <td className="px-3 py-3 align-top font-mono text-xs">
@@ -221,14 +221,14 @@ export function AccountsManager() {
                         type="text"
                         value={draft.brokerName}
                         onChange={(event) => updateDraft(row.id, "brokerName", event.target.value)}
-                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       />
                     </td>
                     <td className="px-3 py-3 align-top">
                       <select
                         value={draft.legalEntitySlug}
                         onChange={(event) => updateDraft(row.id, "legalEntitySlug", event.target.value)}
-                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       >
                         <option value="">Unclassified</option>
                         {entities.map((entity) => (
@@ -248,7 +248,7 @@ export function AccountsManager() {
                         step="0.01"
                         value={draft.startingCapital}
                         onChange={(event) => updateDraft(row.id, "startingCapital", event.target.value)}
-                        className="w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm text-text"
+                        className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       />
                       {promptForStartingCapital ? (
                         <p className="mt-1 text-[11px] text-amber-200">Prompt: set a Fidelity starting capital before relying on total-return views.</p>

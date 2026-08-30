@@ -226,7 +226,7 @@ export function DailyPnlCalendarWidget() {
               type="month"
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(event.target.value)}
-              className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+              className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text"
             />
           </div>
           <div className="grid grid-cols-7 gap-1 text-[10px] text-text-3">

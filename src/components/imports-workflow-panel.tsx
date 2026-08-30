@@ -502,7 +502,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text"
+              className="w-full rounded-lg border border-border bg-surface-3 px-3 py-2 text-sm text-text"
             />
             <button
               type="button"

@@ -585,7 +585,7 @@ export function ExecutionsTablePanel() {
                   <input
                     readOnly
                     value={detail.instrumentKey ?? ""}
-                    className="min-w-[18rem] flex-1 rounded border border-border bg-bg px-2 py-1 font-mono text-xs text-text"
+                    className="min-w-[18rem] flex-1 rounded border border-border bg-surface-3 px-2 py-1 font-mono text-xs text-text"
                   />
                   <button
                     type="button"

@@ -220,7 +220,7 @@ export function ColumnFilterPanel<Row>({
               value={draftSearch}
               onChange={(event) => setDraftSearch(event.target.value)}
               placeholder={`Search ${column.label.toLowerCase()}...`}
-              className="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs text-text"
+              className="w-full rounded border border-border bg-surface-3 px-2 py-1.5 text-xs text-text"
             />
           </div>
 

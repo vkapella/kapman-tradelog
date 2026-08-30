@@ -115,7 +115,7 @@ export function RangeSelector({ variant = "mobile" }: { variant?: "desktop" | "m
                     type="date"
                     value={draftStartDate}
                     onChange={(event) => setDraftStartDate(event.target.value)}
-                    className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+                    className="w-full rounded-md border border-border bg-surface-3 px-2 py-1 text-xs text-text"
                   />
                 </div>
                 <div className="space-y-1">
@@ -127,7 +127,7 @@ export function RangeSelector({ variant = "mobile" }: { variant?: "desktop" | "m
                     type="date"
                     value={draftEndDate}
                     onChange={(event) => setDraftEndDate(event.target.value)}
-                    className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+                    className="w-full rounded-md border border-border bg-surface-3 px-2 py-1 text-xs text-text"
                   />
                 </div>
               </div>

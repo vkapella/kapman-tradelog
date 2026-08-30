@@ -86,7 +86,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
                     type="checkbox"
                     checked={selectedAccounts.includes(accountId)}
                     onChange={() => toggleAccount(accountId)}
-                    className="h-3 w-3 rounded border-border bg-surface"
+                    className="h-3 w-3 rounded border-border bg-surface-3"
                   />
                   <AccountLabel accountId={accountId} className="truncate" />
                   {meta?.paperMoney ? (

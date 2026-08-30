@@ -173,7 +173,7 @@ function QueueCard({ item, onResolved }: { item: QueueItemView; onResolved: () =
             {overrideOpen ? (
               <span className="flex items-center gap-2">
                 <select
-                  className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text"
+                  className="rounded-md border border-border bg-surface-3 px-2 py-1 text-xs text-text"
                   value={overrideRegime}
                   onChange={(e) => setOverrideRegime(e.target.value)}
                   disabled={busy}
