@@ -15,7 +15,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v fly >/dev/null || { echo "fly CLI is required" >&2; exit 1; }
 
-APP_VERSION="$(git describe --tags --always 2>/dev/null || echo dev)"
+# Fly assigns the release version at deploy time and the Machines runtime does
+# NOT expose it (there is no FLY_RELEASE_VERSION in the container env), so read
+# the current max and stamp the version this deploy is about to create.
+# Deliberately NOT `git describe`: this repo's only tags are archive/* refs, so
+# describe emits a 52-character path (the v37 header defect).
+FLY_LAST_RELEASE="$(fly releases -a "${APP_NAME}" --json 2>/dev/null | jq '[.[].Version] | max // 0')"
+APP_VERSION="v$(( ${FLY_LAST_RELEASE:-0} + 1 ))"
 APP_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo '')"
 
 echo "==> Deploying ${APP_NAME} ${APP_VERSION} (runs prisma migrate deploy via release_command)"
