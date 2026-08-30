@@ -8,7 +8,7 @@ after UI-0 (token values) and UI-0a (role reassignment) merged.
 
 | File | What it is |
 |---|---|
-| `kapman-ui.css` | Tokens + control primitives: buttons, inputs, factor-cell states, the four save-status pills, the remove button, the pin toggle, chips, header lockup, focus ring, z-layers. |
+| `kapman-ui.css` | Tokens + control primitives: buttons, inputs, factor-cell states, the four save-status pills, the remove button, the pin toggle, chips (incl. the enumerated width steps), **workspace nav**, header lockup, focus ring, z-layers. |
 | `kapman-grid.css` | Grid theme: row heights, hairlines, frozen boundary, numerics, sort indicator, pinned widths, pane-lockstep rules, and an `.ag-theme-kapman` adapter for AG Grid. Load after `kapman-ui.css`. |
 
 ## Copy-in (governance: decision 04)
@@ -56,6 +56,46 @@ the apps diverge.
 | Row hairline | `--border-subtle` |
 | Frozen boundary, drag handle, control hover border | `--border-strong` — nothing else |
 | Surface alpha tints (`bg-*/50` etc.) | flatten to the role's token (decision 32); only `--pos/--neg/--warn/--accent`-dim tint over varying ground |
+
+## Workspace nav primitives (`.km-nav*`)
+
+Added 2026-08-30 from the Screener's adoption — all three apps ship this nav
+and all three were hand-rolling it. **One markup tree, three presentations**
+on the shared ladder:
+
+| Width | Presentation |
+|---|---|
+| ≥ 1024 | sidebar `--sidebar-w`, text labels left-aligned, icons hidden |
+| 768–1024 | rail `--rail-w`, icon-only — every item keeps its `aria-label` |
+| < 768 | fixed bottom tab bar `--tabbar-h`, icon over a 10px label (the only variant that centres, because it stacks glyph over label) |
+
+Classes: `.km-nav` (container) · `.km-nav-items` · `.km-nav-item` ·
+`.km-nav-icon`. Active state is styled for **both** `aria-selected="true"` (a
+real tab widget — the Screener) and `aria-current="page"` (link navigation —
+Tradelog and Fair Value, decision 38), so do not convert one to the other to
+get the styling.
+
+The page shell must reserve `--tabbar-total` at the bottom so the bar never
+covers content. No hamburger at any width.
+
+## The version chip
+
+Carries the **product version only** (decision 05) — for these apps that is the
+build's short SHA. Not a `git describe` string (this produced a 52-character
+path in Tradelog's v37), and not the Fly release number (Fly assigns it after
+the image builds and does not expose it to the Machines runtime — there is no
+`FLY_RELEASE_VERSION` in the container env).
+
+**The chip is bounded and truncates.** An unbounded chip escapes the sidebar
+and paints over the page title — hit independently in two of three apps.
+
+## The brand mark
+
+The 28px tile renders the **commissioned mark**, `assets/kapman-mark.png` from
+the handoff bundle. Decision 09's "the type monogram is the shipping mark"
+describes the *fallback* where the asset is unavailable; reading it literally
+shipped a placeholder monogram in Tradelog next to a sibling showing the real
+mark. Vendor the PNG.
 
 ## Hard rules (the "do not ship" list)
 
