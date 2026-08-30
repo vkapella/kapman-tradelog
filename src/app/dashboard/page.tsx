@@ -170,7 +170,7 @@ function DashboardTile({
             ref={setActivatorNodeRef}
             type="button"
             aria-label="Drag tile"
-            className="absolute left-2 top-2 z-[var(--z-page-controls)] flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
+            className="absolute left-2 top-2 z-[var(--z-page-controls)] flex h-6 w-6 cursor-grab items-center justify-center rounded border border-border bg-surface-3 text-[10px] text-text-2 hover:text-text active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
@@ -189,7 +189,7 @@ function DashboardTile({
               type="button"
               aria-label="Resize widget"
               onPointerDown={handleResizePointerDown}
-              className="absolute bottom-2 right-2 z-[var(--z-page-controls)] flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface text-[10px] text-text-2 hover:text-text"
+              className="absolute bottom-2 right-2 z-[var(--z-page-controls)] flex h-6 w-6 touch-none cursor-ew-resize select-none items-center justify-center rounded border border-border bg-surface-3 text-[10px] text-text-2 hover:text-text"
             >
               <>
                 <span className="sr-only">Resize</span>
