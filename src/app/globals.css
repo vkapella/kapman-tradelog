@@ -6,7 +6,7 @@
  * Component Reference v2 §01–03 exactly — this repo owns the shared theme
  * the sibling apps vendor, so do not tune these locally. */
 :root {
-  --bg:             #08090c;  /* page canvas only, never a component background */
+  --bg:             #08090c;  /* page canvas + inset cards within panels (inset sanctioned by owner 2026-08-30; spec amendment pending) */
   --surface:        #0d0f14;  /* table body, grid, frame interiors */
   --surface-2:      #12151c;  /* header, toolbar, table head, sheet, sidebar */
   --surface-3:      #1a1e27;  /* secondary buttons, chips, inputs at rest */
