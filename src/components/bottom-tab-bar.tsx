@@ -41,7 +41,7 @@ export function BottomTabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-[var(--z-tabbar)] border-t border-border bg-surface md:hidden"
+      className="fixed inset-x-0 bottom-0 z-[var(--z-tabbar)] border-t border-border bg-surface-2 md:hidden"
       style={{
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         paddingLeft: "max(env(safe-area-inset-left, 0px), 8px)",

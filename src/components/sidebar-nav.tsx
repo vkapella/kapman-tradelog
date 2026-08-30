@@ -109,7 +109,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void } = {}) {
                     className={[
                       // touch-target min-height applies only under coarse-pointer
                       // phone media; desktop rows keep their exact 12px/6px metrics.
-                      "flex items-center justify-between border-l-2 transition-colors hover:bg-surface-2 max-lg:min-h-[44px]",
+                      "flex items-center justify-between border-l-2 transition-colors hover:bg-surface-3 max-lg:min-h-[44px]",
                       isActive ? "" : "border-transparent",
                     ].join(" ")}
                     style={{

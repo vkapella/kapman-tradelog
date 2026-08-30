@@ -112,7 +112,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         data-open={drawerOpen}
         {...(drawerOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Navigation" } : {})}
         className={[
-          "fixed inset-y-0 left-0 z-[var(--z-drawer)] flex w-[260px] -translate-x-full flex-col overflow-y-auto border-r border-border bg-surface transition-transform",
+          "fixed inset-y-0 left-0 z-[var(--z-drawer)] flex w-[260px] -translate-x-full flex-col overflow-y-auto border-r border-border bg-surface-2 transition-transform",
           "data-[open=true]:translate-x-0",
           "lg:static lg:z-auto lg:min-h-screen lg:w-auto lg:translate-x-0 lg:overflow-visible",
         ].join(" ")}
@@ -131,7 +131,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
       <div ref={contentRef} data-shell-content="" className="min-w-0">
         <header
-          className="sticky top-0 z-[var(--z-topbar)] border-b border-border bg-surface lg:static"
+          className="sticky top-0 z-[var(--z-topbar)] border-b border-border bg-surface-2 lg:static"
           style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           <div className="flex items-center justify-between" style={{ minHeight: "calc(var(--topbar-h) - 1px)", padding: "0 14px" }}>
