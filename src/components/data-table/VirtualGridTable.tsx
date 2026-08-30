@@ -63,7 +63,7 @@ interface VirtualGridHeaderRowProps {
 export function VirtualGridHeaderRow({
   children,
   columnTemplate,
-  className = "bg-surface text-text-2",
+  className = "bg-surface-2 text-text-2",
 }: VirtualGridHeaderRowProps) {
   return (
     <div

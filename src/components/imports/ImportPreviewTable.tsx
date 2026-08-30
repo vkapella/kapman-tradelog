@@ -69,7 +69,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
           {statusCounts.SKIPPED} · CANCELLED {statusCounts.CANCELLED}
         </p>
         <table className="min-w-full text-xs">
-          <thead className="bg-surface text-text-2">
+          <thead className="bg-surface-2 text-text-2">
             <tr>
               <th className="px-2 py-2 text-left">Run Date</th>
               <th className="px-2 py-2 text-left">Classified Action</th>
@@ -132,7 +132,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
 
   return (
     <table className="min-w-full text-xs">
-      <thead className="bg-surface text-text-2">
+      <thead className="bg-surface-2 text-text-2">
         <tr>
           <th className="px-2 py-2 text-left">Timestamp</th>
           <th className="px-2 py-2 text-left">Symbol</th>

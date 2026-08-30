@@ -150,7 +150,7 @@ export function OverviewDashboardPanel() {
               <p className="mt-1 text-xs text-text-3">Latest 12 points for cash balance curve rendering inputs.</p>
               <div className="mt-3 max-h-56 overflow-auto rounded border border-border">
                 <table className="min-w-full text-xs">
-                  <thead className="bg-surface text-text-2">
+                  <thead className="bg-surface-2 text-text-2">
                     <tr>
                       <th className="px-2 py-2 text-left">Date</th>
                       <th className="px-2 py-2 text-left">Account</th>
