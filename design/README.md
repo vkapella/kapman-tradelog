@@ -44,7 +44,10 @@ the apps diverge.
 | Toolbar | `--surface-2` |
 | Sidebar / rail | `--surface-2` |
 | Bottom tab bar | `--surface-2` |
-| Sheet, menu, popover, panel nested in a panel | `--surface-2` |
+| Sheet, modal, menu, popover, panel nested in a panel | `--surface-2` |
+| Dashed placeholder tile on the canvas | `--surface` (dashed border stays) |
+| Progress-bar track | inset fill (`--bg` via `.km-inset` idiom, borderless on thin tracks) |
+| Calendar day cell (grid in a panel) | `--surface`; P&L tint composites over it |
 | Secondary button | `--surface-3` |
 | Chip / badge / count pill | `--surface-3` |
 | Input / select at rest | `--surface-3` |
@@ -93,8 +96,8 @@ No hamburger drawer at any width; primary nav is always visible.
 
 - `--row-h` 30 vs 36: Tradelog UI-7 records the decision; if 36 wins, the
   value changes in `kapman-ui.css` and the Screener moves up.
-- Fixed-width chips within a table column (uniform column edge): designer
-  question pending; will land here as a chip-width mechanism when ratified.
-- `--chart-purple` stays app-local until the chart palette is specified.
-- Desktop modal panels vs mobile sheet fill (`--surface` vs `--surface-2`):
-  designer ruling pending.
+- Fixed-width enumerated chips: specified (decision 36, UI-C) — `--chip-w-1/2/3`
+  land with UI-C once each repo's enumerations are confirmed against code.
+- `--chart-purple` ruled app-local permanently (Amendment 01): chart colours
+  encode series identity, not state; the token system does not cover them.
+- ~~Desktop modal panels vs mobile sheet~~ ruled (Amendment 01): both `--surface-2`.

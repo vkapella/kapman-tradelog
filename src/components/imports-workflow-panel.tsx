@@ -519,7 +519,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               <p className="mb-1 text-xs text-text-2">
                 {uploadPhase === "parsing" ? "Upload complete. Parsing preview..." : `Upload progress: ${uploadProgress}%`}
               </p>
-              <div className="h-2 rounded-full bg-surface-2">
+              <div className="h-2 rounded-full bg-bg">
                 <div className="h-2 rounded-full bg-accent" style={{ width: `${uploadProgress}%` }} />
               </div>
             </div>
@@ -644,7 +644,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
 
       {deleteConfirmationImport ? (
         <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-bg px-4">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-surface-2 p-5">
             <h3 className="text-lg font-semibold text-text">Delete committed import?</h3>
             <dl className="mt-3 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 text-sm text-text">
               <dt className="text-text-3">Filename</dt>

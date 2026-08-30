@@ -64,7 +64,7 @@ export function TopSetupsWidget() {
                 <p className="text-text">{(row.overrideTag ?? row.tag) + " · " + row.underlyingSymbol}</p>
                 <p className={pnl >= 0 ? "text-pos" : "text-red-300"}>{formatCurrency(pnl)}</p>
               </div>
-              <div className="h-2 rounded bg-surface-2">
+              <div className="h-2 rounded bg-bg">
                 <div className={pnl >= 0 ? "h-2 rounded bg-pos" : "h-2 rounded bg-red-300"} style={{ width: `${barWidth}%` }} />
               </div>
             </div>

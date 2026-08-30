@@ -245,14 +245,14 @@ export function DailyPnlCalendarWidget() {
               const level = resolveHeatLevel(day.pnl, maxAbsPnl);
               const toneClassName =
                 level === 0
-                  ? "bg-surface-2 text-text-3"
+                  ? "bg-surface text-text-3"
                   : day.pnl > 0
                     ? level >= 3
                       ? "bg-pos text-bg"
-                      : "bg-[color:color-mix(in_srgb,var(--pos)_50%,var(--surface-2))] text-text"
+                      : "bg-[color:color-mix(in_srgb,var(--pos)_50%,var(--surface))] text-text"
                     : level >= 3
                       ? "bg-neg text-bg"
-                      : "bg-[color:color-mix(in_srgb,var(--neg)_50%,var(--surface-2))] text-text";
+                      : "bg-[color:color-mix(in_srgb,var(--neg)_50%,var(--surface))] text-text";
 
               return (
                 <Link

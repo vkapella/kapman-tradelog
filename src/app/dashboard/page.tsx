@@ -388,7 +388,7 @@ export default function Page() {
               <button
                 type="button"
                 onClick={() => setKpiPickerOpen(true)}
-                className="rounded-xl border border-dashed border-border bg-surface-2 p-6 text-left text-sm text-text-2"
+                className="rounded-xl border border-dashed border-border bg-surface p-6 text-left text-sm text-text-2"
               >
                 + Add KPI
               </button>
@@ -430,7 +430,7 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="rounded-xl border border-dashed border-border bg-surface-2 p-6 text-left text-sm text-text-2"
+              className="rounded-xl border border-dashed border-border bg-surface p-6 text-left text-sm text-text-2"
             >
               + Add widget
             </button>
