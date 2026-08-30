@@ -161,7 +161,7 @@ export function RangeSelector({ variant = "mobile" }: { variant?: "desktop" | "m
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="touch-target w-full truncate rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text lg:w-auto"
+        className="touch-target w-full truncate rounded-lg border border-border bg-surface-3 px-3 py-2 text-xs font-medium text-text lg:w-auto"
       >
         <span className="text-text-2">Range:&nbsp;</span>{displayText}
       </button>

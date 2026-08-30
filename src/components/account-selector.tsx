@@ -127,7 +127,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface"}`}
+        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface-3"}`}
       >
         {hasWarnings ? "⚠ " : ""}
         {label}

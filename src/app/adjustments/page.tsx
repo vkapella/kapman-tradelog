@@ -116,7 +116,7 @@ export default function Page() {
             onClick={() => void handleRebuildLedger()}
             disabled={!activeAccountId || rebuilding}
             title={!activeAccountId ? "Select a single account to rebuild." : undefined}
-            className="rounded border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-text disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-border bg-surface-3 px-3 py-2 text-xs font-medium text-text disabled:cursor-not-allowed disabled:opacity-50"
           >
             {rebuilding ? "Rebuilding..." : "Rebuild Ledger"}
           </button>

@@ -208,7 +208,7 @@ export function DailyPnlCalendarWidget() {
                 type="button"
                 aria-label="Previous month"
                 onClick={() => setSelectedMonth((current) => addMonths(current, -1))}
-                className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+                className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text"
               >
                 {"<"}
               </button>
@@ -216,7 +216,7 @@ export function DailyPnlCalendarWidget() {
                 type="button"
                 aria-label="Next month"
                 onClick={() => setSelectedMonth((current) => addMonths(current, 1))}
-                className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text"
+                className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text"
               >
                 {">"}
               </button>

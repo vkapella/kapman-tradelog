@@ -26,7 +26,7 @@ export function HiddenStateChips<Row>({ configs, visibleColumns, sort, filters, 
   return (
     <div className="flex flex-wrap items-center gap-1.5 md:hidden" data-hidden-state-chips="">
       {hidden.sortLabel !== null ? (
-        <span className="flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-1 text-[11px] text-text-2">
+        <span className="flex items-center gap-1 rounded-full border border-border bg-surface-3 px-2 py-1 text-[11px] text-text-2">
           Sorted: {hidden.sortLabel}
           <button
             type="button"
@@ -39,7 +39,7 @@ export function HiddenStateChips<Row>({ configs, visibleColumns, sort, filters, 
         </span>
       ) : null}
       {hidden.filters.map((entry) => (
-        <span key={entry.columnId} className="flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-1 text-[11px] text-text-2">
+        <span key={entry.columnId} className="flex items-center gap-1 rounded-full border border-border bg-surface-3 px-2 py-1 text-[11px] text-text-2">
           Filter: {entry.label} ({entry.count})
           <button
             type="button"

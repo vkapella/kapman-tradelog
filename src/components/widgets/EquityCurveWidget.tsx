@@ -74,7 +74,7 @@ export function EquityCurveWidget() {
         <button
           type="button"
           onClick={() => setViewMode((current) => (current === "combined" ? "accounts" : "combined"))}
-          className="touch-target rounded border border-border bg-surface-2 px-2 py-0.5 text-[10px] text-text-2"
+          className="touch-target rounded border border-border bg-surface-3 px-2 py-0.5 text-[10px] text-text-2"
         >
           {viewMode === "combined" ? "Combined" : "Per Account"}
         </button>

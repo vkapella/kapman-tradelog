@@ -180,7 +180,7 @@ function DashboardTile({
             type="button"
             onPointerDown={stopDashboardControlPropagation}
             onClick={(event) => handleRemoveWidgetClick(event, { editMode, remove })}
-            className="absolute right-2 top-2 z-[var(--z-page-controls)] rounded border border-border bg-surface px-2 py-0.5 text-xs text-text-2"
+            className="absolute right-2 top-2 z-[var(--z-page-controls)] rounded border border-border bg-surface-3 px-2 py-0.5 text-xs text-text-2"
           >
             ×
           </button>
@@ -336,16 +336,16 @@ export default function Page() {
             <button
               type="button"
               onClick={() => profile.resetToDefaults()}
-              className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text-2 touch-target"
+              className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text-2 touch-target"
             >
               Reset view to app defaults
             </button>
-            <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+            <button type="button" onClick={() => setEditMode(false)} className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text">
               Done
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text touch-target">
+          <button type="button" onClick={() => setEditMode(true)} className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text touch-target">
             Customize
           </button>
         )}

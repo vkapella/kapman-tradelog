@@ -261,7 +261,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
           <button
             type="button"
             onClick={() => setReloadToken((current) => current + 1)}
-            className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text touch-target"
+            className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text touch-target"
           >
             Retry
           </button>

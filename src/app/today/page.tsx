@@ -273,7 +273,7 @@ export default function TodayPage() {
         definition: { id: "__details", label: "Details" }, width: "auto", mobileOnly: true, includeInDetails: false,
         renderHeader: () => <span className="sr-only">Details</span>,
         renderCell: (rec) => (
-          <button type="button" onClick={() => setRecDetailRow(rec)} aria-haspopup="dialog" aria-label="Recommendation details" className="touch-target rounded border border-border bg-surface-2 text-text-2">
+          <button type="button" onClick={() => setRecDetailRow(rec)} aria-haspopup="dialog" aria-label="Recommendation details" className="touch-target rounded border border-border bg-surface-3 text-text-2">
             <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         ),

@@ -112,7 +112,7 @@ export function AccountBalancesWidget() {
       type="button"
       onClick={() => void triggerCompute()}
       disabled={computing}
-      className="touch-target rounded border border-border bg-surface-2 px-2 py-0.5 text-[10px] text-text-2 disabled:opacity-50"
+      className="touch-target rounded border border-border bg-surface-3 px-2 py-0.5 text-[10px] text-text-2 disabled:opacity-50"
     >
       {computing ? "Computing..." : "Refresh"}
     </button>

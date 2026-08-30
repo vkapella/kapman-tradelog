@@ -20,7 +20,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
         <button
           type="button"
           onClick={reset}
-          className="mt-4 rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm"
+          className="mt-4 rounded-lg border border-border bg-surface-3 px-4 py-2 text-sm"
         >
           Retry
         </button>

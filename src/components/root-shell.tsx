@@ -142,7 +142,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
                 onClick={() => setDrawerOpen(true)}
                 aria-label="Open navigation"
                 aria-expanded={drawerOpen}
-                className="touch-target -ml-1 rounded border border-border bg-surface-2 p-1.5 text-text-2 lg:hidden"
+                className="touch-target -ml-1 rounded border border-border bg-surface-3 p-1.5 text-text-2 lg:hidden"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round">
                   <path d="M4 6h16M4 12h16M4 18h16" />

@@ -139,5 +139,5 @@ export function getTtsStatusTintClass(status: TtsRagStatus): string {
     return "bg-[color:color-mix(in_srgb,var(--neg)_18%,transparent)] text-[color:var(--neg)]";
   }
 
-  return "bg-surface-2 text-[color:var(--accent)]";
+  return "bg-surface-3 text-[color:var(--accent)]";
 }

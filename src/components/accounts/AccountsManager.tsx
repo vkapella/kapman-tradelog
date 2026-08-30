@@ -260,7 +260,7 @@ export function AccountsManager() {
                         type="button"
                         onClick={() => saveRow(row)}
                         disabled={!isDirty || isSaving}
-                        className="rounded border border-border bg-surface-2 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isSaving ? "Saving..." : "Save"}
                       </button>

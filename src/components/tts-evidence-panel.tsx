@@ -94,7 +94,7 @@ function MetricSection({
           <p className="text-xs uppercase tracking-[0.22em] text-text-2">{definition.label}</p>
           <p className="mt-2 text-3xl font-semibold text-text">{definition.value}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border bg-surface-2 px-3 py-1 text-xs text-text">
+        <div className="flex items-center gap-2 rounded-full border border-border bg-surface-3 px-3 py-1 text-xs text-text">
           <StatusDot status={definition.status} />
           <span>{getTtsStatusLabel(definition.status)}</span>
         </div>

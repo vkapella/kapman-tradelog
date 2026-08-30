@@ -591,7 +591,7 @@ export function ExecutionsTablePanel() {
                     type="button"
                     onClick={copyInstrumentKey}
                     disabled={!detail.instrumentKey}
-                    className="rounded border border-border bg-surface px-3 py-1 text-xs text-text disabled:opacity-50"
+                    className="rounded border border-border bg-surface-3 px-3 py-1 text-xs text-text disabled:opacity-50"
                   >
                     Copy
                   </button>

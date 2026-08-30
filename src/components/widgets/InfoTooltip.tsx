@@ -56,7 +56,7 @@ export function InfoTooltip({ label, content }: InfoTooltipProps) {
         type="button"
         aria-label={`About ${label}`}
         onClick={() => setOpen((current) => !current)}
-        className="touch-target flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-[10px] text-text-2 hover:text-text"
+        className="touch-target flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-3 text-[10px] text-text-2 hover:text-text"
       >
         ?
       </button>

@@ -148,14 +148,14 @@ export default function Page() {
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-text">Open Positions</p>
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-text-2">{table.sortedRows.length} positions</span>
+          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] text-text-2">{table.sortedRows.length} positions</span>
           <span className="text-xs text-text-2">Last quoted: {formatFreshnessSpan(snapshot.freshness)}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Copy snapshot JSON is a desk workflow: behind the overflow menu on phones. */}
-          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50 max-md:hidden" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text disabled:opacity-50 max-md:hidden" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
           <div className="relative md:hidden">
-            <button type="button" onClick={() => setOverflowOpen((current) => !current)} aria-haspopup="true" aria-expanded={overflowOpen} aria-label="More actions" className="touch-target rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text">⋯</button>
+            <button type="button" onClick={() => setOverflowOpen((current) => !current)} aria-haspopup="true" aria-expanded={overflowOpen} aria-label="More actions" className="touch-target rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text">⋯</button>
             {overflowOpen ? (
               <div className="absolute right-0 z-[var(--z-page-controls)] mt-1 w-48 rounded-lg border border-border bg-surface-2 p-1 shadow-2xl">
                 <button type="button" onClick={() => { setOverflowOpen(false); void handleCopySnapshot(); }} className="touch-target w-full rounded px-2 py-1.5 text-left text-xs text-text hover:bg-surface">
@@ -169,7 +169,7 @@ export default function Page() {
               {snapshotCopyError}
             </p>
           ) : null}
-          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="touch-target rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
+          <button type="button" onClick={() => void handleRefreshQuotes()} disabled={snapshot.isLoading} className="touch-target rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text disabled:opacity-50">{snapshot.isLoading ? "Refreshing..." : "Refresh Positions & Quotes"}</button>
         </div>
       </header>
 
