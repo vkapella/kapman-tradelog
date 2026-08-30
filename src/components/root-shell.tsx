@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AccountSelector } from "@/components/account-selector";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { RangeSelector } from "@/components/range-selector";
+import { BrandLockup } from "@/components/brand-lockup";
 import { RailNav } from "@/components/rail-nav";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { AccountFilterContextProvider } from "@/contexts/AccountFilterContext";
@@ -23,7 +24,7 @@ export function RootShell({ children, identity }: { children: React.ReactNode; i
       <AccountFilterContextProvider>
         <RangeFilterProvider>
           <TopbarSheetProvider>
-            <ShellContent>{children}</ShellContent>
+            <ShellContent identity={identity ?? null}>{children}</ShellContent>
           </TopbarSheetProvider>
         </RangeFilterProvider>
       </AccountFilterContextProvider>
@@ -33,7 +34,7 @@ export function RootShell({ children, identity }: { children: React.ReactNode; i
 
 type InertElement = HTMLElement & { inert: boolean };
 
-function ShellContent({ children }: { children: React.ReactNode }) {
+function ShellContent({ children, identity }: { children: React.ReactNode; identity: string | null }) {
   const pathname = usePathname();
   const title = useMemo(() => getRouteTitle(pathname), [pathname]);
   const tags = useMemo(() => getTopbarContextTags(pathname), [pathname]);
@@ -121,13 +122,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         ].join(" ")}
         style={{ maxHeight: "100dvh", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex items-center gap-2 border-b border-border" style={{ height: "var(--topbar-h)", padding: "0 14px" }}>
-          <span className="text-[14px] font-bold text-text" style={{ fontFamily: "var(--mono)" }}>
-            <span style={{ color: "var(--accent)" }}>Kap</span>Man
-          </span>
-          <span style={{ color: "var(--text-3)", fontFamily: "var(--mono)", fontSize: "10px" }}>
-            v9.0
-          </span>
+        <div className="flex items-center border-b border-border" style={{ minHeight: "var(--topbar-h)", padding: "6px 14px" }}>
+          <BrandLockup />
         </div>
         <SidebarNav onNavigate={closeDrawer} />
       </aside>
@@ -157,7 +153,12 @@ function ShellContent({ children }: { children: React.ReactNode }) {
                   <path d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <p className="truncate text-xs font-bold text-text">{title}</p>
+              {/* UI-3: the lockup is never hidden — the aside carries it at
+                  lg+; below lg the topbar does. */}
+              <span className="min-w-0 lg:hidden">
+                <BrandLockup />
+              </span>
+              <p className="truncate text-xs font-bold text-text max-lg:hidden">{title}</p>
               <div className="hidden items-center gap-1 md:flex">
                 {tags.map((tag) => (
                   <span
@@ -177,9 +178,28 @@ function ShellContent({ children }: { children: React.ReactNode }) {
                 ))}
               </div>
             </div>
-            <div className="hidden items-center gap-2 lg:flex">
-              <RangeSelector variant="desktop" />
-              <AccountSelector variant="desktop" />
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="hidden items-center gap-2 lg:flex">
+                <RangeSelector variant="desktop" />
+                <AccountSelector variant="desktop" />
+              </div>
+              {/* UI-3: signed-in identity, far right. Hidden below md — the ⋯
+                  overflow fold the spec names does not exist as a component in
+                  this repo yet; flagged rather than invented here. Sign out is
+                  Cloudflare Access's own logout path on the proxied hostname. */}
+              {identity ? (
+              <div className="hidden min-w-0 items-center gap-2 md:flex">
+                <span className="max-w-[16ch] truncate text-xs text-text-2" title={identity}>
+                  {identity}
+                </span>
+                <a
+                  href="/cdn-cgi/access/logout"
+                  className="flex-none rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text-2"
+                >
+                  Sign out
+                </a>
+                </div>
+              ) : null}
             </div>
           </div>
           {/* Mobile scope-controls row: the two selectors that were previously

@@ -536,6 +536,12 @@ export interface DiagnosticCaseFileResponse {
 export interface HealthResponse {
   status: "ok" | "degraded";
   db: "connected" | "disconnected";
+  /** Product version baked at image build (git describe); "dev" locally. */
+  version: string;
+  /** Build commit SHA; details-panel only, never the header chip. */
+  sha: string | null;
+  /** Fly machine id at runtime; omitted from UI when null (decision 06). */
+  machineId: string | null;
 }
 
 export interface AdapterWarningRecord {

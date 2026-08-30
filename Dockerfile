@@ -16,6 +16,13 @@ COPY . .
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Release identity (UI-3): set by scripts/deploy.sh from git describe; the
+# header version chip and /api/health render from these at runtime.
+ARG APP_VERSION=dev
+ARG APP_GIT_SHA=""
+ENV APP_VERSION=$APP_VERSION
+ENV APP_GIT_SHA=$APP_GIT_SHA
+
 RUN npx prisma generate && npm run build
 
 ENV NODE_ENV=production

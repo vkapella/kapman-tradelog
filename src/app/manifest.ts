@@ -15,8 +15,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Trading journal: imports, FIFO lots, live NLV, and setup analytics.",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#0b0d12",
-    theme_color: "#111318",
+    background_color: "#08090c",
+    theme_color: "#12151c",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

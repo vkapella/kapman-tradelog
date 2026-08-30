@@ -15,8 +15,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 command -v fly >/dev/null || { echo "fly CLI is required" >&2; exit 1; }
 
-echo "==> Deploying ${APP_NAME} (runs prisma migrate deploy via release_command)"
-fly deploy -a "${APP_NAME}"
+APP_VERSION="$(git describe --tags --always 2>/dev/null || echo dev)"
+APP_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo '')"
+
+echo "==> Deploying ${APP_NAME} ${APP_VERSION} (runs prisma migrate deploy via release_command)"
+fly deploy -a "${APP_NAME}" \
+  --build-arg APP_VERSION="${APP_VERSION}" \
+  --build-arg APP_GIT_SHA="${APP_GIT_SHA}"
 
 echo
 echo "==> Updating and re-arming the scheduled market-data Machine"
