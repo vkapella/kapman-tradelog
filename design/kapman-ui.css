@@ -1,0 +1,234 @@
+/* ============================================================
+   kapman-ui.css — KapMan unified UI: tokens + control primitives
+   Source of truth: kapman-tradelog/design/ (UI-4, handoff 260830)
+   Generated from the corrected globals.css after UI-0 + UI-0a.
+   Governance (decision 04): copy this file VERBATIM into each
+   repo, load it before app CSS. No package, no runtime fetch.
+   ============================================================ */
+
+:root {
+  /* ---- surfaces ---- */
+  --bg:             #08090c;  /* page canvas + sanctioned inset cards within panels (owner decision 2026-08-30) */
+  --surface:        #0d0f14;  /* table body, grid, frame interiors, cards on the canvas */
+  --surface-2:      #12151c;  /* header, toolbar, table head, sheet, sidebar, menus/popovers */
+  --surface-3:      #1a1e27;  /* secondary buttons, chips, inputs at rest */
+  --border:         #262b36;  /* every hairline, border, divider */
+  --border-subtle:  #1a1e27;  /* row hairlines inside a table */
+  --border-strong:  #3a4150;  /* frozen-column boundary, drag handles, control hover borders */
+
+  /* ---- text ---- */
+  --text:           #e8ebf0;  /* values, headings          16.6:1 on --bg */
+  --text-2:         #a8b0bf;  /* labels, body copy          9.1:1 */
+  --text-3:         #7f8798;  /* captions, hints            5.5:1 */
+  --text-4:         #4f586c;  /* 2.6:1 — non-text glyphs only, never prose */
+
+  /* ---- signal ---- */
+  --accent:         #34d3e8;  /* interactive, selected, the override marker */
+  --accent-dim:     color-mix(in srgb, var(--accent) 13%, transparent);
+  --accent-border:  color-mix(in srgb, var(--accent) 30%, transparent);
+  --accent-soft:    #7ce8f7;  /* inline code in documentation surfaces */
+  --gold:           oklch(0.75 0.12 85);  /* KAPMAN wordmark + mark ONLY — not a UI state */
+  --pos:            oklch(0.72 0.17 145);
+  --pos-dim:        oklch(0.72 0.17 145 / 0.12);
+  --neg:            oklch(0.65 0.20 25);
+  --neg-dim:        oklch(0.65 0.20 25 / 0.12);
+  --warn:           oklch(0.78 0.14 75);  /* pinned override, trim, degraded cache */
+  --warn-dim:       oklch(0.78 0.14 75 / 0.12);
+
+  /* ---- type ---- */
+  --sans:           "Geist", system-ui, sans-serif;
+  --mono:           "Geist Mono", ui-monospace, monospace;
+
+  /* ---- layout ---- */
+  --sidebar-w:      224px;
+  --rail-w:         56px;
+  --topbar-h:       46px;    /* UI-3 may adjust with the header lockup */
+  --tabbar-h:       56px;
+  --row-h:          30px;    /* spec value (Screener's shipped --ag-row-height).
+                                Tradelog's adoption is UI-7's recorded decision;
+                                if 36px wins there, THIS value changes. */
+  --row-h-touch:    44px;
+  --r:              7px;
+  --r-sm:           4px;
+  --r-lg:           9px;
+  --pinned-select:  40px;
+  --pinned-actions: 44px;
+  --pinned-symbol:  76px;    /* 40 + 44 + 76 = 160px pinned group, held at every width */
+
+  /* ---- z-layers — the only sanctioned z-index scale ---- */
+  --z-page-controls: 30;
+  --z-topbar:        40;
+  --z-tabbar:        42;
+  --z-drawer-scrim:  60;
+  --z-drawer:        61;
+  --z-sheet-scrim:   70;
+  --z-sheet:         71;
+  --z-modal:         80;
+
+  --tabbar-total: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) { :root { --tabbar-total: 0px; } }
+
+/* ---- base ---- */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { color: var(--accent-soft); font-family: var(--mono); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Focus ring: 2px accent at 2px offset — identical on every control, no exceptions. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- typography helpers ---- */
+.km-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.km-section-label {
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* ---- header lockup (spec §01) ---- */
+.km-header {
+  display: flex; align-items: center; gap: 12px;
+  height: var(--topbar-h); padding: 0 14px;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: var(--z-topbar);
+}
+.km-logo { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); flex: none; }
+.km-eyebrow {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold);
+}
+.km-tool-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.km-version-chip {
+  font-family: var(--mono); font-size: 10px; color: var(--text-2);
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 1px 6px;
+}
+
+/* ---- buttons ----
+   Pointer control height 36px, touch 44px. Never give a control inside a
+   pinned grid cell a pixel height equal to the row's min-height — let it
+   align-self: stretch (see kapman-grid.css). */
+.km-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 36px; padding: 0 12px;
+  border-radius: var(--r); border: 1px solid var(--border);
+  background: var(--surface-3); color: var(--text);
+  font-family: var(--sans); font-size: 12.5px; cursor: pointer;
+}
+.km-btn:hover:not(:disabled) { border-color: var(--border-strong); }
+.km-btn:disabled { opacity: 0.6; cursor: default; }
+.km-btn--primary {
+  background: var(--accent); border-color: transparent;
+  color: #0d0f14; font-weight: 600;
+}
+.km-btn--primary:hover:not(:disabled) { border-color: transparent; filter: brightness(1.06); }
+/* in-flight: label becomes present participle; width may grow, never shrink */
+.km-btn--busy { opacity: 0.6; cursor: wait; }
+.km-btn--danger {
+  background: var(--neg-dim); color: var(--neg);
+  border-color: color-mix(in srgb, var(--neg) 40%, transparent);
+}
+@media (pointer: coarse) { .km-btn, .km-icon-btn, .km-pin { min-height: 44px; } .km-icon-btn { min-width: 44px; } }
+
+/* ---- icon buttons + the remove control (UI-5 / sibling UI-6) ----
+   A real <button>, aria-label naming the row's subject ("Remove META").
+   Visible at 40% at rest — NEVER opacity 0. Full opacity on :hover and
+   on :focus-visible alike. */
+.km-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 36px; min-height: 36px;
+  border-radius: var(--r); border: 1px solid var(--border);
+  background: transparent; color: var(--text-3); cursor: pointer;
+}
+.km-remove { opacity: 0.4; }
+.km-remove:hover, .km-remove:focus-visible {
+  opacity: 1; color: var(--neg);
+  border-color: color-mix(in srgb, var(--neg) 40%, transparent);
+  background: color-mix(in srgb, var(--neg) 8%, transparent);
+}
+
+/* ---- inputs ----
+   EVERY text input and select is 16px at EVERY width. Smaller makes iOS
+   zoom the viewport on focus, which pulls frozen grid columns apart.
+   This is not a phone-only rule. */
+.km-input, .km-select {
+  min-height: 36px; padding: 0 10px;
+  border-radius: var(--r); border: 1px solid var(--border);
+  background: var(--surface-3); color: var(--text);
+  font-family: var(--sans); font-size: 16px;
+}
+.km-input--num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.km-input:disabled, .km-select:disabled { opacity: 0.6; }
+@media (pointer: coarse) { .km-input, .km-select { min-height: 44px; } }
+
+/* ---- factor cell states (fetched / overridden / derived / missing) ----
+   The fetched-vs-overridden distinction is load-bearing: dimmed is the
+   provider's number, bright with the accent dot is the operator's. An
+   overridden cell shows THE VALUE IN FORCE, never the figure it replaced. */
+.km-cell--fetched   { color: var(--text-3); }                       /* provider value, dimmed */
+.km-cell--overridden{ color: var(--text); background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.km-cell--overridden::before { content: "●"; color: var(--accent); margin-right: 5px; font-size: 9px; }
+.km-cell--derived   { color: var(--text-3); border: 1px dashed var(--border); background: var(--surface-2); } /* never editable */
+.km-cell--missing   { color: var(--text-4); }                       /* em dash; scores neutral 55%, not zero */
+
+/* score markers: 9px uppercase mono beside a category number */
+.km-mark { font-family: var(--mono); font-size: 9px; text-transform: uppercase; margin-left: 6px; }
+.km-mark--pin   { color: var(--warn); }   /* operator override pinned */
+.km-mark--model { color: var(--text-4); } /* live model score in force — a sanctioned --text-4 site */
+
+/* ---- save-status pills (four states — persistent, NOT a toast) ---- */
+.km-save {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 9px;
+  border-radius: var(--r); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+}
+.km-save--loading { background: var(--surface-3);  color: var(--text-2); }
+.km-save--saving  { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-border); }
+.km-save--saved   { background: var(--pos-dim);    color: var(--pos);  border-color: color-mix(in srgb, var(--pos) 30%, transparent); }
+.km-save--failed  { background: var(--neg-dim);    color: var(--neg);  border-color: color-mix(in srgb, var(--neg) 30%, transparent); }
+
+/* ---- pin toggle (aria-pressed; lucide Pin / PinOff at w-3.5 h-3.5) ----
+   Long title stays: pinning is reversible, re-pinning restores the number. */
+.km-pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 36px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text-3); cursor: pointer; font-size: 13px;
+}
+.km-pin[aria-pressed="true"] {
+  color: var(--warn); background: var(--warn-dim);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+
+/* ---- chips ---- */
+.km-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-3);
+  font-size: 11px; color: var(--text-2);
+}
+
+/* ---- inset card (owner-sanctioned 2026-08-30) ----
+   A deliberately DARKER card inside a --surface panel: the one sanctioned
+   use of --bg as a component background. Use for stat tiles and drill-down
+   cards nested in a panel; do not use it directly on the canvas. */
+.km-inset {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}

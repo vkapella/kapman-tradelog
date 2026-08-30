@@ -1,0 +1,85 @@
+/* ============================================================
+   kapman-grid.css — KapMan unified grid theme
+   Source of truth: kapman-tradelog/design/ (UI-4, handoff 260830)
+   Requires kapman-ui.css to be loaded first (consumes its tokens).
+   Copy VERBATIM per repo (decision 04).
+
+   Applies to any frozen-column data grid: Tradelog's VirtualGridTable,
+   the Screener's AG Grid, Fair Value's tables post-migration.
+   ============================================================ */
+
+/* ---- row height ----
+   Pointer: var(--row-h). Touch: var(--row-h-touch) = 44px.
+   The value of --row-h itself is owned by kapman-ui.css (UI-7). */
+
+/* ---- AG Grid adapter (Screener) ----
+   Replaces the raw-hex --ag-* block: theme params point AT the tokens so
+   a token correction restyles the grid without touching this file. */
+.ag-theme-kapman {
+  --ag-background-color:            var(--surface);
+  --ag-foreground-color:            var(--text);
+  --ag-header-background-color:     var(--surface-2);
+  --ag-header-foreground-color:     var(--text-2);
+  --ag-odd-row-background-color:    var(--surface);   /* no zebra striping */
+  --ag-border-color:                var(--border);
+  --ag-row-border-color:            var(--border-subtle);
+  --ag-row-hover-color:             var(--surface-2);
+  --ag-selected-row-background-color: var(--accent-dim);
+  --ag-font-family:                 var(--sans);
+  --ag-font-size:                   12.5px;
+  --ag-row-height:                  var(--row-h);
+  --ag-header-height:               var(--row-h);
+  --ag-cell-horizontal-padding:     8px;
+  --ag-grid-size:                   4px;
+}
+@media (pointer: coarse) and (max-width: 767px) {
+  .ag-theme-kapman { --ag-row-height: var(--row-h-touch); }
+}
+
+/* ---- generic grid rules (non-AG implementations) ---- */
+.km-grid { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+.km-grid-head { background: var(--surface-2); color: var(--text-2); }
+.km-grid-row { min-height: var(--row-h); border-bottom: 1px solid var(--border-subtle); }
+@media (pointer: coarse) and (max-width: 767px) { .km-grid-row { min-height: var(--row-h-touch); } }
+.km-grid-row:hover { background: var(--surface-2); }   /* hover never changes row height */
+
+/* selection: accent-dim wash + 2px accent left rail */
+.km-grid-row[aria-selected="true"] {
+  background: var(--accent-dim);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* numerics: right-aligned tabular mono, always */
+.km-grid-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* sort indicator: accent triangle beside the header label */
+.km-grid-sort[data-dir="asc"]::after  { content: "▲"; color: var(--accent); font-size: 8px; margin-left: 4px; }
+.km-grid-sort[data-dir="desc"]::after { content: "▼"; color: var(--accent); font-size: 8px; margin-left: 4px; }
+
+/* ---- the frozen boundary ----
+   --border-strong marks the pinned/scrolling seam — this is one of its only
+   sanctioned uses (with drag handles and control hover borders). */
+.km-grid-pinned {
+  position: sticky; left: 0; z-index: 1;
+  background: var(--surface);           /* MUST equal the table body exactly, or the frozen column shows a seam */
+}
+.km-grid-pinned--edge { border-right: 1px solid var(--border-strong); }
+
+/* pinned group widths: select 40 + actions 44 + symbol 76 = 160px,
+   held at every width including 390px */
+.km-grid-col-select  { width: var(--pinned-select); }
+.km-grid-col-actions { width: var(--pinned-actions); }
+.km-grid-col-symbol  { width: var(--pinned-symbol); font-family: var(--mono); font-weight: 600; }
+
+/* ---- pane lockstep ----
+   Pinned and scrolling panes must resolve to IDENTICAL row heights. Never
+   give a control inside a pinned cell a pixel height equal to the row's
+   min-height: the row's own border-bottom pushes the total past it and the
+   panes drift a fraction of a pixel per row — a ragged hairline by row 10.
+   Controls in pinned cells stretch instead: */
+.km-grid-pinned > button,
+.km-grid-pinned > .km-icon-btn { align-self: stretch; height: auto; }
