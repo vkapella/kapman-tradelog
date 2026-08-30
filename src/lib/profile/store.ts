@@ -79,15 +79,31 @@ export async function putProfile(
 
     const count = await store.casUpdate(email, row.revision, merged);
     if (count === 1) {
-      // Re-read for the exact post-increment revision/updatedAt. A concurrent
-      // writer may have advanced it again; the response body is informational
-      // (the client acknowledges its own sent values by generation).
+      // Re-read so settings, revision, and updatedAt all come from the SAME
+      // fresh row. A concurrent writer may have advanced the document again
+      // between the CAS and this read — returning the pre-read `merged` with
+      // the fresh revision would hand the client (and its fallback cache) an
+      // incoherent snapshot missing that writer's leaves.
       const fresh = await store.find(email);
+      if (fresh) {
+        const freshStored = classifyStoredSettings(fresh.settings);
+        if (freshStored.kind === "valid") {
+          return {
+            kind: "ok",
+            settings: freshStored.settings,
+            revision: fresh.revision,
+            updatedAt: fresh.updatedAt,
+          };
+        }
+        // An unsupported/malformed document appeared between the CAS and the
+        // re-read (e.g. a newer app upgraded it). Never reinterpret it —
+        // report this writer's own committed state instead.
+      }
       return {
         kind: "ok",
         settings: merged,
-        revision: fresh?.revision ?? row.revision + BigInt(1),
-        updatedAt: fresh?.updatedAt ?? row.updatedAt,
+        revision: row.revision + BigInt(1),
+        updatedAt: row.updatedAt,
       };
     }
     // Someone else won the CAS — retry with a fresh read.

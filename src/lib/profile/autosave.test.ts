@@ -35,6 +35,7 @@ function harness() {
   let journal: Record<string, ProfileJournalEntryV1> = {};
   const journalWrites: Array<Record<string, ProfileJournalEntryV1>> = [];
   let identityChanged = 0;
+  let rejections = 0;
   const successes: ProfilePutResponse[] = [];
 
   const machine = new ProfileAutosave(
@@ -49,6 +50,9 @@ function harness() {
       },
       onIdentityChanged() {
         identityChanged += 1;
+      },
+      onPermanentRejection() {
+        rejections += 1;
       },
       writeJournal(entries) {
         journal = entries;
@@ -96,6 +100,9 @@ function harness() {
     journalWrites,
     get identityChanged() {
       return identityChanged;
+    },
+    get rejections() {
+      return rejections;
     },
     successes,
   };
@@ -298,6 +305,69 @@ describe("ProfileAutosave", () => {
 
     expect(h.machine.isEnabled()).toBe(false);
     expect(h.sends.length).toBe(1);
+  });
+
+  it("permanent rejection: no backoff retry, but a subsequent user edit sends again", async () => {
+    const h = harness();
+    h.machine.hydrate("accounts", ["A"]);
+    h.machine.setEnabled(true);
+
+    h.machine.edit("accounts", ["B"]);
+    await h.fireNextTimer();
+    expect(h.sends.length).toBe(1);
+    await h.completeSend(0, { kind: "rejected" });
+
+    // Terminal: the note fires once, autosave stays enabled, and NO retry
+    // timer is scheduled — no spinning every backoff interval.
+    expect(h.rejections).toBe(1);
+    expect(h.machine.isEnabled()).toBe(true);
+    expect(await h.fireNextTimer()).toBeNull();
+    expect(h.sends.length).toBe(1);
+
+    // The in-memory desired value is retained (journaled, still dirty) …
+    expect(h.journal.accounts?.value).toEqual(["B"]);
+    expect(h.machine.getDesired("accounts")).toEqual(["B"]);
+
+    // … and a NEW user edit is sendable again with the changed value.
+    h.machine.edit("accounts", ["C"]);
+    await h.fireNextTimer();
+    expect(h.sends.length).toBe(2);
+    expect(h.sends[1].patch).toEqual({ accounts: { selected: ["C"] } });
+
+    await h.completeSend(1, { kind: "ok", response: okResponse() });
+    expect(h.machine.dirtyKeys()).toEqual([]);
+    expect(h.journal).toEqual({});
+  });
+
+  it("rejection of a leaf edited during flight: the NEW generation still sends", async () => {
+    const h = harness();
+    h.machine.hydrate("dashboard.kpis", null);
+    h.machine.setEnabled(true);
+
+    h.machine.edit("dashboard.kpis", ["a"]);
+    await h.fireNextTimer();
+    h.machine.edit("dashboard.kpis", ["a", "b"]); // newer gen while ["a"] is in flight
+    await h.completeSend(0, { kind: "rejected" });
+
+    // Only the SENT generation is frozen; the newer edit flushes normally.
+    await h.fireNextTimer();
+    expect(h.sends.length).toBe(2);
+    expect(h.sends[1].patch).toEqual({ dashboard: { kpis: ["a", "b"] } });
+  });
+
+  it("auth failure: journals under way, halts, and notifies for a reload", async () => {
+    const h = harness();
+    h.machine.hydrate("accounts", ["A"]);
+    h.machine.setEnabled(true);
+
+    h.machine.edit("accounts", ["B"]);
+    await h.fireNextTimer();
+    await h.completeSend(0, { kind: "auth_failed" });
+
+    expect(h.identityChanged).toBe(1);
+    expect(h.machine.isEnabled()).toBe(false);
+    expect(h.journal.accounts?.value).toEqual(["B"]);
+    expect(await h.fireNextTimer()).toBeNull();
   });
 
   it("restored journal entries flush once enabled", async () => {

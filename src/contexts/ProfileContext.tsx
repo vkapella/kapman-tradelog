@@ -51,6 +51,10 @@ interface ProfileView {
 export interface ProfileContextValue extends ProfileView {
   identity: string | null;
   writable: boolean;
+  /** True while the latest autosave attempt was permanently rejected by the
+   *  server (400/413); cleared by the next successful save. Drives the quiet
+   *  inline note near Customize. */
+  saveRejected: boolean;
   /** Bumps on initial hydration and on reset — consumers re-seed local state. */
   hydrationGeneration: number;
   reportAccounts(externalIds: string[]): void;
@@ -101,6 +105,7 @@ export function ProfileProvider({ identity, children }: { identity?: string | nu
 
   const [ready, setReady] = useState(false);
   const [writable, setWritable] = useState(true);
+  const [saveRejected, setSaveRejected] = useState(false);
   const [hydrationGeneration, setHydrationGeneration] = useState(0);
   const [view, setView] = useState<ProfileView>(() => viewFromSettings(cloneDefaultProfile()));
 
@@ -140,9 +145,21 @@ export function ProfileProvider({ identity, children }: { identity?: string | nu
         }
         if (response.status === 409 && code === "IDENTITY_CHANGED") return { kind: "identity_changed" };
         if (response.status === 409 && code === "UNSUPPORTED_PROFILE_VERSION") return { kind: "unsupported_version" };
-        return { kind: "retryable" };
+        // Session/auth failure: journal under the current identity, halt, and
+        // reload so Cloudflare Access re-establishes who is signed in.
+        if (response.status === 401 || response.status === 403) return { kind: "auth_failed" };
+        // Transient outcomes worth automatic backoff: 5xx, 409 CONFLICT
+        // (CAS retries exhausted), and 429 rate limiting.
+        if (response.status >= 500 || response.status === 409 || response.status === 429) {
+          return { kind: "retryable" };
+        }
+        // Every other 4xx (400 VALIDATION_ERROR, 413 PAYLOAD_TOO_LARGE, …) is
+        // permanent: resending the identical payload can never succeed, so
+        // retrying forever would only churn. A later user edit re-attempts.
+        return { kind: "rejected" };
       },
       onSuccess(response) {
+        setSaveRejected(false);
         const currentIdentity = identityRef.current;
         if (!currentIdentity) return;
         // The full server-returned canonical document goes to the cache (it may
@@ -158,7 +175,12 @@ export function ProfileProvider({ identity, children }: { identity?: string | nu
       onIdentityChanged() {
         // Dirty values are already journaled under the ORIGINAL identity; the
         // reload re-bootstraps with the new one, which never inherits them.
+        // Auth failures (401/403) take this same path: the session cannot
+        // save, so reload and let Cloudflare Access re-establish identity.
         window.location.reload();
+      },
+      onPermanentRejection() {
+        setSaveRejected(true);
       },
       writeJournal(entries) {
         const currentIdentity = identityRef.current;
@@ -364,6 +386,7 @@ export function ProfileProvider({ identity, children }: { identity?: string | nu
       ...view,
       identity: normalizedIdentity,
       writable,
+      saveRejected,
       hydrationGeneration,
       reportAccounts,
       reportRange,
@@ -376,6 +399,7 @@ export function ProfileProvider({ identity, children }: { identity?: string | nu
       view,
       normalizedIdentity,
       writable,
+      saveRejected,
       hydrationGeneration,
       reportAccounts,
       reportRange,

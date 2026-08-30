@@ -121,6 +121,8 @@ afterEach(() => {
   state.profileGet = null;
   state.accountsGet = null;
   state.putCalls = [];
+  state.putResult = () =>
+    jsonResponse({ data: { settings: cloneDefaultProfile(), revision: "2", updatedAt: "2026-08-29T00:00:01.000Z" } });
   dataFetchUrls.length = 0;
   delete captured.profile;
   delete captured.accounts;
@@ -393,6 +395,125 @@ describe("journal restore", () => {
     });
     expect(state.putCalls).toEqual([]);
     expect(window.localStorage.getItem(`kapman-tradelog.profile-pending.v1.${VICTOR}`)).toBeNull();
+  });
+});
+
+describe("autosave HTTP error handling", () => {
+  function mountReady() {
+    state.profileGet = () => jsonResponse(profileGetBody(cloneDefaultProfile()));
+    state.accountsGet = () => jsonResponse(accountsBody([accountRow("cuid-1", "18528700SCHW")]));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mountApp();
+  }
+
+  it("400 VALIDATION_ERROR is terminal: one PUT, no backoff spinning, quiet saveRejected flag; a new edit sends again", async () => {
+    mountReady();
+    await waitFor(() => expect(screen.getByTestId("probe")).toBeDefined());
+
+    state.putResult = () => jsonResponse({ error: { code: "VALIDATION_ERROR", message: "", details: [] } }, 400);
+    act(() => {
+      captured.profile?.reportKpis(["realized-pnl"]);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(state.putCalls.length).toBe(1);
+    expect(captured.profile?.saveRejected).toBe(true);
+    // The in-memory view keeps the user's value even though persistence failed.
+    expect(captured.profile?.kpis).toEqual(["realized-pnl"]);
+
+    // Two full minutes: no automatic retries of the rejected generation.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(state.putCalls.length).toBe(1);
+
+    // A subsequent user edit attempts the NEW value, and success clears the flag.
+    state.putResult = () =>
+      jsonResponse({ data: { settings: cloneDefaultProfile(), revision: "3", updatedAt: "2026-08-29T00:00:02.000Z" } });
+    act(() => {
+      captured.profile?.reportKpis(["realized-pnl", "setup-count"]);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(state.putCalls.length).toBe(2);
+    expect((state.putCalls[1].body.patch as { dashboard: { kpis: string[] } }).dashboard.kpis).toEqual([
+      "realized-pnl",
+      "setup-count",
+    ]);
+    await waitFor(() => expect(captured.profile?.saveRejected).toBe(false));
+  });
+
+  it("413 PAYLOAD_TOO_LARGE is terminal (no retries)", async () => {
+    mountReady();
+    await waitFor(() => expect(screen.getByTestId("probe")).toBeDefined());
+
+    state.putResult = () => jsonResponse({ error: { code: "PAYLOAD_TOO_LARGE", message: "", details: [] } }, 413);
+    act(() => {
+      captured.profile?.reportKpis(["realized-pnl"]);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(state.putCalls.length).toBe(1);
+    expect(captured.profile?.saveRejected).toBe(true);
+  });
+
+  it("500, 409 CONFLICT, and 429 stay retryable with backoff", async () => {
+    mountReady();
+    await waitFor(() => expect(screen.getByTestId("probe")).toBeDefined());
+
+    const statuses = [500, 409, 429];
+    let call = 0;
+    state.putResult = () => {
+      const status = statuses[Math.min(call, statuses.length - 1)];
+      call += 1;
+      return jsonResponse({ error: { code: status === 409 ? "CONFLICT" : "ERR", message: "", details: [] } }, status);
+    };
+
+    act(() => {
+      captured.profile?.reportKpis(["realized-pnl"]);
+    });
+    // Debounce (1.5s) + backoff 2s + 4s + 8s: four attempts within ~20s.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(state.putCalls.length).toBeGreaterThanOrEqual(4);
+    expect(captured.profile?.saveRejected).toBe(false);
+  });
+
+  it("403 journals the dirty values under the current identity, halts, and reloads", async () => {
+    const reload = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...originalLocation, reload } });
+
+    mountReady();
+    await waitFor(() => expect(screen.getByTestId("probe")).toBeDefined());
+
+    state.putResult = () => jsonResponse({ error: { code: "FORBIDDEN", message: "", details: [] } }, 403);
+    act(() => {
+      captured.profile?.reportKpis(["realized-pnl"]);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(state.putCalls.length).toBe(1);
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    const journalRaw = window.localStorage.getItem(`kapman-tradelog.profile-pending.v1.${VICTOR}`);
+    expect(journalRaw).not.toBeNull();
+    const journal = JSON.parse(journalRaw ?? "{}") as { identity: string; entries: Record<string, { value: unknown }> };
+    expect(journal.identity).toBe(VICTOR);
+    expect(journal.entries["dashboard.kpis"]?.value).toEqual(["realized-pnl"]);
+
+    // Halted: no further attempts.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(state.putCalls.length).toBe(1);
+
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
   });
 });
 

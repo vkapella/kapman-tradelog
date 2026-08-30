@@ -22,14 +22,25 @@ export type AutosaveSendResult =
   | { kind: "ok"; response: ProfilePutResponse }
   | { kind: "identity_changed" }
   | { kind: "unsupported_version" }
+  /** Permanent server rejection (400/413): the write will never succeed as
+   *  sent. No automatic retries for the rejected generations; a subsequent
+   *  user edit re-attempts with the new value. */
+  | { kind: "rejected" }
+  /** Authentication/session failure (401/403): journal, halt, reload so
+   *  Cloudflare Access can re-establish identity. */
+  | { kind: "auth_failed" }
+  /** Transient (network/5xx/409 CONFLICT/429): retry with backoff. */
   | { kind: "retryable" };
 
 export interface AutosaveDeps {
   send(patch: ProfilePatchV1, opts: { keepalive: boolean }): Promise<AutosaveSendResult>;
   /** Cache update with the full server-returned canonical document. */
   onSuccess(response: ProfilePutResponse): void;
-  /** Journal already written; the provider forces a full reload. */
+  /** Journal already written; the provider forces a full reload. Also used
+   *  for auth failures — both mean this session can no longer save. */
   onIdentityChanged(): void;
+  /** A permanent rejection happened — surface the quiet inline note. */
+  onPermanentRejection?(): void;
   /** Synchronous journal write (empty record deletes the key). */
   writeJournal(entries: Record<string, ProfileJournalEntryV1>): void;
   /** Injectable timer; returns a cancel function. Defaults to setTimeout. */
@@ -49,6 +60,10 @@ interface LeafState {
   gen: number;
   dirty: boolean;
   mustConfirm: boolean;
+  /** Generation the server permanently rejected (400/413). While the current
+   *  generation equals it, the leaf is excluded from sends — only a NEW user
+   *  edit (gen bump) makes it sendable again. */
+  rejectedGen: number | null;
   editedAt: string;
 }
 
@@ -89,7 +104,15 @@ export class ProfileAutosave {
   private leaf(key: string): LeafState {
     let state = this.leaves.get(key);
     if (!state) {
-      state = { desired: undefined, confirmedWritten: undefined, gen: 0, dirty: false, mustConfirm: false, editedAt: "" };
+      state = {
+        desired: undefined,
+        confirmedWritten: undefined,
+        gen: 0,
+        dirty: false,
+        mustConfirm: false,
+        rejectedGen: null,
+        editedAt: "",
+      };
       this.leaves.set(key, state);
     }
     return state;
@@ -168,7 +191,9 @@ export class ProfileAutosave {
   private hasWork(): boolean {
     return Array.from(this.leaves.entries()).some(
       ([key, state]) =>
-        state.dirty && (state.mustConfirm || !leafEqual(key, state.desired, state.confirmedWritten)),
+        state.dirty &&
+        state.rejectedGen !== state.gen &&
+        (state.mustConfirm || !leafEqual(key, state.desired, state.confirmedWritten)),
     );
   }
 
@@ -191,6 +216,9 @@ export class ProfileAutosave {
     const sendable = new Map<string, LeafState>();
     this.leaves.forEach((state, key) => {
       if (!state.dirty) return;
+      // A permanently rejected generation is never auto-resent; a subsequent
+      // user edit bumps the generation and clears the exclusion.
+      if (state.rejectedGen === state.gen) return;
       // No-op suppression compares desired against confirmedWritten — but a
       // leaf under delivery uncertainty is never suppressed by equality with
       // the OLD baseline (the server may hold something else).
@@ -271,6 +299,7 @@ export class ProfileAutosave {
         if (state.gen === gen) {
           state.dirty = false;
           state.mustConfirm = false;
+          state.rejectedGen = null;
           ackedJournalKeys.push(key);
         } else {
           needsFollowUp = true;
@@ -288,11 +317,38 @@ export class ProfileAutosave {
       return;
     }
 
-    if (result.kind === "identity_changed") {
+    if (result.kind === "identity_changed" || result.kind === "auth_failed") {
+      // Either way this session can no longer save: journal the dirty values
+      // under the current identity, halt, and let the provider force a reload
+      // (Cloudflare Access re-establishes who is signed in).
       this.writeJournalNow();
       this.enabled = false;
       this.clearTimer();
       this.deps.onIdentityChanged();
+      return;
+    }
+
+    if (result.kind === "rejected") {
+      // The server refused the write outright (400/413) — it certainly did
+      // not commit, so there is no delivery ambiguity, and resending the same
+      // payload can never succeed. Freeze the rejected generations (the
+      // user's in-memory view stays untouched; a later edit re-attempts) and
+      // surface the quiet inline note instead of spinning in backoff.
+      sentGen.forEach((gen, key) => {
+        const state = this.leaf(key);
+        if (state.gen === gen) {
+          state.rejectedGen = gen;
+          state.mustConfirm = false;
+        }
+        // A leaf edited during flight has a newer generation — it stays
+        // sendable with its new value.
+      });
+      this.writeJournalNow();
+      this.deps.onPermanentRejection?.();
+      if (this.flushRequested || this.hasWork()) {
+        this.flushRequested = false;
+        this.startTimer(this.debounceMs);
+      }
       return;
     }
 

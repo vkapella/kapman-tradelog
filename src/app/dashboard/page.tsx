@@ -328,6 +328,9 @@ export default function Page() {
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-end gap-2">
+        {profile.saveRejected ? (
+          <span className="text-xs text-text-2">Some view changes couldn&apos;t be saved.</span>
+        ) : null}
         {editMode ? (
           <>
             <button

@@ -17,6 +17,8 @@ function memoryStore(initial?: { settings: unknown; revision?: bigint }) {
   const hooks = {
     /** Runs after each find(); lets a test commit a competing write mid-CAS. */
     afterFind: [] as Array<() => void>,
+    /** Runs after a SUCCESSFUL casUpdate, before the post-CAS re-read. */
+    afterCas: [] as Array<() => void>,
     createShouldConflictOnce: false,
   };
 
@@ -44,6 +46,8 @@ function memoryStore(initial?: { settings: unknown; revision?: bigint }) {
         return 0;
       }
       row = { ...row, settings, revision: row.revision + BigInt(1), updatedAt: new Date(2) };
+      const hook = hooks.afterCas.shift();
+      hook?.();
       return 1;
     },
   };
@@ -110,6 +114,53 @@ describe("putProfile", () => {
     expect(db.settings().dashboard.kpis).toEqual(["realized-pnl"]);
     // Revision advanced twice: once for B, once for A's winning CAS.
     expect(db.row?.revision).toBe(BigInt(2));
+  });
+
+  it("post-CAS snapshot is coherent: a leaf committed between the CAS and the re-read appears in the result", async () => {
+    const db = memoryStore({ settings: cloneDefaultProfile() });
+
+    // Writer B commits a range change AFTER writer A's CAS succeeds but
+    // BEFORE A's post-CAS re-read. A's response must reflect the fresh row —
+    // settings (including B's leaf), revision, and updatedAt together — not
+    // A's pre-read merged document glued to a newer revision.
+    db.hooks.afterCas.push(() => {
+      const current = classifyStoredSettings(db.row?.settings);
+      if (current.kind !== "valid") throw new Error("unexpected");
+      db.row = {
+        ...db.row!,
+        settings: { ...current.settings, range: { preset: "7d", startDate: null, endDate: null } },
+        revision: db.row!.revision + BigInt(1),
+        updatedAt: new Date(99),
+      };
+    });
+
+    const result = await putProfile(db.store, EMAIL, { dashboard: { kpis: ["realized-pnl"] } });
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") throw new Error("unreachable");
+    // B's intervening leaf update is present …
+    expect(result.settings.range.preset).toBe("7d");
+    // … alongside A's own leaf …
+    expect(result.settings.dashboard.kpis).toEqual(["realized-pnl"]);
+    // … and revision/updatedAt correspond to that SAME fresh row.
+    expect(result.revision).toBe(BigInt(2));
+    expect(result.updatedAt).toEqual(new Date(99));
+    expect(result.revision).toBe(db.row?.revision);
+    expect(result.updatedAt).toEqual(db.row?.updatedAt);
+  });
+
+  it("falls back to the local merged document when the row cannot be re-read after the CAS", async () => {
+    const db = memoryStore({ settings: cloneDefaultProfile() });
+    db.hooks.afterCas.push(() => {
+      db.row = null; // row vanishes before the post-CAS re-read
+    });
+
+    const result = await putProfile(db.store, EMAIL, { dashboard: { kpis: ["realized-pnl"] } });
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") throw new Error("unreachable");
+    expect(result.settings.dashboard.kpis).toEqual(["realized-pnl"]);
+    expect(result.revision).toBe(BigInt(1));
   });
 
   it("exhausted CAS retries return conflict", async () => {
