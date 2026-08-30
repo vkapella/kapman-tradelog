@@ -43,9 +43,11 @@ export function buildPositionsColumnConfigs(
     {
       definition: { id: "symbol", label: "Symbol", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
       stickyLeft: true,
-      width: "120px",
-      mobileWidth: "minmax(60px, auto)",
-      renderCell: (row) => <div className="px-2 py-2 font-semibold">{row.underlyingSymbol}</div>,
+      // UI-2: the pinned ticker holds the reference 76px at every width
+      // (dropping it on phones was the v1 mocks' central defect).
+      width: "76px",
+      mobileWidth: "76px",
+      renderCell: (row) => <div className="px-2 py-2 font-mono font-semibold">{row.underlyingSymbol}</div>,
     },
     {
       definition: { id: "assetClass", label: "Type", filterMode: "discrete", getFilterValues: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"), sortMode: "string", getSortValue: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY") },
