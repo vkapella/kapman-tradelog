@@ -160,7 +160,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
       row.disposition === "ELIGIBLE" || row.disposition === "VALIDATED" ? (
         <Badge variant="buy">{row.disposition}</Badge>
       ) : row.disposition === "NO_TRADE" || row.disposition === "REJECTED" ? (
-        <Badge variant="sell">{row.disposition}</Badge>
+        <Badge variant="sell">{row.disposition === "NO_TRADE" ? "No trade" : row.disposition}</Badge>
       ) : (
         row.disposition
       ),

@@ -36,6 +36,15 @@ function renderOptionValue(row: Pick<ExecutionRecord, "optionType" | "strike" | 
   return `${row.optionType} ${row.strike ?? "-"} ${row.expirationDate?.slice(0, 10) ?? "-"}`;
 }
 
+/** Decision 41: enum values are not display labels. Raw values keep flowing
+ *  through filters, the detail sheet, and exports. */
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  TRADE: "Trade",
+  EXPIRATION_INFERRED: "Expired (inferred)",
+  ASSIGNMENT: "Assigned",
+  EXERCISE: "Exercised",
+};
+
 function canInvestigateExecution(row: Pick<ExecutionRecord, "eventType" | "openingClosingEffect">): boolean {
   return row.eventType === "EXPIRATION_INFERRED" || row.openingClosingEffect === null || row.openingClosingEffect === "UNKNOWN";
 }
@@ -285,12 +294,15 @@ export function ExecutionsTablePanel() {
       label: "Event",
       filterMode: "discrete",
       getFilterValues: (row) => row.eventType,
+      // Decision 41: EXPIRATION_INFERRED is a wire value, not a label.
+      getFilterOptionLabel: (value) => EVENT_TYPE_LABELS[value] ?? value,
       sortMode: "string",
       getSortValue: (row) => row.eventType,
     },
       width: "110px",
       tier: 2,
-      renderCell: (row) => <div className="px-2 py-2">{row.eventType}</div>,
+      renderCell: (row) => <div className="px-2 py-2">{EVENT_TYPE_LABELS[row.eventType] ?? row.eventType}</div>,
+      renderDetailValue: (row) => row.eventType,
     },
     {
       definition: {
@@ -298,6 +310,10 @@ export function ExecutionsTablePanel() {
       label: "Effect",
       filterMode: "discrete",
       getFilterValues: (row) => row.openingClosingEffect ?? "UNKNOWN",
+      // Decision 41: enum values are not display labels. The chip reads
+      // OPEN/CLOSE; TO_OPEN/TO_CLOSE (the broker-wire values) survive in the
+      // filter values, the detail sheet, and every export.
+      getFilterOptionLabel: (value) => (value === "TO_OPEN" ? "OPEN" : value === "TO_CLOSE" ? "CLOSE" : value),
       sortMode: "string",
       getSortValue: (row) => row.openingClosingEffect ?? "UNKNOWN",
     },
@@ -306,14 +322,15 @@ export function ExecutionsTablePanel() {
       renderCell: (row) => (
         <div className="px-2 py-2">
           {row.openingClosingEffect === "TO_OPEN" ? (
-            <Badge variant="to-open">TO_OPEN</Badge>
+            <Badge variant="to-open">OPEN</Badge>
           ) : row.openingClosingEffect === "TO_CLOSE" ? (
-            <Badge variant="to-close">TO_CLOSE</Badge>
+            <Badge variant="to-close">CLOSE</Badge>
           ) : (
             "UNKNOWN"
           )}
         </div>
       ),
+      renderDetailValue: (row) => row.openingClosingEffect ?? "UNKNOWN",
     },
     {
       definition: {
