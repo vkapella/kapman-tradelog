@@ -80,6 +80,14 @@
    give a control inside a pinned cell a pixel height equal to the row's
    min-height: the row's own border-bottom pushes the total past it and the
    panes drift a fraction of a pixel per row — a ragged hairline by row 10.
-   Controls in pinned cells stretch instead: */
+   Controls in pinned cells stretch instead — and min-height must be cleared
+   with it: .km-btn/.km-icon-btn carry a 36px (44px coarse) control height,
+   which EXCEEDS --row-h and would grow the row rather than fit inside it.
+   Stretch supplies the height; the cell supplies the hit area. */
 .km-grid-pinned > button,
-.km-grid-pinned > .km-icon-btn { align-self: stretch; height: auto; }
+.km-grid-pinned > .km-icon-btn {
+  align-self: stretch;
+  height: auto;
+  min-height: 0;
+  min-width: 0;
+}

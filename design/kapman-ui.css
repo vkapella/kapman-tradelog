@@ -114,10 +114,75 @@ code { color: var(--accent-soft); font-family: var(--mono); }
   letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold);
 }
 .km-tool-name { font-size: 15px; font-weight: 600; color: var(--text); }
+/* Carries the product version ONLY (decision 05) — for these apps that is the
+   build's short SHA (`git rev-parse --short HEAD`; NEVER `git describe`, which
+   emitted a 52-character path — the v37 header defect). Bounded at 13ch so a
+   malformed release string truncates instead of displacing the header. */
 .km-version-chip {
   font-family: var(--mono); font-size: 10px; color: var(--text-2);
   background: var(--surface-3); border: 1px solid var(--border);
   border-radius: var(--r-sm); padding: 1px 6px;
+  display: inline-block; max-width: 13ch; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ---- workspace nav (spec §04, decision 25) ----
+   ONE markup tree, three presentations on the shared ladder. Sibling parity:
+   all three apps ship this nav and were each hand-rolling it.
+     >=1024   sidebar --sidebar-w, text labels left-aligned, icons hidden
+     768-1024 rail --rail-w, icon-only (every item keeps its aria-label)
+     <768     fixed bottom tab bar --tabbar-h, icon over a 10px label — the
+              only variant that centres, because it stacks glyph over label
+   Active works for BOTH a real tab widget (aria-selected, the Screener) and
+   link navigation (aria-current="page", Tradelog/Fair Value — decision 38).
+   No hamburger at any width; primary nav is always visible. The page shell
+   must reserve --tabbar-total at the bottom so the bar never covers content. */
+.km-nav {
+  flex: none; width: var(--sidebar-w);
+  display: flex; flex-direction: column;
+  padding: 12px 0;
+  background: var(--surface-2); border-right: 1px solid var(--border);
+}
+.km-nav-items { display: flex; flex-direction: column; gap: 2px; }
+.km-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  min-height: 38px; padding: 0 16px;
+  background: transparent; border: none; border-radius: 0;
+  border-left: 2px solid transparent;
+  color: var(--text-2); font-family: var(--sans); font-size: 13.5px;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.km-nav-item:hover { color: var(--text); }
+.km-nav-item[aria-selected="true"],
+.km-nav-item[aria-current="page"] {
+  color: var(--accent); background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+.km-nav-icon { width: 20px; height: 20px; flex: none; }
+/* the wide sidebar is text-only in every sibling */
+@media (min-width: 1024px) { .km-nav-icon { display: none; } }
+
+@media (max-width: 1023.98px) {
+  .km-nav { width: var(--rail-w); }
+  .km-nav .km-section-label { display: none; }
+  .km-nav-item { justify-content: center; padding: 0; }
+  .km-nav-label { display: none; }
+}
+
+@media (max-width: 767.98px) {
+  .km-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; width: auto;
+    flex-direction: row; padding: 0 0 env(safe-area-inset-bottom, 0px);
+    border-right: none; border-top: 1px solid var(--border);
+    z-index: var(--z-tabbar);
+  }
+  .km-nav-items { flex: 1; flex-direction: row; }
+  .km-nav-item {
+    flex: 1; flex-direction: column; justify-content: center; gap: 3px;
+    min-height: var(--tabbar-h); padding: 0; border-left: none;
+  }
+  .km-nav-label { display: block; font-size: 10px; line-height: 1; }
 }
 
 /* ---- buttons ----
