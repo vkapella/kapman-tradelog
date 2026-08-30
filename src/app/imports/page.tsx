@@ -18,6 +18,7 @@ function TabLink({ tab, activeTab, label }: { tab: ImportTab; activeTab: ImportT
   return (
     <Link
       href={"/imports?tab=" + tab}
+      aria-current={active ? "page" : undefined}
       className={[
         "rounded-lg border px-3 py-1 text-xs font-medium",
         active ? "border-accent bg-[color:var(--accent-dim)] text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
@@ -34,11 +35,11 @@ export default function Page({ searchParams }: { searchParams?: Record<string, s
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <nav aria-label="Import sections" className="flex flex-wrap items-center gap-2">
         <TabLink tab="upload" activeTab={activeTab} label="Upload Statement" />
         <TabLink tab="history" activeTab={activeTab} label="Import History" />
         <TabLink tab="adapters" activeTab={activeTab} label="Adapter Registry" />
-      </div>
+      </nav>
 
       {activeTab === "upload" ? <ImportsWorkflowPanel mode="upload" /> : null}
       {activeTab === "history" ? <ImportsWorkflowPanel mode="history" /> : null}

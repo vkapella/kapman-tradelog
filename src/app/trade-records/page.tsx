@@ -19,6 +19,7 @@ function TabLink({ tab, activeTab, label }: { tab: TradeRecordTab; activeTab: Tr
   return (
     <Link
       href={"/trade-records?tab=" + tab}
+      aria-current={active ? "page" : undefined}
       className={[
         "rounded-lg border px-3 py-1 text-xs font-medium",
         active ? "border-accent bg-[color:var(--accent-dim)] text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
@@ -35,11 +36,11 @@ export default function Page({ searchParams }: { searchParams?: Record<string, s
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <nav aria-label="Trade record tiers" className="flex flex-wrap items-center gap-2">
         <TabLink tab="executions" activeTab={activeTab} label="Executions (T1)" />
         <TabLink tab="matched-lots" activeTab={activeTab} label="Matched Lots (T2)" />
         <TabLink tab="setups" activeTab={activeTab} label="Setups (T3)" />
-      </div>
+      </nav>
 
       {activeTab === "executions" ? <ExecutionsTablePanel /> : null}
       {activeTab === "matched-lots" ? <MatchedLotsTablePanel /> : null}
