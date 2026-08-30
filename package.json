@@ -24,7 +24,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "check:contrast": "tsx scripts/check-contrast.ts"
+    "check:contrast": "tsx scripts/check-contrast.ts",
+    "lint:design": "node scripts/check-design-system.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
