@@ -2,33 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* KapMan unified UI scale (handoff 260830, Tradelog UI-0). Values match
+ * Component Reference v2 §01–03 exactly — this repo owns the shared theme
+ * the sibling apps vendor, so do not tune these locally. */
 :root {
-  --bg:             #0b0d12;
-  --surface:        #111318;
-  --surface-2:      #181b23;
-  --surface-3:      #1f2330;
-  --border:         #252b3a;
-  --border-subtle:  #1a1f2c;
-  --text:           #dde2ef;
-  --text-2:         #858fa5;
-  --text-3:         #4d5668;
-  --accent:         oklch(0.72 0.15 200);
-  --accent-dim:     oklch(0.72 0.15 200 / 0.13);
-  --accent-border:  oklch(0.72 0.15 200 / 0.30);
+  --bg:             #08090c;  /* page canvas only, never a component background */
+  --surface:        #0d0f14;  /* table body, grid, frame interiors */
+  --surface-2:      #12151c;  /* header, toolbar, table head, sheet, sidebar */
+  --surface-3:      #1a1e27;  /* secondary buttons, chips, inputs at rest */
+  --border:         #262b36;
+  --border-subtle:  #1a1e27;  /* row hairlines inside a table (unused until UI-4) */
+  --border-strong:  #3a4150;  /* frozen-column boundary, drag handles, control hover borders */
+  --text:           #e8ebf0;
+  --text-2:         #a8b0bf;
+  --text-3:         #7f8798;
+  --text-4:         #4f586c;  /* 2.6:1 — non-text glyphs only, never prose */
+  --accent:         #34d3e8;
+  --accent-dim:     color-mix(in srgb, var(--accent) 13%, transparent);
+  --accent-border:  color-mix(in srgb, var(--accent) 30%, transparent);
+  --accent-soft:    #7ce8f7;  /* inline code in documentation surfaces */
+  --gold:           oklch(0.75 0.12 85);  /* KAPMAN wordmark + mark only, not a UI state */
   --pos:            oklch(0.72 0.17 145);
   --pos-dim:        oklch(0.72 0.17 145 / 0.12);
   --neg:            oklch(0.65 0.20 25);
   --neg-dim:        oklch(0.65 0.20 25 / 0.12);
   --warn:           oklch(0.78 0.14 75);
   --warn-dim:       oklch(0.78 0.14 75 / 0.12);
-  --chart-purple:   #a78bfa;
+  --chart-purple:   #a78bfa;  /* app-local; no home in the reference yet (UI-0 open question) */
   --mono:           "Geist Mono", ui-monospace, monospace;
   --sans:           "Geist", system-ui, sans-serif;
-  --sidebar-w:      220px;
+  --sidebar-w:      224px;
+  --rail-w:         56px;
   --topbar-h:       46px;
   --r:              7px;
   --r-sm:           4px;
-  --row-h:          34px;
+  --r-lg:           9px;
+  --row-h:          34px;     /* dead token — value is UI-7's decision */
+  --row-h-touch:    44px;
+  --pinned-select:  40px;
+  --pinned-actions: 44px;
+  --pinned-symbol:  76px;
 }
 
 * {
