@@ -11,7 +11,7 @@ import {
 import { DataTableHeader } from "@/components/data-table/DataTableHeader";
 import { requestCloseColumnId, toggleOpenColumnId } from "@/components/data-table/filter-panel-interaction";
 import type { DataTableState } from "@/components/data-table/useDataTableState";
-import type { SortDirection } from "@/components/data-table/types";
+import type { DataTableRangeState, SortDirection } from "@/components/data-table/types";
 import { VirtualGridBody, VirtualGridHeaderRow, VirtualGridTableShell } from "@/components/data-table/VirtualGridTable";
 
 interface ConfigVirtualTableProps<Row> {
@@ -47,8 +47,9 @@ export function ConfigVirtualTable<Row>({
 }: ConfigVirtualTableProps<Row>) {
   const visibleConfigs = visibleConfigsFor(configs, table.visibleColumns);
 
-  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null) {
+  function applyColumnState(columnId: string, values: string[], direction: SortDirection | null, range: DataTableRangeState | null) {
     table.setColumnFilter(columnId, values);
+    table.setColumnRange(columnId, range);
     if (direction) {
       table.setSort({ columnId, direction });
     } else if (table.sort.columnId === columnId) {
@@ -77,8 +78,9 @@ export function ConfigVirtualTable<Row>({
               column={config.definition}
               currentSortDirection={table.sort.columnId === config.definition.id ? table.sort.direction : null}
               currentValues={table.filters[config.definition.id] ?? []}
+              currentRange={table.rangeFilters[config.definition.id] ?? null}
               isOpen={openColumnId === config.definition.id}
-              onApply={(values, direction) => applyColumnState(config.definition.id, values, direction)}
+              onApply={(values, direction, range) => applyColumnState(config.definition.id, values, direction, range)}
               onRequestClose={() => setOpenColumnId((current) => requestCloseColumnId(current, config.definition.id))}
               onToggle={() => setOpenColumnId((current) => toggleOpenColumnId(current, config.definition.id))}
               options={table.filterOptions[config.definition.id] ?? []}

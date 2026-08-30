@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { isWithinFilterPanelBoundary } from "@/components/data-table/filter-panel-interaction";
-import type { DataTableColumnDefinition, DataTableFilterOption, SortDirection } from "@/components/data-table/types";
+import type { DataTableColumnDefinition, DataTableFilterOption, DataTableRangeState, SortDirection } from "@/components/data-table/types";
+import { columnSupportsRange } from "@/components/data-table/utils";
 
 const PANEL_GAP_PX = 8;
 const PANEL_VIEWPORT_MARGIN_PX = 12;
@@ -15,7 +16,9 @@ interface ColumnFilterPanelProps<Row> {
   column: DataTableColumnDefinition<Row>;
   currentSortDirection: SortDirection | null;
   currentValues: string[];
-  onApply: (values: string[], direction: SortDirection | null) => void;
+  /** UI-2: active numeric range on this column, when it supports one. */
+  currentRange?: DataTableRangeState | null;
+  onApply: (values: string[], direction: SortDirection | null, range: DataTableRangeState | null) => void;
   onClose: () => void;
   options: DataTableFilterOption[];
 }
@@ -25,6 +28,7 @@ export function ColumnFilterPanel<Row>({
   column,
   currentSortDirection,
   currentValues,
+  currentRange = null,
   onApply,
   onClose,
   options,
@@ -41,6 +45,9 @@ export function ColumnFilterPanel<Row>({
   const [draftSearch, setDraftSearch] = useState("");
   const [draftValues, setDraftValues] = useState<string[]>(currentValues);
   const [draftSortDirection, setDraftSortDirection] = useState<SortDirection | null>(currentSortDirection);
+  const [draftFrom, setDraftFrom] = useState<string>(currentRange?.from?.toString() ?? "");
+  const [draftTo, setDraftTo] = useState<string>(currentRange?.to?.toString() ?? "");
+  const supportsRange = columnSupportsRange(column);
 
   useEffect(() => {
     setIsMounted(true);
@@ -50,7 +57,9 @@ export function ColumnFilterPanel<Row>({
     setDraftValues(currentValues);
     setDraftSortDirection(currentSortDirection);
     setDraftSearch("");
-  }, [currentSortDirection, currentValues]);
+    setDraftFrom(currentRange?.from?.toString() ?? "");
+    setDraftTo(currentRange?.to?.toString() ?? "");
+  }, [currentRange, currentSortDirection, currentValues]);
 
   const filteredOptions = useMemo(() => {
     if (!draftSearch.trim()) {
@@ -152,8 +161,19 @@ export function ColumnFilterPanel<Row>({
     setDraftValues((current) => (current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]));
   }
 
+  function parseBound(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   function apply() {
-    onApply(draftValues, draftSortDirection);
+    const from = parseBound(draftFrom);
+    const to = parseBound(draftTo);
+    onApply(draftValues, draftSortDirection, supportsRange && (from !== null || to !== null) ? { from, to } : null);
     onClose();
   }
 
@@ -201,8 +221,39 @@ export function ColumnFilterPanel<Row>({
         </div>
       ) : null}
 
+      {supportsRange ? (
+        <div className={column.sortMode ? "space-y-2 border-b border-border pb-3 pt-3" : "space-y-2 border-b border-border pb-3"}>
+          <p className="font-semibold text-text">Range</p>
+          {/* 16px inputs at every width — smaller makes iOS zoom on focus and
+              pulls frozen grid columns apart (spec hard rule). */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={draftFrom}
+              onChange={(event) => setDraftFrom(event.target.value)}
+              placeholder="Min"
+              aria-label={`${column.label} minimum`}
+              className="w-full min-w-0 rounded border border-border bg-surface-3 px-2 py-1 font-mono text-text"
+              style={{ fontSize: "16px" }}
+            />
+            <span aria-hidden="true" className="text-text-3">–</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={draftTo}
+              onChange={(event) => setDraftTo(event.target.value)}
+              placeholder="Max"
+              aria-label={`${column.label} maximum`}
+              className="w-full min-w-0 rounded border border-border bg-surface-3 px-2 py-1 font-mono text-text"
+              style={{ fontSize: "16px" }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {column.filterMode === "discrete" ? (
-        <div className={column.sortMode ? "space-y-3 pt-3" : "space-y-3"}>
+        <div className={column.sortMode || supportsRange ? "space-y-3 pt-3" : "space-y-3"}>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="font-semibold text-text">Filter values</p>
@@ -215,13 +266,17 @@ export function ColumnFilterPanel<Row>({
                 </button>
               </div>
             </div>
-            <input
-              type="text"
-              value={draftSearch}
-              onChange={(event) => setDraftSearch(event.target.value)}
-              placeholder={`Search ${column.label.toLowerCase()}...`}
-              className="w-full rounded border border-border bg-surface-3 px-2 py-1.5 text-xs text-text"
-            />
+            {options.length > 10 ? (
+              <input
+                type="text"
+                value={draftSearch}
+                onChange={(event) => setDraftSearch(event.target.value)}
+                placeholder={`Search ${column.label.toLowerCase()}...`}
+                aria-label={`Search ${column.label} values`}
+                className="w-full rounded border border-border bg-surface-3 px-2 py-1.5 text-text"
+                style={{ fontSize: "16px" }}
+              />
+            ) : null}
           </div>
 
           <div
