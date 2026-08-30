@@ -44,9 +44,8 @@
   --rail-w:         56px;
   --topbar-h:       46px;    /* UI-3 may adjust with the header lockup */
   --tabbar-h:       56px;
-  --row-h:          30px;    /* spec value (Screener's shipped --ag-row-height).
-                                Tradelog's adoption is UI-7's recorded decision;
-                                if 36px wins there, THIS value changes. */
+  --row-h:          30px;    /* decision 28 closed 2026-08-30: 30px confirmed
+                                (Tradelog moved down from its prior 34px). */
   --row-h-touch:    44px;
   --r:              7px;
   --r-sm:           4px;

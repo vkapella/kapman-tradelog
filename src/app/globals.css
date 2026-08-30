@@ -37,7 +37,7 @@
   --r:              7px;
   --r-sm:           4px;
   --r-lg:           9px;
-  --row-h:          34px;     /* dead token — value is UI-7's decision */
+  --row-h:          30px;     /* UI-7 decided 2026-08-30: 30 over the prior 34; matches the Screener */
   --row-h-touch:    44px;
   --pinned-select:  40px;
   --pinned-actions: 44px;
@@ -117,6 +117,26 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+}
+
+/* UI-7: row-driven density. The row's min-height is the token; cell vertical
+ * padding derives from it around the 16px text-xs line box, so single-line
+ * rows land exactly on --row-h while wrapping cells (notes, tags) still grow
+ * naturally. Cells keep their own horizontal padding. */
+[data-virtual-grid-row] { min-height: var(--row-h); }
+/* The padded element is the cell's py-2 div (sometimes nested one level
+ * inside an unpadded sticky/tier wrapper), so target the utility, not the
+ * row's direct children. (0,2,0) beats .py-2 regardless of source order. */
+[data-virtual-grid-row] .py-2 {
+  padding-top: calc((var(--row-h) - 16px) / 2);
+  padding-bottom: calc((var(--row-h) - 16px) / 2);
+}
+@media (pointer: coarse) and (max-width: 1023px) {
+  [data-virtual-grid-row] { min-height: var(--row-h-touch); }
+  [data-virtual-grid-row] .py-2 {
+    padding-top: calc((var(--row-h-touch) - 16px) / 2);
+    padding-bottom: calc((var(--row-h-touch) - 16px) / 2);
   }
 }
 
