@@ -126,7 +126,7 @@ export function ConfigVirtualTable<Row>({
                   className="absolute left-0 top-1/2 z-[1] -translate-y-1/2 cursor-grab rounded px-0.5 py-1 text-[9px] leading-none opacity-40 focus-visible:opacity-100 hover:opacity-100 active:cursor-grabbing max-md:hidden"
                   style={{ color: "var(--border-strong)" }}
                 >
-                  ⠿
+                  <span aria-hidden="true">⠿</span>
                 </button>
               ) : null}
               <DataTableHeader
