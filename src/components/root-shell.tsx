@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AccountSelector } from "@/components/account-selector";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { RangeSelector } from "@/components/range-selector";
+import { RailNav } from "@/components/rail-nav";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { AccountFilterContextProvider } from "@/contexts/AccountFilterContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
@@ -94,7 +95,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-bg lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)]">
+    <div className="grid min-h-screen grid-cols-1 bg-bg md:grid-cols-[var(--rail-w)_minmax(0,1fr)] lg:grid-cols-[var(--sidebar-w)_minmax(0,1fr)]">
       {drawerOpen ? (
         <div
           className="fixed inset-0 z-[var(--z-drawer-scrim)] bg-[color:color-mix(in_srgb,var(--bg)_70%,transparent)] lg:hidden"
@@ -112,7 +113,9 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         data-open={drawerOpen}
         {...(drawerOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Navigation" } : {})}
         className={[
-          "fixed inset-y-0 left-0 z-[var(--z-drawer)] flex w-[260px] -translate-x-full flex-col overflow-y-auto border-r border-border bg-surface-2 transition-transform",
+          // UI-1: drawer width aligned to --sidebar-w (224px) — same SidebarNav
+          // content as the lg+ column, so one width serves both; no new token.
+          "fixed inset-y-0 left-0 z-[var(--z-drawer)] flex w-[var(--sidebar-w)] -translate-x-full flex-col overflow-y-auto border-r border-border bg-surface-2 transition-transform",
           "data-[open=true]:translate-x-0",
           "lg:static lg:z-auto lg:min-h-screen lg:w-auto lg:translate-x-0 lg:overflow-visible",
         ].join(" ")}
@@ -128,6 +131,12 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         </div>
         <SidebarNav onNavigate={closeDrawer} />
       </aside>
+
+      {/* UI-1: persistent 56px icon rail in the md:–lg: band. The aside above
+          is fixed (off-canvas) below lg, so the rail is the in-flow occupant
+          of the first grid column at md; at lg the aside takes over and the
+          rail hides. */}
+      <RailNav />
 
       <div ref={contentRef} data-shell-content="" className="min-w-0">
         <header
