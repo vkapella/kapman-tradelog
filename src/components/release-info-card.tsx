@@ -31,7 +31,9 @@ export function ReleaseInfoCard() {
   }
 
   const rows: Array<[string, string]> = [["Version", health.version]];
-  if (health.sha) {
+  // The version IS the short SHA for this app, so a separate Commit row would
+  // repeat it — omitted for the same reason unpopulated rows are (decision 06).
+  if (health.sha && health.sha !== health.version) {
     rows.push(["Commit", health.sha]);
   }
   if (health.machineId) {

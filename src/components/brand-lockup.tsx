@@ -6,24 +6,12 @@ import type { HealthResponse } from "@/types/api";
 /* UI-3: the standard KapMan lockup (spec §01) — 28px commissioned mark,
  * KAPMAN eyebrow in --gold, tool name, and the release chip.
  *
- * The chip reads "<fly release> · <short sha>" (owner decision 2026-08-30,
- * pending Design ratification for the siblings — decision 05 currently says
- * product version ONLY, with the SHA reserved for the details panel). The
- * machine id stays in the diagnostics Release card either way. */
+ * The chip carries the product version only, per decision 05 — which for this
+ * app is the build's short SHA (there is no release-tag scheme, and Fly's
+ * release number is not available to the running app). The machine id stays
+ * in the diagnostics Release card. */
 
 let cachedVersion: string | null = null;
-
-/** Chip label: the Fly release number and the build's short SHA — the two
- *  things that identify a deploy. Either alone is still useful; neither is
- *  ever a git-describe path (see scripts/deploy.sh). */
-function composeChipLabel(payload: HealthResponse): string | null {
-  const release = payload.version && payload.version !== "dev" ? payload.version : null;
-  const sha = payload.sha ?? null;
-  if (release && sha) {
-    return `${release} · ${sha}`;
-  }
-  return release ?? sha ?? payload.version ?? null;
-}
 
 function useReleaseVersion(): string | null {
   const [version, setVersion] = useState<string | null>(cachedVersion);
@@ -36,10 +24,9 @@ function useReleaseVersion(): string | null {
     fetch("/api/health", { cache: "no-store" })
       .then((response) => response.json() as Promise<HealthResponse>)
       .then((payload) => {
-        const label = composeChipLabel(payload);
-        cachedVersion = label;
+        cachedVersion = payload.version;
         if (!cancelled) {
-          setVersion(label);
+          setVersion(payload.version);
         }
       })
       .catch(() => {

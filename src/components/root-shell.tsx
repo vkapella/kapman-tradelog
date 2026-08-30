@@ -126,6 +126,19 @@ function ShellContent({ children, identity }: { children: React.ReactNode; ident
           <BrandLockup />
         </div>
         <SidebarNav onNavigate={closeDrawer} />
+        {/* Decision 44: Sign out's home below lg, where the header cannot
+            carry it. Hidden at lg+, where the header identity block does. */}
+        {identity ? (
+          <div className="mt-auto border-t border-border px-3 py-3 lg:hidden">
+            <p className="truncate text-[11px] text-text-3" title={identity}>{identity}</p>
+            <a
+              href="/cdn-cgi/access/logout"
+              className="mt-2 flex w-full items-center justify-center rounded border border-border bg-surface-3 px-2 py-2 text-xs text-text-2"
+            >
+              Sign out
+            </a>
+          </div>
+        ) : null}
       </aside>
 
       {/* UI-1: persistent 56px icon rail in the md:–lg: band. The aside above
@@ -183,12 +196,12 @@ function ShellContent({ children, identity }: { children: React.ReactNode; ident
                 <RangeSelector variant="desktop" />
                 <AccountSelector variant="desktop" />
               </div>
-              {/* UI-3: signed-in identity, far right. Hidden below md — the ⋯
-                  overflow fold the spec names does not exist as a component in
-                  this repo yet; flagged rather than invented here. Sign out is
-                  Cloudflare Access's own logout path on the proxied hostname. */}
+              {/* UI-3 + decision 44: identity is confirmation, not an action,
+                  so it folds to nothing below md rather than into a ⋯ menu this
+                  repo does not have. Sign out IS an action and gets a real home
+                  in the drawer footer below lg. */}
               {identity ? (
-              <div className="hidden min-w-0 items-center gap-2 md:flex">
+              <div className="hidden min-w-0 items-center gap-2 lg:flex">
                 <span className="max-w-[16ch] truncate text-xs text-text-2" title={identity}>
                   {identity}
                 </span>
