@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 
 interface BadgeProps {
   variant: "buy" | "sell" | "call" | "put" | "win" | "loss" | "flat" | "to-open" | "to-close" | "committed" | "stub";
+  /** UI-C (decision 36): the width step of the ENUMERATION this chip belongs
+   *  to — every member of a column's set takes the same step, so the column
+   *  has one edge. Omit for content-sized chips. */
+  size?: 1 | 2 | 3;
   children?: ReactNode;
 }
 
@@ -27,7 +31,7 @@ const variantStyles: Partial<Record<BadgeProps["variant"], BadgeStyle>> = {
   call: { background: "var(--pos-dim)", color: "var(--pos)" },
 };
 
-export function Badge({ variant, children }: BadgeProps) {
+export function Badge({ variant, size, children }: BadgeProps) {
   const style = variantStyles[variant] ?? defaultStyle;
 
   return (
@@ -38,6 +42,7 @@ export function Badge({ variant, children }: BadgeProps) {
         border: "1px solid color-mix(in srgb, currentColor 25%, transparent)",
         borderRadius: "var(--r-sm)",
         color: style.color,
+        ...(size ? { minWidth: `var(--chip-w-${size})`, justifyContent: "center" } : {}),
       }}
     >
       {children ?? variant.replace("-", " ")}

@@ -53,6 +53,9 @@
   --pinned-select:  40px;
   --pinned-actions: 44px;
   --pinned-symbol:  76px;    /* 40 + 44 + 76 = 160px pinned group, held at every width */
+  --chip-w-1:       48px;    /* UI-C (decision 36): enumerated-chip steps — a chip */
+  --chip-w-2:       64px;    /* from a closed set takes its set's longest member's */
+  --chip-w-3:       84px;    /* step, text centred. Content-sized chips stay auto. */
 
   /* ---- z-layers — the only sanctioned z-index scale ---- */
   --z-page-controls: 30;
@@ -214,7 +217,13 @@ code { color: var(--accent-soft); font-family: var(--mono); }
   border-color: color-mix(in srgb, var(--warn) 45%, transparent);
 }
 
-/* ---- chips ---- */
+/* ---- chips ----
+   Enumerated chips (decision 36): add the step class for the SET's longest
+   member — every member of that column takes the same step. Never fix the
+   width of count badges, removable filter chips, or free-text status. */
+.km-chip--w1 { min-width: var(--chip-w-1); justify-content: center; }
+.km-chip--w2 { min-width: var(--chip-w-2); justify-content: center; }
+.km-chip--w3 { min-width: var(--chip-w-3); justify-content: center; }
 .km-chip {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 999px;

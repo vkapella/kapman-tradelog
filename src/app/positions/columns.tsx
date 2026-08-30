@@ -54,7 +54,7 @@ export function buildPositionsColumnConfigs(
       width: "100px",
       tier: 2,
       renderCell: (row) => (
-        <div className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge variant="stub">EQUITY</Badge>}</div>
+        <div className="px-2 py-2">{row.assetClass === "OPTION" ? <Badge size={2} variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType ?? "OPTION"}</Badge> : <Badge size={2} variant="stub">EQUITY</Badge>}</div>
       ),
     },
     {

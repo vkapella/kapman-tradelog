@@ -158,9 +158,9 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
     mobileWidth: "minmax(72px, auto)",
     render: (row) =>
       row.disposition === "ELIGIBLE" || row.disposition === "VALIDATED" ? (
-        <Badge variant="buy">{row.disposition}</Badge>
+        <Badge size={3} variant="buy">{row.disposition}</Badge>
       ) : row.disposition === "NO_TRADE" || row.disposition === "REJECTED" ? (
-        <Badge variant="sell">{row.disposition === "NO_TRADE" ? "No trade" : row.disposition}</Badge>
+        <Badge size={3} variant="sell">{row.disposition === "NO_TRADE" ? "No trade" : row.disposition}</Badge>
       ) : (
         row.disposition
       ),
@@ -203,7 +203,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
     width: "104px",
     tier: 2,
     render: (row) =>
-      row.optionType ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge> : "—",
+      row.optionType ? <Badge size={2} variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge> : "—",
   },
   {
     definition: {

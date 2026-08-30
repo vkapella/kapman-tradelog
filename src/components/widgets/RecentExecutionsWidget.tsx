@@ -60,8 +60,8 @@ export function RecentExecutionsWidget() {
               <p className="text-text-2">{new Date(row.tradeDate).toLocaleDateString()} · {row.price ?? "~"}</p>
             </div>
             <div className="flex items-center gap-1">
-              {row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : null}
-              {row.optionType ? <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge> : <Badge variant="stub">EQUITY</Badge>}
+              {row.side === "BUY" ? <Badge size={1} variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge size={1} variant="sell">SELL</Badge> : null}
+              {row.optionType ? <Badge size={2} variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge> : <Badge size={2} variant="stub">EQUITY</Badge>}
             </div>
           </div>
         ))}

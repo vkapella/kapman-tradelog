@@ -42,6 +42,11 @@
   --pinned-select:  40px;
   --pinned-actions: 44px;
   --pinned-symbol:  76px;
+  /* UI-C (decision 36): enumerated chips take the width of their SET's
+   * longest member, per column. Content-sized chips stay width:auto. */
+  --chip-w-1:       48px;  /* longest member ≤ 4 chars */
+  --chip-w-2:       64px;  /* ≤ 6 */
+  --chip-w-3:       84px;  /* ≤ 9 */
 }
 
 * {

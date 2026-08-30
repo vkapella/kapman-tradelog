@@ -256,7 +256,7 @@ export function ExecutionsTablePanel() {
       width: "78px",
       mobileWidth: "minmax(48px, auto)",
       renderCell: (row) => (
-        <div className="px-2 py-2">{row.side === "BUY" ? <Badge variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge variant="sell">SELL</Badge> : "-"}</div>
+        <div className="px-2 py-2">{row.side === "BUY" ? <Badge size={1} variant="buy">BUY</Badge> : row.side === "SELL" ? <Badge size={1} variant="sell">SELL</Badge> : "-"}</div>
       ),
     },
     {
@@ -322,9 +322,9 @@ export function ExecutionsTablePanel() {
       renderCell: (row) => (
         <div className="px-2 py-2">
           {row.openingClosingEffect === "TO_OPEN" ? (
-            <Badge variant="to-open">OPEN</Badge>
+            <Badge size={2} variant="to-open">OPEN</Badge>
           ) : row.openingClosingEffect === "TO_CLOSE" ? (
-            <Badge variant="to-close">CLOSE</Badge>
+            <Badge size={2} variant="to-close">CLOSE</Badge>
           ) : (
             "UNKNOWN"
           )}
@@ -348,7 +348,7 @@ export function ExecutionsTablePanel() {
         <div className="px-2 py-2">
           {row.optionType ? (
             <span className="inline-flex items-center gap-1">
-              <Badge variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge>
+              <Badge size={2} variant={row.optionType === "PUT" ? "put" : "call"}>{row.optionType}</Badge>
               <span className="font-mono">
                 {row.strike ?? "-"} {row.expirationDate?.slice(0, 10) ?? "-"}
               </span>

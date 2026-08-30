@@ -170,7 +170,7 @@ export function MatchedLotsTablePanel() {
       definition: { id: "outcome", label: "Outcome", filterMode: "discrete", getFilterValues: (row) => row.outcome, sortMode: "string", getSortValue: (row) => row.outcome },
       width: "110px", mobileWidth: "minmax(52px, auto)",
       renderCell: (row) => (
-        <div className="px-2 py-2">{row.outcome === "WIN" ? <Badge variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge variant="loss">LOSS</Badge> : <Badge variant="flat">FLAT</Badge>}</div>
+        <div className="px-2 py-2">{row.outcome === "WIN" ? <Badge size={1} variant="win">WIN</Badge> : row.outcome === "LOSS" ? <Badge size={1} variant="loss">LOSS</Badge> : <Badge size={1} variant="flat">FLAT</Badge>}</div>
       ),
     },
     {
