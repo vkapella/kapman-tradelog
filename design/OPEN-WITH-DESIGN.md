@@ -82,5 +82,5 @@ Siblings re-vendor `design/kapman-ui.css` and `design/kapman-grid.css` at the
 SHA named here. Do not re-vendor on your own initiative — the theme owner
 announces it.
 
-**Current: `<pending push>`** — adds the rail touch floor (`6d78e55`).
+**Current: `007d624`** — adds the rail touch floor (`6d78e55`).
 Previous: `0a02ca1`.
