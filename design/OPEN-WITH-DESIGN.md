@@ -87,7 +87,7 @@ Never re-vendor on drift detection alone.
 | 02 | Decision 44 — Sign out moves to the drawer footer | `1d09ea2` |
 | 02 | Decision 45 — calendar inset ruling withdrawn (no referent) | `07b37df` |
 | 02 | Decision 28 closed at 30px; measured contrast table replaces §02 arithmetic | `afb5f17`, `036172c` |
-| 03 | Decision 49 — `--pos-border` / `--neg-border` / `--warn-border` at 30%; the theme's 40%/45% sites converge, `.km-remove:hover`'s 8% fill becomes `--neg-dim`. Semantic colour now has `--accent`'s three levels; more emphasis steps to the solid token, never a bespoke percentage | see Vendor SHA below |
+| 03 | Decision 49 — `--pos-border` / `--neg-border` / `--warn-border` at 30%; the theme's 40%/45% sites converge, `.km-remove:hover`'s 8% fill becomes `--neg-dim`. Semantic colour now has `--accent`'s three levels; more emphasis steps to the solid token, never a bespoke percentage | `af0c364` |
 
 ---
 
@@ -124,11 +124,17 @@ Siblings re-vendor `design/kapman-ui.css` and `design/kapman-grid.css` at the
 SHA named here. Do not re-vendor on your own initiative — the theme owner
 announces it.
 
-**Current: `2336389`** — no CSS change since `007d624`; re-vendor is for the
-`vendor-integrity` rule in `scripts/check-design-system.mjs`, plus two lint
-gating fixes reported by the Screener. Copy the script as well as the CSS.
-Previous: `007d624`.
+**Current: `af0c364`** — the Amendment 03 / decision 49 theme change: three new
+tokens `--pos-border` / `--neg-border` / `--warn-border` at 30%, and the six
+divergent theme sites converged onto them. `kapman-ui.css` only;
+`kapman-grid.css` and `scripts/check-design-system.mjs` are unchanged since
+`2336389`, so a repo already at that SHA needs the CSS alone.
+Previous: `2336389`.
 
-No re-vendor is needed for UI-D0/D1/D2-part-1: the lint fixes, the Tailwind
-aliases and the semantic migration are all app-side. The next re-vendor will
-carry the semantic border tokens, once ruled.
+Semantic colour now has `--accent`'s three levels — dim (12%) → border (30%) →
+solid. When you migrate your own `/40`-`/70` improvisations, a site needing more
+emphasis than the border steps to the **solid** token, never to a bespoke
+percentage.
+
+UI-D0/D1/D2 remain app-side and carry nothing outward — the lint fixes, the
+Tailwind aliases and the semantic migration are all local to this repo.

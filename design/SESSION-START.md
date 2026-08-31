@@ -109,9 +109,9 @@ CSS. Each was written by whichever repo hit the problem first.
 
 ## Current state — 2026-08-31
 
-- **Vendor SHA: `2336389`.** No CSS change since; that commit added the
-  `vendor-integrity` rule and two lint gating fixes, so copy
-  `scripts/check-design-system.mjs` as well as the CSS.
+- **Vendor SHA: `af0c364`.** Amendment 03 / decision 49 — the semantic border
+  tokens. `kapman-ui.css` only; the grid CSS and `check-design-system.mjs` are
+  unchanged since `2336389`.
 - Tradelog: UI-0 → UI-8, UI-C, and UI-D0/D1/D2-part-1 merged; in production at
   Fly v39. Design lint at 25 findings (18 blocked on a ruling, 7 `z-index`).
 - **10 items open with Design, 22 queued.** Two are `BLOCKING`: the Screener's
