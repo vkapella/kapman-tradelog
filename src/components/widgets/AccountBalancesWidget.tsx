@@ -90,12 +90,12 @@ function AccountBalanceRow({ accountId, value, loading, dataStale }: { accountId
         </>
       ) : null}
       {warning ? (
-        <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
+        <p className="mt-1 rounded border border-amber-400/70 bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
           {warning}
         </p>
       ) : null}
       {dataStale ? (
-        <p className="mt-1 rounded border border-amber-400/70 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
+        <p className="mt-1 rounded border border-amber-400/70 bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
           Account data changed since this compute — refresh for current values.
         </p>
       ) : null}
@@ -122,7 +122,7 @@ export function AccountBalancesWidget() {
     <WidgetCard title="Account Balances + NLV" action={action}>
       <div className="space-y-2">
         {selectedAccounts.length === 0 ? <p className="text-xs text-text-2">No accounts selected.</p> : null}
-        {snapshotError ? <p className="text-xs text-red-300">{snapshotError}</p> : null}
+        {snapshotError ? <p className="text-xs text-neg">{snapshotError}</p> : null}
         {!snapshot && !snapshotLoading && !snapshotError ? (
           <p className="text-xs text-text-2">No snapshot available. Refresh to compute account balances.</p>
         ) : null}

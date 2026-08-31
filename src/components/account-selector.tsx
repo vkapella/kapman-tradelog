@@ -71,7 +71,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
             {accountsLoading && availableAccounts.length === 0 ? <p className="text-xs text-text-2">Loading accounts...</p> : null}
             {accountsError ? (
               <div className="space-y-2">
-                <p className="text-xs text-amber-200">{accountsError}</p>
+                <p className="text-xs text-warn">{accountsError}</p>
                 <button type="button" onClick={reloadAccounts} className="text-[11px] text-accent underline">
                   Retry
                 </button>
@@ -90,7 +90,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
                   />
                   <AccountLabel accountId={accountId} className="truncate" />
                   {meta?.paperMoney ? (
-                    <span className="rounded border border-amber-400/60 bg-amber-400/10 px-1 py-px text-[9px] uppercase tracking-wide text-amber-200">Paper</span>
+                    <span className="rounded border border-amber-400/60 bg-warn-dim px-1 py-px text-[9px] uppercase tracking-wide text-warn">Paper</span>
                   ) : null}
                   {meta ? (
                     meta.entityName ? (
@@ -98,7 +98,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
                         {meta.entityName}
                       </span>
                     ) : (
-                      <span className="ml-auto rounded border border-red-400/60 bg-red-400/10 px-1 py-px text-[9px] uppercase tracking-wide text-red-200">
+                      <span className="ml-auto rounded border border-red-400/60 bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg">
                         Unclassified
                       </span>
                     )
@@ -111,7 +111,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
           {selectionWarnings.length > 0 ? (
             <div className="mt-2 space-y-1 border-t border-border pt-2">
               {selectionWarnings.map((warning) => (
-                <p key={warning} className="text-[11px] text-amber-200">
+                <p key={warning} className="text-[11px] text-warn">
                   {warning}
                 </p>
               ))}
@@ -127,7 +127,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-surface-3"}`}
+        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-warn-dim" : "border-border bg-surface-3"}`}
       >
         {hasWarnings ? "⚠ " : ""}
         {label}

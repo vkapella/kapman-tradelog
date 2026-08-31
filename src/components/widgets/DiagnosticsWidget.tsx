@@ -53,7 +53,7 @@ export function DiagnosticsWidget() {
           <p>Warnings: {data.warningsCount}</p>
           <p>Pair ambiguity: {data.setupInference.setupInferencePairAmbiguousTotal}</p>
           <p>Synthetic expiration: {data.syntheticExpirationCount}</p>
-          <p className={clear ? "text-pos" : "text-amber-300"}>{clear ? "All clear" : data.warningsCount + " warnings"}</p>
+          <p className={clear ? "text-pos" : "text-warn"}>{clear ? "All clear" : data.warningsCount + " warnings"}</p>
           <Link href="/diagnostics" className="text-accent underline">
             View diagnostics →
           </Link>

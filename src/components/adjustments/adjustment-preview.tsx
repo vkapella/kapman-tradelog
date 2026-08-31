@@ -39,7 +39,7 @@ export function AdjustmentPreview({ preview }: { preview: AdjustmentPreviewRespo
           {preview.warnings.length > 0 ? (
             <div className="space-y-1 rounded border border-border bg-surface-2 p-2">
               {preview.warnings.map((warning) => (
-                <p key={warning} className="text-[11px] text-amber-300">
+                <p key={warning} className="text-[11px] text-warn">
                   {warning}
                 </p>
               ))}

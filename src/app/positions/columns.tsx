@@ -74,14 +74,14 @@ export function buildPositionsColumnConfigs(
       width: "80px",
       tier: 2,
       renderCell: (row) => (
-        <div className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-red-300" : row.dte < 30 ? "text-amber-300" : "text-text"].join(" ")}>{row.dte ?? "—"}</div>
+        <div className={["px-2 py-2 text-right", row.dte === null ? "text-text-2" : row.dte < 7 ? "text-neg" : row.dte < 30 ? "text-warn" : "text-text"].join(" ")}>{row.dte ?? "—"}</div>
       ),
     },
     {
       definition: { id: "netQty", label: "Qty", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.netQty), sortMode: "number", getSortValue: (row) => row.netQty },
       width: "90px",
       mobileWidth: "minmax(44px, auto)",
-      renderCell: (row) => <div className={row.netQty >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.netQty}</div>,
+      renderCell: (row) => <div className={row.netQty >= 0 ? "px-2 py-2 text-right text-pos" : "px-2 py-2 text-right text-neg"}>{row.netQty}</div>,
     },
     {
       definition: { id: "costBasis", label: "Cost Basis", align: "right", filterMode: "discrete", getFilterValues: (row) => String(row.costBasis), sortMode: "number", getSortValue: (row) => row.costBasis },
@@ -108,7 +108,7 @@ export function buildPositionsColumnConfigs(
       width: "150px",
       mobileWidth: "minmax(80px, auto)",
       renderCell: (row) => (
-        <div className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</div>
+        <div className={row.unrealizedPnl !== null && row.unrealizedPnl >= 0 ? "px-2 py-2 text-right text-pos" : "px-2 py-2 text-right text-neg"}>{row.unrealizedPnl === null ? "—" : formatCurrency(row.unrealizedPnl)}</div>
       ),
     },
     {
@@ -116,20 +116,20 @@ export function buildPositionsColumnConfigs(
       width: "110px",
       mobileWidth: "minmax(52px, auto)",
       renderCell: (row) => (
-        <div className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-green-300" : "px-2 py-2 text-right text-red-300"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</div>
+        <div className={row.pnlPct !== null && row.pnlPct >= 0 ? "px-2 py-2 text-right text-pos" : "px-2 py-2 text-right text-neg"}>{row.pnlPct === null ? "—" : formatPercent(row.pnlPct)}</div>
       ),
     },
     {
       definition: { id: "maePct", label: "MAE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.maePct === null ? "—" : String(row.maePct)), sortMode: "number", getSortValue: (row) => row.maePct },
       width: "90px",
       tier: 2,
-      renderCell: (row) => <div className={row.maePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-red-300"}>{formatExcursionPct(row.maePct)}</div>,
+      renderCell: (row) => <div className={row.maePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-neg"}>{formatExcursionPct(row.maePct)}</div>,
     },
     {
       definition: { id: "mfePct", label: "MFE %", align: "right", filterMode: "discrete", getFilterValues: (row) => (row.mfePct === null ? "—" : String(row.mfePct)), sortMode: "number", getSortValue: (row) => row.mfePct },
       width: "90px",
       tier: 2,
-      renderCell: (row) => <div className={row.mfePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-green-300"}>{formatExcursionPct(row.mfePct)}</div>,
+      renderCell: (row) => <div className={row.mfePct === null ? "px-2 py-2 text-right text-text-2" : "px-2 py-2 text-right text-pos"}>{formatExcursionPct(row.mfePct)}</div>,
     },
     {
       definition: { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },

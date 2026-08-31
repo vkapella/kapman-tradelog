@@ -203,7 +203,7 @@ function QueueCard({ item, onResolved }: { item: QueueItemView; onResolved: () =
           {item.outcome.resultingStatus}
         </p>
       ) : null}
-      {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
+      {error ? <p className="mt-2 text-xs text-neg">{error}</p> : null}
     </article>
   );
 }
@@ -296,7 +296,7 @@ export default function TodayPage() {
         </p>
       </header>
 
-      {loadError ? <p className="text-sm text-red-300">Failed to load: {loadError}</p> : null}
+      {loadError ? <p className="text-sm text-neg">Failed to load: {loadError}</p> : null}
 
       <section>
         <h2 className="mb-2 text-[10px] uppercase tracking-[0.08em] text-text-2">

@@ -79,7 +79,7 @@ export function SymbolPnlWidget() {
             {losers.map((row) => (
               <div key={row.symbol} className="flex items-center justify-between text-xs">
                 <span className="text-text">{row.symbol}</span>
-                <span className="text-red-300">{formatCurrency(row.pnl)}</span>
+                <span className="text-neg">{formatCurrency(row.pnl)}</span>
               </div>
             ))}
           </div>

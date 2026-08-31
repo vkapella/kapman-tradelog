@@ -257,7 +257,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
     if (!accountsLoading && accountsError) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6">
-          <p className="text-sm text-red-200">{accountsError}</p>
+          <p className="text-sm text-neg">{accountsError}</p>
           <button
             type="button"
             onClick={() => setReloadToken((current) => current + 1)}

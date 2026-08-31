@@ -391,7 +391,7 @@ export function AdjustmentForm({
               className="mt-1 w-full rounded border border-border bg-surface-3 px-2 py-2 text-xs text-text"
               placeholder="clt123..."
             />
-            {executionLookupError ? <span className="mt-1 block text-red-300">{executionLookupError}</span> : null}
+            {executionLookupError ? <span className="mt-1 block text-neg">{executionLookupError}</span> : null}
             {executionLookupLoading ? <span className="mt-1 block text-text-2">Validating execution...</span> : null}
             {executionResolved ? <span className="mt-1 block text-text-2">Matched trade date {effectiveDate}.</span> : null}
           </label>
@@ -567,7 +567,7 @@ export function AdjustmentForm({
         </p>
       ) : null}
 
-      {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
+      {error ? <p className="mt-2 text-xs text-neg">{error}</p> : null}
 
       <div className="mt-3 flex items-center gap-2">
         <button

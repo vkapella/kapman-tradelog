@@ -12,7 +12,7 @@ interface KpiCardProps {
 
 const valueColorByVariant: Record<KpiCardColorVariant, string> = {
   pos: "text-pos",
-  neg: "text-red-300",
+  neg: "text-neg",
   neutral: "text-text",
   accent: "text-accent",
 };

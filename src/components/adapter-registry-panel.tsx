@@ -56,7 +56,7 @@ export function AdapterRegistryPanel() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-400/40 bg-red-950/30 p-4 text-sm text-red-100">
+      <div className="rounded-2xl border border-red-400/40 bg-neg-dim p-4 text-sm text-neg">
         <p className="font-semibold">Unable to load adapter registry</p>
         <p className="mt-1">{error}</p>
       </div>

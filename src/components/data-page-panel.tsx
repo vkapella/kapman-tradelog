@@ -64,7 +64,7 @@ export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-400/40 bg-red-950/30 p-6 text-sm text-red-100">
+      <div className="rounded-2xl border border-red-400/40 bg-neg-dim p-6 text-sm text-neg">
         <p className="font-semibold">Unable to load page data.</p>
         <p className="mt-2">{error}</p>
       </div>
@@ -76,7 +76,7 @@ export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
       <div className="rounded-2xl border border-border bg-surface p-6">
         <h2 className="text-lg font-semibold text-text">Empty state</h2>
         <p className="mt-2 text-sm text-text-2">No accounts are currently available.</p>
-        <p className="mt-3 text-sm text-blue-200">Next action: {nextAction}</p>
+        <p className="mt-3 text-sm text-accent">Next action: {nextAction}</p>
       </div>
     );
   }

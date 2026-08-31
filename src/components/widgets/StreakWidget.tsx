@@ -70,7 +70,7 @@ export function StreakWidget() {
 
   return (
     <WidgetCard title="Win / Loss Streak">
-      <p className={data?.currentStreakType === "WIN" ? "text-3xl font-bold text-pos" : "text-3xl font-bold text-red-300"}>{headline}</p>
+      <p className={data?.currentStreakType === "WIN" ? "text-3xl font-bold text-pos" : "text-3xl font-bold text-neg"}>{headline}</p>
       <p className="mt-2 text-xs text-text-2">Longest win streak: {data?.longestWinStreak ?? 0}</p>
       <p className="text-xs text-text-2">Longest loss streak: {data?.longestLossStreak ?? 0}</p>
     </WidgetCard>

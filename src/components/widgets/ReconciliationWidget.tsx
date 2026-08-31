@@ -10,7 +10,7 @@ function signClass(value: number): string {
     return "text-pos";
   }
   if (value < 0) {
-    return "text-red-300";
+    return "text-neg";
   }
   return "text-text-2";
 }
@@ -53,9 +53,9 @@ export function ReconciliationWidget() {
       {snapshot ? (
         <div className="mb-2 flex items-center gap-2 text-[11px] text-text-2">
           <span>As of {formatSnapshotTime(snapshot.snapshotAt)}</span>
-          {stale ? <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300">Stale</span> : null}
+          {stale ? <span className="rounded border border-amber-400/50 bg-warn-dim px-1.5 py-0.5 text-warn">Stale</span> : null}
           {staleDataAccountIds.length > 0 ? (
-            <span className="rounded border border-amber-400/50 bg-amber-400/10 px-1.5 py-0.5 text-amber-300" title="Source data changed since this compute (imports, adjustments, or capital edits). Compute again for current figures.">
+            <span className="rounded border border-amber-400/50 bg-warn-dim px-1.5 py-0.5 text-warn" title="Source data changed since this compute (imports, adjustments, or capital edits). Compute again for current figures.">
               Data changed since compute
             </span>
           ) : null}
@@ -64,7 +64,7 @@ export function ReconciliationWidget() {
       ) : null}
 
       {loading && !snapshot ? <p className="text-xs text-text-2">Loading reconciliation snapshot…</p> : null}
-      {!loading && error ? <p className="text-xs text-red-300">{error}</p> : null}
+      {!loading && error ? <p className="text-xs text-neg">{error}</p> : null}
 
       {!loading && !error && !snapshot ? (
         <div className="space-y-2 text-xs text-text-2">
@@ -75,7 +75,7 @@ export function ReconciliationWidget() {
 
       {!loading && !error && snapshot?.status === "FAILED" ? (
         <div className="space-y-2 text-xs">
-          <p className="text-red-300">{snapshot.errorMessage ?? "Snapshot computation failed."}</p>
+          <p className="text-neg">{snapshot.errorMessage ?? "Snapshot computation failed."}</p>
           <p className="text-text-2">Recompute the snapshot to refresh reconciliation totals.</p>
         </div>
       ) : null}
@@ -83,7 +83,7 @@ export function ReconciliationWidget() {
       {!loading && !error && snapshot && snapshot.status !== "FAILED" ? (
         <div className="space-y-2 text-xs">
           {!startingCapitalConfigured ? (
-            <p className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-amber-300">
+            <p className="rounded border border-amber-400/40 bg-warn-dim px-2 py-1 text-warn">
               Set starting capital on the <code>/accounts</code> page to reconcile against your initial portfolio value.
             </p>
           ) : null}
@@ -91,7 +91,7 @@ export function ReconciliationWidget() {
             const rowClass = row.highlighted
               ? row.value === 0
                 ? "text-pos"
-                : "text-amber-300"
+                : "text-warn"
               : signClass(row.value);
 
             return (

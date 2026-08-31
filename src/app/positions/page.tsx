@@ -166,7 +166,7 @@ export default function Page() {
             ) : null}
           </div>
           {snapshotCopyStatus === "failed" && snapshotCopyError ? (
-            <p className="max-w-md text-[11px] text-amber-200" title={snapshotCopyError}>
+            <p className="max-w-md text-[11px] text-warn" title={snapshotCopyError}>
               {snapshotCopyError}
             </p>
           ) : null}
@@ -175,7 +175,7 @@ export default function Page() {
       </header>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {!loading && error ? <p className="text-sm text-neg">{error}</p> : null}
       {!loading && !error && table.sortedRows.length === 0 ? <div className="rounded-lg border border-border bg-surface-2 p-4 text-sm text-text-2">{hasPersistedSnapshot ? "No open positions for the selected accounts." : "No position data — click Refresh Quotes to load."}</div> : null}
 
       {!loading && !error && table.sortedRows.length > 0 ? (
@@ -183,9 +183,9 @@ export default function Page() {
           <div className="grid gap-2 md:grid-cols-3">
             <article className="rounded-lg border border-border bg-surface-2 px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-text-2">Total Cost Basis</p><p className="mt-1 text-sm font-semibold text-text">{formatCurrency(totals.totalCostBasis)}</p></article>
             <article className="rounded-lg border border-border bg-surface-2 px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-text-2">Total Market Value</p><p className="mt-1 text-sm font-semibold text-text">{totals.totalMarketValue === null ? "—" : formatCurrency(totals.totalMarketValue)}</p>{totals.hasMissingMarketValue ? <p className="text-[11px] text-text-2">Waiting on cached marks</p> : null}</article>
-            <article className="rounded-lg border border-border bg-surface-2 px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-text-2">Total Unrealized P&L</p><p className={totals.totalUnrealized === null ? "mt-1 text-sm font-semibold text-text" : totals.totalUnrealized >= 0 ? "mt-1 text-sm font-semibold text-green-300" : "mt-1 text-sm font-semibold text-red-300"}>{totals.totalUnrealized === null ? "—" : formatSignedCurrency(totals.totalUnrealized)}</p></article>
+            <article className="rounded-lg border border-border bg-surface-2 px-3 py-2"><p className="text-[11px] uppercase tracking-wide text-text-2">Total Unrealized P&L</p><p className={totals.totalUnrealized === null ? "mt-1 text-sm font-semibold text-text" : totals.totalUnrealized >= 0 ? "mt-1 text-sm font-semibold text-pos" : "mt-1 text-sm font-semibold text-neg"}>{totals.totalUnrealized === null ? "—" : formatSignedCurrency(totals.totalUnrealized)}</p></article>
           </div>
-          {totals.hasMissingMarketValue && hasPersistedSnapshot ? <p className="text-xs text-amber-200">Some marks are unavailable in the current snapshot.</p> : null}
+          {totals.hasMissingMarketValue && hasPersistedSnapshot ? <p className="text-xs text-warn">Some marks are unavailable in the current snapshot.</p> : null}
 
           <DataTableToolbar activeFilterCount={table.activeFilterCount} onClearAllFilters={() => table.clearAllFilters()} totalRows={table.sortedRows.length} />
           <HiddenStateChips configs={configs} visibleColumns={table.visibleColumns} sort={table.sort} filters={table.filters} rangeFilters={table.rangeFilters} setSort={table.setSort} setColumnFilter={table.setColumnFilter} setColumnRange={table.setColumnRange} />

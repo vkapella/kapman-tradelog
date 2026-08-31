@@ -355,7 +355,7 @@ export default function Page() {
       </div>
 
       {loading ? <LoadingSkeleton lines={4} /> : null}
-      {!loading && error ? <p className="text-sm text-red-200">{error}</p> : null}
+      {!loading && error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && summary ? (
         <DndContext onDragEnd={onKpiDragEnd}>

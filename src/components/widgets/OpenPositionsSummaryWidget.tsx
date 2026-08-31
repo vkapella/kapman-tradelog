@@ -66,7 +66,7 @@ export function OpenPositionsSummaryWidget() {
         <p>Open positions: {filtered.length}</p>
         <p>Cost basis: {formatCurrency(totalCostBasis)}</p>
         <p>Mark value: {markValue === null ? "—" : formatCurrency(markValue)}</p>
-        <p className={unrealized !== null && unrealized >= 0 ? "text-pos" : "text-red-300"}>
+        <p className={unrealized !== null && unrealized >= 0 ? "text-pos" : "text-neg"}>
           Unrealized: {unrealized === null ? "—" : formatCurrency(unrealized)}
         </p>
         <p>Last quoted: {formatFreshnessSpan(snapshot.freshness)}</p>

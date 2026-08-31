@@ -119,7 +119,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
       </div>
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
-      {!loading && error ? <p className="text-xs text-red-200">{error}</p> : null}
+      {!loading && error ? <p className="text-xs text-neg">{error}</p> : null}
 
       {!loading && !error && data ? (
         <div className="space-y-4">
@@ -174,7 +174,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.executions.map((execution) => (
                     <li key={execution.id}>
-                      <Link href={`/trade-records?tab=executions&execution=${execution.id}`} className="text-blue-300 underline">
+                      <Link href={`/trade-records?tab=executions&execution=${execution.id}`} className="text-accent underline">
                         {execution.id.slice(0, 8)}...
                       </Link>{" "}
                       {execution.underlyingSymbol ?? execution.symbol} {execution.eventType} {execution.openingClosingEffect ?? "UNKNOWN"}
@@ -192,7 +192,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.matchedLots.map((lot) => (
                     <li key={lot.id}>
-                      <Link href="/matched-lots" className="text-blue-300 underline">
+                      <Link href="/matched-lots" className="text-accent underline">
                         {lot.id.slice(0, 8)}...
                       </Link>{" "}
                       {lot.underlyingSymbol ?? lot.symbol} {lot.outcome} {lot.realizedPnl}
@@ -210,7 +210,7 @@ export function DiagnosticCaseFilePanel({ query, closeHref }: { query: Diagnosti
                 <ul className="mt-2 space-y-2 text-xs text-text">
                   {data.setups.map((setup) => (
                     <li key={setup.id}>
-                      <Link href={`/setups?setup=${setup.id}`} className="text-blue-300 underline">
+                      <Link href={`/setups?setup=${setup.id}`} className="text-accent underline">
                         {setup.id.slice(0, 8)}...
                       </Link>{" "}
                       {setup.overrideTag ?? setup.tag} {setup.underlyingSymbol}

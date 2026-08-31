@@ -18,11 +18,11 @@ function formatNumber(value: number | null): string {
 
 function statusBadgeClass(status: FidelityExecutionPreviewRow["status"]): string {
   if (status === "VALID") {
-    return "border-emerald-400/50 bg-emerald-500/15 text-emerald-200";
+    return "border-emerald-400/50 bg-pos-dim text-pos";
   }
 
   if (status === "WARNING") {
-    return "border-amber-400/50 bg-amber-500/15 text-amber-200";
+    return "border-amber-400/50 bg-warn-dim text-warn";
   }
 
   return "border-border bg-surface-3 text-text";
@@ -115,7 +115,7 @@ export function ImportPreviewTable({ adapter, rows }: ImportPreviewTableProps) {
                     </td>
                   </tr>
                   {expanded && row.warningMessage ? (
-                    <tr className="border-t border-border bg-amber-500/5 text-amber-100">
+                    <tr className="border-t border-border bg-warn-dim text-warn">
                       <td className="px-2 py-2" colSpan={12}>
                         {row.warningMessage}
                       </td>

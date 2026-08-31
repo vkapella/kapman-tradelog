@@ -164,7 +164,7 @@ export function AccountsManager() {
       </header>
 
       {loading ? <p className="text-xs text-text-2">Loading accounts...</p> : null}
-      {error ? <p className="rounded border border-red-400/60 bg-red-400/10 px-3 py-2 text-xs text-red-200">{error}</p> : null}
+      {error ? <p className="rounded border border-red-400/60 bg-neg-dim px-3 py-2 text-xs text-neg">{error}</p> : null}
 
       {!loading && !hasRows ? (
         <div className="rounded-xl border border-border bg-surface p-5 text-sm text-text">
@@ -211,7 +211,7 @@ export function AccountsManager() {
                     <td className="px-3 py-3 align-top font-mono text-xs">
                       {row.accountId}
                       {row.paperMoney ? (
-                        <span className="ml-2 rounded border border-amber-400/60 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-sans uppercase tracking-wide text-amber-200">
+                        <span className="ml-2 rounded border border-amber-400/60 bg-warn-dim px-1.5 py-0.5 text-[10px] font-sans uppercase tracking-wide text-warn">
                           Paper
                         </span>
                       ) : null}
@@ -238,7 +238,7 @@ export function AccountsManager() {
                         ))}
                       </select>
                       {draft.legalEntitySlug === "" ? (
-                        <p className="mt-1 text-[11px] text-amber-200">Quarantined: excluded from entity-scoped exports until classified.</p>
+                        <p className="mt-1 text-[11px] text-warn">Quarantined: excluded from entity-scoped exports until classified.</p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top">
@@ -251,7 +251,7 @@ export function AccountsManager() {
                         className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       />
                       {promptForStartingCapital ? (
-                        <p className="mt-1 text-[11px] text-amber-200">Prompt: set a Fidelity starting capital before relying on total-return views.</p>
+                        <p className="mt-1 text-[11px] text-warn">Prompt: set a Fidelity starting capital before relying on total-return views.</p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top text-xs text-text-2">{formatCreatedAt(row.createdAt)}</td>

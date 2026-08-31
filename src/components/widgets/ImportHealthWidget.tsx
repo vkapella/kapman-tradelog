@@ -66,7 +66,7 @@ export function ImportHealthWidget() {
         <p>Parsed rows: {summary.parsedRows}</p>
         <p>Skipped rows: {summary.skippedRows}</p>
       </div>
-      <p className={healthy ? "mt-2 text-xs text-pos" : "mt-2 text-xs text-amber-300"}>{healthy ? "Healthy" : "Needs review"}</p>
+      <p className={healthy ? "mt-2 text-xs text-pos" : "mt-2 text-xs text-warn"}>{healthy ? "Healthy" : "Needs review"}</p>
       <Link href="/imports" className="mt-2 inline-block text-xs text-accent underline">
         View imports →
       </Link>

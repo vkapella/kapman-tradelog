@@ -154,10 +154,10 @@ export function DiagnosticsPanel() {
                   <div key={group.id} className="rounded border border-border bg-bg p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold text-amber-100">
+                        <p className="text-xs font-semibold text-warn">
                           {group.title} · {group.count}
                         </p>
-                        <p className="mt-1 text-xs text-amber-200">{group.summary}</p>
+                        <p className="mt-1 text-xs text-warn">{group.summary}</p>
                       </div>
                       {group.caseRef ? (
                         <Link href={buildDiagnosticCaseHref(group.caseRef)} className="text-xs text-accent underline max-md:shrink md:shrink-0">
@@ -181,10 +181,10 @@ export function DiagnosticsPanel() {
                   <div key={group.id} className="rounded border border-border bg-bg p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold text-amber-100">
+                        <p className="text-xs font-semibold text-warn">
                           [{group.code}] {group.underlyingSymbol ?? "N/A"} · {group.count}
                         </p>
-                        <p className="mt-1 text-xs text-amber-100">{group.summary}</p>
+                        <p className="mt-1 text-xs text-warn">{group.summary}</p>
                       </div>
                       {group.caseRef ? (
                         <Link href={buildDiagnosticCaseHref(group.caseRef)} className="text-xs text-accent underline max-md:shrink md:shrink-0">
