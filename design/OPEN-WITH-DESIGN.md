@@ -143,6 +143,21 @@ their own `min-height: 36px` won on source order and the 44px floor never
 applied to either — `.km-remove` included. Measure your own controls under a
 coarse pointer rather than reading the source; that is how it was found.
 
+Two consequences for a consuming repo, neither of them obvious from the diff:
+
+- **Placement is load-bearing.** The consolidated rule must stay *after* all
+  five control definitions. If you reorder or re-indent the theme file, or your
+  bundler concatenates it ahead of your own control CSS, the floor silently
+  stops applying again — same-specificity, source-order loss, no warning.
+- **The ruling reaches your own touch-target utility.** Decision 54 names the
+  five theme primitives because that is all Design knew about. Tradelog also had
+  an app-side `.touch-target` at `(pointer: coarse) and (max-width: 1023px)`;
+  the width clause came off it too, or an iPad in landscape would show a 44px
+  `.km-btn` beside a 36px `.touch-target` button. Grep for
+  `(pointer: coarse) and (max-width:` and judge each hit — **control floors lose
+  the width clause; row density keeps it** (that is the UI-1 ladder, decision
+  55, and is deliberately width-driven).
+
 Semantic colour now has `--accent`'s three levels — dim (12%) → border (30%) →
 solid. When you migrate your own `/40`-`/70` improvisations, a site needing more
 emphasis than the border steps to the **solid** token, never to a bespoke
