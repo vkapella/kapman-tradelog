@@ -87,8 +87,8 @@ Never re-vendor on drift detection alone.
 | 02 | Decision 44 — Sign out moves to the drawer footer | `1d09ea2` |
 | 02 | Decision 45 — calendar inset ruling withdrawn (no referent) | `07b37df` |
 | 02 | Decision 28 closed at 30px; measured contrast table replaces §02 arithmetic | `afb5f17`, `036172c` |
-| 03 | Decision 53 — `z-[1]`/`z-[2]` for intra-component sticky stacking is sanctioned; the `--z-*` scale does not extend downward. Seven sites suppressed with the written reason, canonical statement at `column-config.ts` | see Vendor SHA below |
-| 03 | Decision 54 — the touch floor loses its width clause: one bare `(pointer: coarse)` rule, all five controls. **Fixing it revealed the old rules had never applied to two of them** — see below | see Vendor SHA below |
+| 03 | Decision 53 — `z-[1]`/`z-[2]` for intra-component sticky stacking is sanctioned; the `--z-*` scale does not extend downward. Seven sites suppressed with the written reason, canonical statement at `column-config.ts` | `26f4898` |
+| 03 | Decision 54 — the touch floor loses its width clause: one bare `(pointer: coarse)` rule, all five controls. **Fixing it revealed the old rules had never applied to two of them** — see below | `26f4898` |
 | 03 | Decision 49 — `--pos-border` / `--neg-border` / `--warn-border` at 30%; the theme's 40%/45% sites converge, `.km-remove:hover`'s 8% fill becomes `--neg-dim`. Semantic colour now has `--accent`'s three levels; more emphasis steps to the solid token, never a bespoke percentage | `af0c364` |
 
 ---
@@ -125,12 +125,23 @@ Siblings re-vendor `design/kapman-ui.css` and `design/kapman-grid.css` at the
 SHA named here. Do not re-vendor on your own initiative — the theme owner
 announces it.
 
-**Current: `af0c364`** — the Amendment 03 / decision 49 theme change: three new
-tokens `--pos-border` / `--neg-border` / `--warn-border` at 30%, and the six
-divergent theme sites converged onto them. `kapman-ui.css` only;
+**Current: `26f4898`** — Amendment 03, both theme rulings, superseding `af0c364`.
+Re-vendor once at this SHA and you have both. `kapman-ui.css` only;
 `kapman-grid.css` and `scripts/check-design-system.mjs` are unchanged since
 `2336389`, so a repo already at that SHA needs the CSS alone.
-Previous: `2336389`.
+Previous: `2336389` (`af0c364` was announced and superseded the same day; if
+you have not re-vendored yet, skip it).
+
+**Decision 49** — `--pos-border` / `--neg-border` / `--warn-border` at 30%, and
+the six divergent theme sites converged onto them.
+
+**Decision 54** — one bare `(pointer: coarse)` touch floor covering all five
+controls, replacing three rules. **Read this one before you diff:** it also
+fixes a defect your vendored copy has been carrying. The old rule was authored
+*above* `.km-icon-btn` and `.km-pin`, and a media query adds no specificity, so
+their own `min-height: 36px` won on source order and the 44px floor never
+applied to either — `.km-remove` included. Measure your own controls under a
+coarse pointer rather than reading the source; that is how it was found.
 
 Semantic colour now has `--accent`'s three levels — dim (12%) → border (30%) →
 solid. When you migrate your own `/40`-`/70` improvisations, a site needing more

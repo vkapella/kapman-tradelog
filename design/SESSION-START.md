@@ -109,14 +109,17 @@ CSS. Each was written by whichever repo hit the problem first.
 
 ## Current state — 2026-08-31
 
-- **Vendor SHA: `af0c364`.** Amendment 03 / decision 49 — the semantic border
-  tokens. `kapman-ui.css` only; the grid CSS and `check-design-system.mjs` are
-  unchanged since `2336389`.
-- Tradelog: UI-0 → UI-8, UI-C, and UI-D0/D1/D2-part-1 merged; in production at
-  Fly v39. Design lint at 25 findings (18 blocked on a ruling, 7 `z-index`).
-- **10 items open with Design, 22 queued.** Two are `BLOCKING`: the Screener's
-  cross-language `SavedView` contract, and the semantic palette's missing
-  border variant. Batch 01 has been sent.
+- **Vendor SHA: `26f4898`.** Amendment 03, decisions 49 and 54 — the semantic
+  border tokens, and one bare `(pointer: coarse)` touch floor that also fixes a
+  cascade defect the vendored copies carry. `kapman-ui.css` only; the grid CSS
+  and `check-design-system.mjs` are unchanged since `2336389`.
+- Tradelog: UI-0 → UI-8, UI-C and UI-D complete, including the UI-D2 tail.
+  **Design lint at 0 findings.** Last deployed at Fly v39; Amendment 03's three
+  passes are merged to `main` and not yet deployed.
+- **10 items open with Design, 21 queued — nothing `BLOCKING`.** Amendment 03
+  ruled both blockers. Newly queued: the theme's coarse-pointer floor had never
+  applied to `.km-icon-btn` or `.km-pin`, which also corrects an earlier entry
+  of our own that asserted it did.
 
 Before you deploy anything: clean tree, and `origin/main` matching local. A
 deploy once stamped its release SHA while another session's commit was landing.
