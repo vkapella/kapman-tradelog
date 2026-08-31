@@ -1,5 +1,9 @@
 # KapMan shared theme — source of truth
 
+> **New session?** Read `SESSION-START.md` in this directory first — repo map,
+> governance, finding classification, current vendor SHA, and the mistakes that
+> have already cost time.
+
 `kapman-tradelog` owns the unified UI theme for the three KapMan apps
 (**Tradelog**, **Screener** / kapman-polygon-viewer, **Fair Value** /
 kapman-fair-value-tool). The two files here are the deliverable of Tradelog
