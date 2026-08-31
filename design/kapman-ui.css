@@ -170,6 +170,14 @@ code { color: var(--accent-soft); font-family: var(--mono); }
   .km-nav-label { display: none; }
 }
 
+/* The rail band is where a tablet lives, so the same >=44px coarse-pointer
+   floor that .km-btn / .km-icon-btn / .km-pin already take applies here too.
+   Without it a rail item stays 38px between 768 and 1023 — the one band that
+   is touch-operated but does not reach the bottom bar's --tabbar-h. */
+@media (pointer: coarse) and (max-width: 1023.98px) {
+  .km-nav-item { min-height: 44px; }
+}
+
 @media (max-width: 767.98px) {
   .km-nav {
     position: fixed; left: 0; right: 0; bottom: 0; width: auto;
