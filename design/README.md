@@ -164,6 +164,10 @@ primitive coverage for the same reason.
   full on `:hover` **and** `:focus-visible`, `aria-label` naming the subject
   ("Remove META"). Never `opacity: 0`, never a clickable text cell.
 - `--text-4` never carries prose. `--gold` is the wordmark only.
+- **Semantic colour has three levels, exactly like `--accent`**: `--*-dim`
+  fill (12%), `--*-border` (30%), solid. A state needing more emphasis than
+  the border steps to the **solid** token — never a bespoke `color-mix`
+  percentage, and never a stock palette colour at `/40`-`/70` (decision 49).
 - No zebra striping; no hover that changes row height.
 - No control inside a pinned cell gets a pixel height equal to the row's
   `min-height` — `align-self: stretch` instead (pane lockstep).

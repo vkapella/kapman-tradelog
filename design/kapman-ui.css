@@ -28,12 +28,18 @@
   --accent-border:  color-mix(in srgb, var(--accent) 30%, transparent);
   --accent-soft:    #7ce8f7;  /* inline code in documentation surfaces */
   --gold:           oklch(0.75 0.12 85);  /* KAPMAN wordmark + mark ONLY — not a UI state */
+  /* Each semantic hue has the same three levels as --accent: dim fill (12-13%),
+     border (30%), solid. A state needing more emphasis than the border steps to
+     the SOLID token — never to a bespoke percentage (decision 49). */
   --pos:            oklch(0.72 0.17 145);
   --pos-dim:        oklch(0.72 0.17 145 / 0.12);
+  --pos-border:     color-mix(in srgb, var(--pos) 30%, transparent);
   --neg:            oklch(0.65 0.20 25);
   --neg-dim:        oklch(0.65 0.20 25 / 0.12);
+  --neg-border:     color-mix(in srgb, var(--neg) 30%, transparent);
   --warn:           oklch(0.78 0.14 75);  /* pinned override, trim, degraded cache */
   --warn-dim:       oklch(0.78 0.14 75 / 0.12);
+  --warn-border:    color-mix(in srgb, var(--warn) 30%, transparent);
 
   /* ---- type ---- */
   --sans:           "Geist", system-ui, sans-serif;
@@ -215,7 +221,7 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-btn--busy { opacity: 0.6; cursor: wait; }
 .km-btn--danger {
   background: var(--neg-dim); color: var(--neg);
-  border-color: color-mix(in srgb, var(--neg) 40%, transparent);
+  border-color: var(--neg-border);
 }
 @media (pointer: coarse) { .km-btn, .km-icon-btn, .km-pin { min-height: 44px; } .km-icon-btn { min-width: 44px; } }
 
@@ -237,8 +243,8 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-remove { opacity: 0.4; }
 .km-remove:hover, .km-remove:focus-visible {
   opacity: 1; color: var(--neg);
-  border-color: color-mix(in srgb, var(--neg) 40%, transparent);
-  background: color-mix(in srgb, var(--neg) 8%, transparent);
+  border-color: var(--neg-border);
+  background: var(--neg-dim);
 }
 
 /* ---- inputs ----
@@ -279,8 +285,8 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 }
 .km-save--loading { background: var(--surface-3);  color: var(--text-2); }
 .km-save--saving  { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-border); }
-.km-save--saved   { background: var(--pos-dim);    color: var(--pos);  border-color: color-mix(in srgb, var(--pos) 30%, transparent); }
-.km-save--failed  { background: var(--neg-dim);    color: var(--neg);  border-color: color-mix(in srgb, var(--neg) 30%, transparent); }
+.km-save--saved   { background: var(--pos-dim);    color: var(--pos);  border-color: var(--pos-border); }
+.km-save--failed  { background: var(--neg-dim);    color: var(--neg);  border-color: var(--neg-border); }
 
 /* ---- pin toggle (aria-pressed; lucide Pin / PinOff at w-3.5 h-3.5) ----
    Long title stays: pinning is reversible, re-pinning restores the number. */
@@ -292,7 +298,7 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 }
 .km-pin[aria-pressed="true"] {
   color: var(--warn); background: var(--warn-dim);
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  border-color: var(--warn-border);
 }
 
 /* ---- chips ----
