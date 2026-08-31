@@ -124,6 +124,33 @@ describes the *fallback* where the asset is unavailable; reading it literally
 shipped a placeholder monogram in Tradelog next to a sibling showing the real
 mark. Vendor the PNG.
 
+## Shared tooling
+
+Three checks live in `kapman-tradelog/scripts/` and are copied outward the way
+the CSS is. Each was authored by whichever repo hit the problem first, which is
+why they exist at all — every one caught something the other two structurally
+could not see.
+
+| Script | Asks | From |
+|---|---|---|
+| `check-contrast.ts` | Does every text node clear 4.5:1 against its *composited* background? | Tradelog UI-8 |
+| `check-design-system.mjs` | Is this repo using the theme correctly — tokens, z-scale, no stock palettes, no hand-rolled primitives? | Fair Value |
+| `check-design-system.mjs` → `vendor-integrity` | Is this repo using the **real** theme, byte for byte? | Screener |
+
+`vendor-integrity` is the one no sibling had: a copy edited in place passes
+every other rule while silently forking the design system. Configure with
+`KAPMAN_VENDOR_DIR` and `KAPMAN_THEME_SOURCE` (both default to `<repo>/design`,
+so in this repo it is a self-comparison and stays quiet). A missing source
+**skips loudly** rather than passing — a check that passes because it measured
+nothing is worse than no check, a lesson all three tools have now learned the
+hard way.
+
+Two rules apply only to a **consuming** repo and are gated on whether the app
+imports `kapman-ui.css`: `token-parity` (a consumer has no `:root` of its own,
+so parity holds by construction) and `shadowed-primitive` (a consumer should
+use a primitive rather than restate it). The authoring repo reports `n/a` for
+primitive coverage for the same reason.
+
 ## Hard rules (the "do not ship" list)
 
 - **Every text input and select is 16px at every width.** Smaller makes iOS

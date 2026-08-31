@@ -18,8 +18,8 @@
 //
 // Usage: node scripts/check-design-system.mjs [--json]
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, extname, join, relative } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,6 +27,19 @@ const SRC = join(ROOT, "src");
 // Tradelog owns the theme, so the source of truth is design/ at the repo root
 // and the app's own token block is src/app/globals.css.
 const THEME = join(ROOT, "design", "kapman-ui.css");
+// Vendor integrity (decision 04: "copy VERBATIM ... do not edit the copies").
+// A consuming repo holds its copy under VENDOR_DIR and must match the source
+// of truth byte for byte. THEME_SOURCE points at the authoring repo's design/;
+// when it is absent (CI without the sibling checkout) the rule SKIPS loudly
+// rather than passing silently. In the authoring repo VENDOR_DIR === the
+// source, so the rule is a self-comparison and trivially passes.
+const VENDOR_DIR = process.env.KAPMAN_VENDOR_DIR
+  ? resolve(process.env.KAPMAN_VENDOR_DIR)
+  : join(ROOT, "design");
+const THEME_SOURCE = process.env.KAPMAN_THEME_SOURCE
+  ? resolve(process.env.KAPMAN_THEME_SOURCE)
+  : join(ROOT, "design");
+const VENDORED_FILES = ["kapman-ui.css", "kapman-grid.css"];
 const APP_CSS = join(SRC, "app", "globals.css");
 
 const findings = [];
@@ -139,6 +152,14 @@ for (const file of walk(SRC).filter((f) => f !== APP_CSS)) {
 // and had its own `body` reported as a hand-rolled `.km-btn`. Those were
 // false signals, not findings. Gate both on whether the app actually imports
 // the theme.
+// Does this repo CONSUME the vendored theme, or AUTHOR it? Three rules depend
+// on the answer — shadowed-primitive, token parity, and the coverage count —
+// because a consuming app has no :root and no reason to restate a primitive,
+// while the authoring app has both by definition.
+const CONSUMES_THEME = /@import[^;]*kapman-ui\.css|kapman-ui\.css["']/.test(
+  readFileSync(APP_CSS, "utf8") + walk(SRC).map((f) => readFileSync(f, "utf8")).join("\n"),
+);
+
 // ---------------------------------------------------------------------------
 // Rule 6 — token parity between the app's :root and the vendored theme.
 //
@@ -177,7 +198,15 @@ function parseTokens(css) {
 
 const sameValues = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-{
+// Skipped entirely in a consuming repo. The Screener imports the theme and
+// deliberately has NO :root of its own — deleting it was the point of its
+// UI-1 — so this rule demanded it hand-duplicate 48 token declarations, which
+// is precisely the drift the rule exists to prevent. Reported by the Screener
+// against 3ab9cc0, the same commit that fixed this split for two other rules
+// and then reintroduced it in a third.
+if (CONSUMES_THEME) {
+  // Parity holds by construction: there is one copy of the tokens.
+} else {
   const appTokens = parseTokens(readFileSync(APP_CSS, "utf8"));
   const themeTokens = parseTokens(readFileSync(THEME, "utf8"));
 
@@ -221,17 +250,20 @@ const themeRules = parseRules(readFileSync(THEME, "utf8"));
 const appRules = parseRules(readFileSync(APP_CSS, "utf8"));
 const SHADOW_THRESHOLD = 3;
 
-// Does this repo load the theme at all? If not, it is the author, not a
-// consumer, and primitive-based rules do not apply to it.
-const CONSUMES_THEME = /@import[^;]*kapman-ui\.css|kapman-ui\.css["']/.test(
-  readFileSync(APP_CSS, "utf8") + walk(SRC).map((f) => readFileSync(f, "utf8")).join("\n"),
-);
-
 for (const [appSelector, appDecls] of CONSUMES_THEME ? appRules : []) {
   for (const [themeSelector, themeDecls] of themeRules) {
     if (!themeSelector.startsWith(".km-")) continue;
     const shared = [...appDecls].filter((d) => themeDecls.has(d));
-    if (shared.length >= SHADOW_THRESHOLD) {
+    // Three shared declarations is a CSS idiom, not a copied primitive:
+    // `display:flex; align-items:center; gap` describes half the rules ever
+    // written. Require at least one DISTINCTIVE agreement — a token-valued
+    // declaration — so that borrowing a primitive's identity is what trips
+    // this, not agreeing with it about layout. Without this the Screener saw
+    // 33 findings, nearly all false, and the count grew when
+    // `.km-version-chip` gained a legitimate bound: a gate whose false
+    // positives increase as the theme improves is worse than no gate.
+    const distinctive = shared.some((d) => d.includes("var(--"));
+    if (shared.length >= SHADOW_THRESHOLD && distinctive) {
       report("shadowed-primitive", APP_CSS, 0,
         `"${appSelector}" repeats ${shared.length} declarations of the theme's "${themeSelector}". Use the primitive instead of re-implementing it.`);
     }
@@ -246,6 +278,39 @@ const primitives = [...themeRules.keys()]
   .flatMap((selector) => selector.split(",").map((s) => s.trim()))
   .filter((selector) => selector.startsWith(".km-"))
   .map((selector) => selector.replace(/^\./, "").split(/[\s:>[]/)[0]);
+// ---- rule: vendor-integrity ------------------------------------------
+// The check no sibling had. Everything else here asks "is this repo using the
+// theme correctly?"; this asks "is this repo using the REAL theme?" — a copy
+// edited in place passes every other rule while silently forking the design
+// system. It caught a stale copy in kapman-polygon-viewer within minutes of
+// kapman-tradelog@6d78e55 landing.
+if (!existsSync(THEME_SOURCE)) {
+  console.warn(
+    `WARN  vendor-integrity SKIPPED — theme source not found at ${THEME_SOURCE}. ` +
+      `Set KAPMAN_THEME_SOURCE to the authoring repo's design/ directory.`,
+  );
+} else if (resolve(VENDOR_DIR) !== resolve(THEME_SOURCE)) {
+  for (const file of VENDORED_FILES) {
+    const mine = join(VENDOR_DIR, file);
+    const theirs = join(THEME_SOURCE, file);
+    if (!existsSync(theirs)) {
+      console.warn(`WARN  vendor-integrity: ${file} absent upstream — cannot compare.`);
+      continue;
+    }
+    if (!existsSync(mine)) {
+      report("vendor-integrity", mine, 0,
+        `${file} is missing from the vendored theme directory.`);
+      continue;
+    }
+    if (readFileSync(mine, "utf8") !== readFileSync(theirs, "utf8")) {
+      report("vendor-integrity", mine, 0,
+        `differs from the source of truth. Decision 04: the copy is never ` +
+        `edited — land the change in the authoring repo's design/${file} on a ` +
+        `theme/<name> branch, merge, then re-vendor. (diff "${mine}" "${theirs}")`);
+    }
+  }
+}
+
 const available = new Set(primitives);
 const sourceText = walk(SRC).map((f) => readFileSync(f, "utf8")).join("\n");
 const used = new Set([...available].filter((name) => sourceText.includes(name)));

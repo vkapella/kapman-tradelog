@@ -123,8 +123,10 @@ Siblings re-vendor `design/kapman-ui.css` and `design/kapman-grid.css` at the
 SHA named here. Do not re-vendor on your own initiative — the theme owner
 announces it.
 
-**Current: `007d624`** — adds the rail touch floor (`6d78e55`).
-Previous: `0a02ca1`.
+**Current: `<pending>`** — no CSS change since `007d624`; re-vendor is for the
+`vendor-integrity` rule in `scripts/check-design-system.mjs`, plus two lint
+gating fixes reported by the Screener. Copy the script as well as the CSS.
+Previous: `007d624`.
 
 No re-vendor is needed for UI-D0/D1/D2-part-1: the lint fixes, the Tailwind
 aliases and the semantic migration are all app-side. The next re-vendor will
