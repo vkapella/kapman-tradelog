@@ -94,6 +94,7 @@ Never re-vendor on drift detection alone.
 
 | Item | Class | Found by | Detail |
 |---|---|---|---|
+| **Semantic palette has no border variant** | `RULING` | Tradelog UI-D2, 2026-08-30 | **This one blocks the last 18 sites of UI-D2.** `--accent` has three levels — `--accent`, `--accent-dim` (13%), `--accent-border` (30%). `--pos`/`--neg`/`--warn` have only two, so a semantic border has no token to migrate to. The theme demonstrates the gap by being inconsistent with itself: `.km-save--saving` uses `var(--accent-border)` cleanly, while `.km-save--saved` and `--failed` inline `color-mix(… 30% …)`, `.km-btn--danger` and `.km-remove:hover` use **40%**, and `.km-pin[aria-pressed]` uses **45%** — three opacities for one concept, plus an 8% fill where `--neg-dim` is 12%. Downstream the app improvises `/40 /50 /60 /70`. **Recommend `--pos-border`/`--neg-border`/`--warn-border` at 30%**, mirroring `--accent-border` and matching what two of the six theme sites already chose. Alternatives: semantic borders use `--border` and only the fill carries meaning; or keep `color-mix` at call sites. Note this is a theme change — three new tokens means both siblings re-vendor, so it should ship with the next batch rather than alone. |
 | Touch-floor scoping is inconsistent across primitives | `NOTE` | Tradelog, 2026-08-30 | `.km-btn` / `.km-icon-btn` / `.km-pin` / `.km-input` take 44px under bare `(pointer: coarse)` at **any** width; `.km-nav-item` (`6d78e55`) scopes to `≤1023.98px`. A touchscreen laptop at 1400px gets 44px buttons and 38px nav items. The spec's own rule is scoped by both pointer and width, so the four unbounded ones may be the wrong pair. Not resolved unilaterally — needs one answer applied to all five. |
 | `--pos`/`--neg` migration scope | `RULING` | Tradelog lint | **Corrected baseline after D0: 143, not the 233 first reported to Design.** palette-class 103 (verified real, in `className` contexts), token-escape 33, z-index 7. The original total was inflated by lint false positives — 63 GitHub issue references (`#340`) matched as hex, the token-definition file linted against itself, and primitive rules applied to the repo that authors rather than consumes the theme. Proposed as UI-D. |
 | Lint false-positive fixes should reach Fair Value | `NOTE` | Tradelog D0, 2026-08-30 | Four fixes made to the shared lint, all reproducible in the authoring repo and two in any repo: 3-digit hex matched issue references; the app's own token file was linted for raw colour; `shadowed-primitive`/coverage assumed a consuming repo; and a suppression reason containing a semicolon silently failed, because the walk-back treated comment prose as a statement boundary. That last one is the worst — a tool that silently ignores a written exemption stops being trusted. |
@@ -112,3 +113,7 @@ announces it.
 
 **Current: `007d624`** — adds the rail touch floor (`6d78e55`).
 Previous: `0a02ca1`.
+
+No re-vendor is needed for UI-D0/D1/D2-part-1: the lint fixes, the Tailwind
+aliases and the semantic migration are all app-side. The next re-vendor will
+carry the semantic border tokens, once ruled.
