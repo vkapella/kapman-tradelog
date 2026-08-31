@@ -55,11 +55,17 @@ const MAX_COMMENT_LINES = 6;
 // above it — so a reason long enough to be worth reading can wrap across
 // lines. Walking back stops at the previous statement, which keeps a marker
 // from silently covering code further down the file.
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
+
 function allowed(lines, index) {
   if (MARKER.test(lines[index])) return true;
   for (let i = index - 1; i >= 0 && index - i <= MAX_COMMENT_LINES; i -= 1) {
     if (MARKER.test(lines[i])) return true;
-    if (CODE_BOUNDARY.test(lines[i])) break;
+    // Only real code ends the walk-back. Prose inside a comment routinely
+    // contains a semicolon, and treating that as a statement boundary made a
+    // multi-line reason silently fail to suppress — the worst failure mode
+    // for a tool whose whole value is being trusted.
+    if (!COMMENT_LINE.test(lines[i]) && CODE_BOUNDARY.test(lines[i])) break;
   }
   return false;
 }
@@ -102,11 +108,18 @@ for (const file of walk(SRC)) {
 
 // ---------------------------------------------------------------------------
 // Rule 4 — raw colour literals. A hex in app code is a token that was not
-// looked up. The vendored theme is exempt; it is where values are allowed to
-// live.
+// looked up. Two things are exempt because they are where values legitimately
+// live: the vendored theme, and the app's own token-definition file.
+//
+// Hex must be 6 or 8 digits. The 3-digit form matched this repo's GitHub issue
+// references — `(#340)`, `#344` — 63 of them, which is most of what this rule
+// originally reported. A 3-digit CSS colour is not worth reintroducing that
+// noise for; none of the three apps uses one.
 // ---------------------------------------------------------------------------
-const COLOR_RE = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(/g;
-for (const file of [...walk(SRC), APP_CSS]) {
+const COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?\b|\brgba?\(|\bhsla?\(|\boklch\(/g;
+// APP_CSS is the app's :root — the token definitions themselves. Linting it
+// for raw colour asks the source of truth to look itself up.
+for (const file of walk(SRC).filter((f) => f !== APP_CSS)) {
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((text, i) => {
     if (allowed(lines, i)) return;
@@ -118,10 +131,73 @@ for (const file of [...walk(SRC), APP_CSS]) {
 }
 
 // ---------------------------------------------------------------------------
-// Rule 5 — shadowed primitives. This is the Screener's actual failure mode:
-// re-implementing a theme primitive locally rather than using it. Any app CSS
-// rule that repeats most of a primitive's declarations is that primitive,
-// hand-rolled.
+// Rule 5 — shadowed primitives, and the coverage count below.
+//
+// Both only mean something in a repo that CONSUMES the vendored theme. The
+// authoring repo (Tradelog) writes kapman-ui.css and never loads it — it
+// re-expresses the same primitives as Tailwind utilities — so it scored 0/39
+// and had its own `body` reported as a hand-rolled `.km-btn`. Those were
+// false signals, not findings. Gate both on whether the app actually imports
+// the theme.
+// ---------------------------------------------------------------------------
+// Rule 6 — token parity between the app's :root and the vendored theme.
+//
+// The authoring repo defines its tokens twice: once in its own :root, once in
+// design/kapman-ui.css for the siblings to vendor. Nothing kept them in step
+// except memory. This makes a divergence a build failure instead of a silent
+// difference between production and what the other two apps copy.
+//
+// Restructuring into a shared tokens file would also fix it, but would force
+// both siblings to vendor a third file and break their builds until they did.
+// This gets the same protection at no coordination cost.
+const APP_ONLY_TOKENS = new Map([
+  ["--chart-purple", "app-local by design ruling — chart series identity is not a semantic token"],
+  ["--vgrid-cols", "app-internal grid template, set inline per table; never a theme token"],
+]);
+
+function parseTokens(css) {
+  const tokens = new Map();
+  // Every definition of each token, in source order — NOT just the last one.
+  // A token is often defined once in :root and overridden in a media query,
+  // and the two files format that override differently (one multi-line, one
+  // inline), so comparing only the final value compares different things.
+  //
+  // Normalise structure before matching rather than dropping the line anchor:
+  // an unanchored match reads BEM selectors as declarations, because
+  // `.km-btn--primary:hover` and `.km-cell--overridden::before` both contain
+  // `--name:`. Splitting on braces and semicolons puts every real declaration
+  // at the start of its own line, so the anchor can stay.
+  const normalised = css.replace(/([{};])/g, "$1\n");
+  for (const match of normalised.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)) {
+    const value = match[2].replace(/\s*\/\*.*/, "").trim();
+    tokens.set(match[1], [...(tokens.get(match[1]) ?? []), value]);
+  }
+  return tokens;
+}
+
+const sameValues = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+{
+  const appTokens = parseTokens(readFileSync(APP_CSS, "utf8"));
+  const themeTokens = parseTokens(readFileSync(THEME, "utf8"));
+
+  for (const [name, themeValue] of themeTokens) {
+    if (!appTokens.has(name)) {
+      report("token-parity", APP_CSS, 0,
+        `"${name}" is in the vendored theme but missing from this app's :root — the siblings would get a token production does not have.`);
+    } else if (!sameValues(appTokens.get(name), themeValue)) {
+      report("token-parity", APP_CSS, 0,
+        `"${name}" is [${appTokens.get(name).join(", ")}] here and [${themeValue.join(", ")}] in the vendored theme — production and the siblings disagree.`);
+    }
+  }
+  for (const name of appTokens.keys()) {
+    if (!themeTokens.has(name) && !APP_ONLY_TOKENS.has(name)) {
+      report("token-parity", APP_CSS, 0,
+        `"${name}" is defined here but not in the vendored theme. Add it there, or declare it in APP_ONLY_TOKENS with a reason.`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 function parseRules(css) {
   const rules = new Map();
@@ -145,7 +221,13 @@ const themeRules = parseRules(readFileSync(THEME, "utf8"));
 const appRules = parseRules(readFileSync(APP_CSS, "utf8"));
 const SHADOW_THRESHOLD = 3;
 
-for (const [appSelector, appDecls] of appRules) {
+// Does this repo load the theme at all? If not, it is the author, not a
+// consumer, and primitive-based rules do not apply to it.
+const CONSUMES_THEME = /@import[^;]*kapman-ui\.css|kapman-ui\.css["']/.test(
+  readFileSync(APP_CSS, "utf8") + walk(SRC).map((f) => readFileSync(f, "utf8")).join("\n"),
+);
+
+for (const [appSelector, appDecls] of CONSUMES_THEME ? appRules : []) {
   for (const [themeSelector, themeDecls] of themeRules) {
     if (!themeSelector.startsWith(".km-")) continue;
     const shared = [...appDecls].filter((d) => themeDecls.has(d));
@@ -176,7 +258,11 @@ if (json) {
   for (const finding of findings) {
     console.log(`${finding.file}:${finding.line || "?"}  [${finding.rule}]  ${finding.message}`);
   }
-  console.log(`\nPrimitive coverage: ${used.size}/${available.size} theme primitives used.`);
+  console.log(
+    CONSUMES_THEME
+      ? `\nPrimitive coverage: ${used.size}/${available.size} theme primitives used.`
+      : `\nPrimitive coverage: n/a — this repo authors the theme rather than importing it.`,
+  );
   if (findings.length) {
     console.log(`\n${findings.length} finding(s): ${Object.entries(byRule).map(([r, n]) => `${r} ${n}`).join(", ")}`);
     console.log("Suppress a deliberate exception with a `design-lint-allow: <reason>` comment on or above the line.");

@@ -19,6 +19,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // design-lint-allow: Next's themeColor export is serialised into a meta tag
+  // at build time and cannot read CSS custom properties; tracks --surface-2.
   themeColor: "#12151c",
   colorScheme: "dark",
 };

@@ -100,7 +100,7 @@ function DataTableHeaderInner<Row>({
             <span
               aria-label={`${filterCount} active filter${filterCount === 1 ? "" : "s"}`}
               className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 font-mono text-[8px] font-bold"
-              style={{ color: "#0d0f14" }}
+              style={{ color: "var(--surface)" }}
             >
               {filterCount}
             </span>
