@@ -198,25 +198,36 @@ No hamburger drawer at any width; primary nav is always visible.
 
 ## App icons
 
-Generated from the KapMan brand mark (bull + lion forming the K). The source
-banner is 1024×416 with the wordmark below the mark; the wordmark is cropped
-away because it is illegible below ~120px.
+**Source of truth: `public/kapman-mark.png`** — the same vendored brand mark
+the header renders, so the icon and the lockup can never drift apart. Do not
+re-crop from a marketing banner; that produced a slightly different framing
+and a second source to keep in sync.
 
-Regenerate from a new source with:
+Regenerate with:
 
 ```bash
-SRC=path/to/logo.jpg
-magick "$SRC" -crop 250x250+391+14 +repage \
-  -background "#12151c" -alpha remove -alpha off -resize 1024x1024 master.png
-magick master.png -resize 180x180 src/app/apple-icon.png     # iOS home screen
-magick master.png -resize 180x180 public/apple-touch-icon.png # iOS root probe
-magick master.png -resize 32x32   src/app/icon.png            # browser tab
-magick master.png -define icon:auto-resize=48,32,16 src/app/favicon.ico
-magick master.png -resize 192x192 public/icons/icon-192.png
-magick master.png -resize 512x512 public/icons/icon-512.png
-magick master.png -resize 400x400 -background "#12151c" -gravity center \
+M=public/kapman-mark.png
+# Flatten once. The asset carries an alpha channel but is 0% transparent;
+# iOS composites any transparency to black, so remove the channel.
+magick "$M" -background "#12151c" -alpha remove -alpha off /tmp/bm-master.png
+magick /tmp/bm-master.png -resize 180x180 src/app/apple-icon.png      # iOS home screen
+magick /tmp/bm-master.png -resize 180x180 public/apple-touch-icon.png # iOS root probe
+magick /tmp/bm-master.png -resize 32x32   src/app/icon.png            # browser tab
+magick /tmp/bm-master.png -define icon:auto-resize=48,32,16 src/app/favicon.ico
+magick /tmp/bm-master.png -resize 192x192 public/icons/icon-192.png
+magick /tmp/bm-master.png -filter Lanczos -resize 512x512 public/icons/icon-512.png
+magick /tmp/bm-master.png -resize 400x400 -background "#12151c" -gravity center \
   -extent 512x512 public/icons/icon-maskable-512.png          # Android safe zone
 ```
+
+**The mark is 256×256, so `icon-512.png` is a 2× upscale.** It is acceptable
+(Lanczos, and the artwork is flat-shaded vector-like geometry) but a 512px or
+larger master from Design would be strictly better. Queued as a `NOTE`.
+
+**The mark does not survive favicon sizes.** At 32px the two animal heads are
+muddy; at 16px they are unreadable colour blobs. This is inherent to the
+artwork, not the pipeline — a simplified small-size variant is the only real
+fix if the browser-tab icon matters.
 
 Two things that are easy to get wrong here:
 
