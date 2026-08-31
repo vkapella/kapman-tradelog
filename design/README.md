@@ -89,6 +89,33 @@ the image builds and does not expose it to the Machines runtime — there is no
 **The chip is bounded and truncates.** An unbounded chip escapes the sidebar
 and paints over the page title — hit independently in two of three apps.
 
+## Primitives own their box
+
+Every primitive declares its own padding, border, line-height and font, and
+must never rely on a framework reset.
+
+This file was authored in a Tailwind app, whose preflight zeroes padding on
+every element — so a primitive that omitted its own padding still looked
+correct here. `.km-icon-btn` did exactly that, and the Screener (plain CSS, no
+preflight) inherited its app's base button padding instead, rendering the
+control at the wrong size inside a grid cell. Fixed in `099890c`.
+
+**The Screener is the canary for this class of defect** — Tradelog and Fair
+Value are both Tailwind and cannot see it. If you are adding a primitive,
+declare the whole box.
+
+## Touch floors
+
+Controls take a ≥44px minimum under a coarse pointer: `.km-btn`,
+`.km-icon-btn`, `.km-pin`, `.km-input` / `.km-select`, and `.km-nav-item`
+(`6d78e55` — the rail band between 768 and 1023 is where a tablet lives, and
+was the one band reaching neither the desktop target nor the bottom bar's
+`--tabbar-h`).
+
+Note an unresolved inconsistency, tracked in `OPEN-WITH-DESIGN.md`: the first
+four apply at *any* width under a coarse pointer, while `.km-nav-item` scopes
+to ≤1023.98px. One answer should apply to all five.
+
 ## The brand mark
 
 The 28px tile renders the **commissioned mark**, `assets/kapman-mark.png` from
