@@ -320,7 +320,9 @@ export function ExcursionWidget() {
               outside the scroller. */}
           <div className="max-h-80 overflow-auto">
             <div className="min-w-[900px]">
+              {/* design-lint-allow: intra-component sticky stacking (decision 53) — the --z-* scale arbitrates between page-level components and starts at 30; order inside a component's own stacking context is local, not a token concern. */}
               <div className="sticky top-0 z-[2] grid border-b border-border bg-surface-2 text-xs font-semibold text-text-2" style={{ gridTemplateColumns: EXCURSION_COLUMN_TEMPLATE }}>
+                {/* design-lint-allow: intra-component sticky stacking (decision 53) — the --z-* scale arbitrates between page-level components and starts at 30; order inside a component's own stacking context is local, not a token concern. */}
                 <button type="button" className="sticky left-0 z-[1] bg-inherit px-2 py-2 text-left" onClick={() => toggleSort("symbol")}>Symbol</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("realizedPnl")}>Realized</button>
                 <button type="button" className="px-2 py-2 text-right" onClick={() => toggleSort("realizedReturnPct")}>Return</button>
@@ -336,6 +338,7 @@ export function ExcursionWidget() {
                 ) : null}
                 {sortedRows.map((row) => (
                   <div key={row.id} className="grid border-b border-border" style={{ gridTemplateColumns: EXCURSION_COLUMN_TEMPLATE }}>
+                    {/* design-lint-allow: intra-component sticky stacking (decision 53) — the --z-* scale arbitrates between page-level components and starts at 30; order inside a component's own stacking context is local, not a token concern. */}
                     <div className="sticky left-0 z-[1] bg-surface px-2 py-2">{displaySymbol(row)}</div>
                     <div className={`px-2 py-2 text-right ${safeNumber(row.realizedPnl) >= 0 ? "text-pos" : "text-neg"}`}>{formatCurrency(safeNumber(row.realizedPnl))}</div>
                     <div className="px-2 py-2 text-right">{formatFractionPercent(row.realizedReturnPct)}</div>

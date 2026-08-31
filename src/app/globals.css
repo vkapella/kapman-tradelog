@@ -116,10 +116,13 @@ body {
   height: calc(100dvh - 280px - var(--tabbar-total));
 }
 
-/* Touch targets: real box growth, scoped by BOTH pointer capability and
- * viewport so touchscreen desktops stay pixel-equivalent. No pseudo-element
- * overlap targets. */
-@media (pointer: coarse) and (max-width: 1023px) {
+/* Touch targets: real box growth, scoped by pointer capability ALONE
+ * (decision 54). The width clause came off with the theme's — (pointer:
+ * coarse) already excludes the touchscreen desktop the bound was written
+ * for, and the bound wrongly denied a 12.9" iPad in landscape. Leaving it
+ * here would have put a 44px .km-btn beside a 36px .touch-target button in
+ * the same iPad view. No pseudo-element overlap targets. */
+@media (pointer: coarse) {
   .touch-target {
     min-block-size: 44px;
     min-inline-size: 44px;

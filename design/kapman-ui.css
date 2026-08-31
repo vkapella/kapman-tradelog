@@ -176,14 +176,6 @@ code { color: var(--accent-soft); font-family: var(--mono); }
   .km-nav-label { display: none; }
 }
 
-/* The rail band is where a tablet lives, so the same >=44px coarse-pointer
-   floor that .km-btn / .km-icon-btn / .km-pin already take applies here too.
-   Without it a rail item stays 38px between 768 and 1023 — the one band that
-   is touch-operated but does not reach the bottom bar's --tabbar-h. */
-@media (pointer: coarse) and (max-width: 1023.98px) {
-  .km-nav-item { min-height: 44px; }
-}
-
 @media (max-width: 767.98px) {
   .km-nav {
     position: fixed; left: 0; right: 0; bottom: 0; width: auto;
@@ -223,7 +215,6 @@ code { color: var(--accent-soft); font-family: var(--mono); }
   background: var(--neg-dim); color: var(--neg);
   border-color: var(--neg-border);
 }
-@media (pointer: coarse) { .km-btn, .km-icon-btn, .km-pin { min-height: 44px; } .km-icon-btn { min-width: 44px; } }
 
 /* ---- icon buttons + the remove control (UI-5 / sibling UI-6) ----
    A real <button>, aria-label naming the row's subject ("Remove META").
@@ -259,7 +250,6 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 }
 .km-input--num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
 .km-input:disabled, .km-select:disabled { opacity: 0.6; }
-@media (pointer: coarse) { .km-input, .km-select { min-height: 44px; } }
 
 /* ---- factor cell states (fetched / overridden / derived / missing) ----
    The fetched-vs-overridden distinction is load-bearing: dimmed is the
@@ -299,6 +289,27 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-pin[aria-pressed="true"] {
   color: var(--warn); background: var(--warn-dim);
   border-color: var(--warn-border);
+}
+
+/* ---- the touch floor: ONE rule, all five controls (decision 54) ----
+   Bare (pointer: coarse) — no width clause. The media feature already makes
+   the statement a width bound was reaching for: it matches finger-primary
+   devices only, so a touchscreen laptop driven by its trackpad never takes
+   the floor, while a 12.9" iPad at 1366px landscape does. The old width
+   bound denied exactly that device.
+
+   PLACEMENT IS LOAD-BEARING. This block must stay after all five control
+   definitions. A media query adds no specificity, so the previous rules —
+   authored above .km-icon-btn and .km-pin — lost the cascade to those
+   controls' own `min-height: 36px` and had never once applied. Measured in
+   headless Chromium before the fix: .km-icon-btn and .km-pin reported 36px
+   at every width under a coarse pointer. .km-remove is an .km-icon-btn, so
+   UI-5's destructive control was one of the two that silently missed. */
+@media (pointer: coarse) {
+  .km-btn, .km-icon-btn, .km-pin, .km-input, .km-select, .km-nav-item {
+    min-height: 44px;
+  }
+  .km-icon-btn { min-width: 44px; }
 }
 
 /* ---- chips ----

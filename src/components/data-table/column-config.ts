@@ -154,6 +154,12 @@ export function configCellClass<Row>(config: TableColumnConfig<Row>, context: "h
     // Header rows carry their own background class, so the pinned header cell
     // inherits it; body rows are transparent, so the pinned body cell paints
     // the section surface to occlude columns scrolling underneath.
+    // design-lint-allow: intra-component sticky stacking (decision 53). This is
+    // the shared helper the pinned cells come from, so it is the canonical site.
+    // The --z-* scale arbitrates BETWEEN page-level components, which is why it
+    // starts at 30; a pinned cell only has to sit above the columns scrolling
+    // under it, inside the grid's own stacking context. The scale does not
+    // extend downward to cover that.
     classes.push("sticky left-0 z-[1]", context === "header" ? "bg-inherit" : "bg-surface");
   }
   return classes.join(" ");

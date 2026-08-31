@@ -110,15 +110,20 @@ declare the whole box.
 
 ## Touch floors
 
-Controls take a ≥44px minimum under a coarse pointer: `.km-btn`,
-`.km-icon-btn`, `.km-pin`, `.km-input` / `.km-select`, and `.km-nav-item`
-(`6d78e55` — the rail band between 768 and 1023 is where a tablet lives, and
-was the one band reaching neither the desktop target nor the bottom bar's
-`--tabbar-h`).
+**One rule, five controls, no width clause** (decision 54). `.km-btn`,
+`.km-icon-btn`, `.km-pin`, `.km-input` / `.km-select` and `.km-nav-item` take a
+≥44px minimum under a bare `(pointer: coarse)`. That media feature already says
+what a width bound was reaching for — it matches finger-primary devices only,
+so a touchscreen laptop on its trackpad never takes the floor, while a 12.9″
+iPad at 1366px landscape does. The old bound denied exactly that device.
 
-Note an unresolved inconsistency, tracked in `OPEN-WITH-DESIGN.md`: the first
-four apply at *any* width under a coarse pointer, while `.km-nav-item` scopes
-to ≤1023.98px. One answer should apply to all five.
+**The rule must stay after all five control definitions.** A media query adds no
+specificity, so the three rules this replaced — two of them authored *above*
+`.km-icon-btn` and `.km-pin` — lost the cascade to those controls' own
+`min-height: 36px`. Measured in headless Chromium: both reported 36px at every
+width under a coarse pointer, so the floor had never applied to them, and
+`.km-remove` is an `.km-icon-btn`. A touch floor is not something you can read
+off the source and believe; measure it.
 
 ## The brand mark
 

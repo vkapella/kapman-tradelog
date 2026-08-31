@@ -123,7 +123,12 @@ export function ConfigVirtualTable<Row>({
                   }}
                   aria-label={`Reorder ${config.definition.label} column (arrow keys move it)`}
                   title="Drag to reorder; arrow keys move"
-                  className="absolute left-0 top-1/2 z-[1] -translate-y-1/2 cursor-grab rounded px-0.5 py-1 text-[9px] leading-none opacity-40 focus-visible:opacity-100 hover:opacity-100 active:cursor-grabbing max-md:hidden"
+                  className={
+                    // design-lint-allow: intra-component sticky stacking (decision 53) — the
+                    // drag handle sits above its own header cell inside that cell's stacking
+                    // context. The --z-* scale arbitrates between page-level components.
+                    "absolute left-0 top-1/2 z-[1] -translate-y-1/2 cursor-grab rounded px-0.5 py-1 text-[9px] leading-none opacity-40 focus-visible:opacity-100 hover:opacity-100 active:cursor-grabbing max-md:hidden"
+                  }
                   style={{ color: "var(--border-strong)" }}
                 >
                   <span aria-hidden="true">⠿</span>
