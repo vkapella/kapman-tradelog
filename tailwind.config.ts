@@ -43,6 +43,12 @@ const config: Config = {
         // override the colours-derived one and silently drop four existing
         // full-opacity `border-accent` usages to 30%.
         "accent-border": "var(--accent-border)",
+        // Same reasoning for the three semantic hues (decision 49): the 30%
+        // border is `border-{pos,neg,warn}-border`, and `border-{pos,neg,warn}`
+        // stays the solid token a site steps up to when it needs more.
+        "pos-border": "var(--pos-border)",
+        "neg-border": "var(--neg-border)",
+        "warn-border": "var(--warn-border)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

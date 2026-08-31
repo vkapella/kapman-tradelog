@@ -90,7 +90,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
                   />
                   <AccountLabel accountId={accountId} className="truncate" />
                   {meta?.paperMoney ? (
-                    <span className="rounded border border-amber-400/60 bg-warn-dim px-1 py-px text-[9px] uppercase tracking-wide text-warn">Paper</span>
+                    <span className="rounded border border-warn-border bg-warn-dim px-1 py-px text-[9px] uppercase tracking-wide text-warn">Paper</span>
                   ) : null}
                   {meta ? (
                     meta.entityName ? (
@@ -98,7 +98,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
                         {meta.entityName}
                       </span>
                     ) : (
-                      <span className="ml-auto rounded border border-red-400/60 bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg">
+                      <span className="ml-auto rounded border border-neg-border bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg">
                         Unclassified
                       </span>
                     )
@@ -127,7 +127,7 @@ export function AccountSelector({ variant = "mobile" }: { variant?: "desktop" | 
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-amber-400/60 bg-warn-dim" : "border-border bg-surface-3"}`}
+        className={`touch-target w-full truncate rounded-lg border px-3 py-2 text-xs font-medium text-text lg:w-auto ${hasWarnings ? "border-warn-border bg-warn-dim" : "border-border bg-surface-3"}`}
       >
         {hasWarnings ? "⚠ " : ""}
         {label}

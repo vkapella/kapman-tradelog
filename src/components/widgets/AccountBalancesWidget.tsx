@@ -54,7 +54,7 @@ function AccountBalanceRow({ accountId, value, loading, dataStale }: { accountId
   const warning = value ? statusMessage(value) : null;
 
   return (
-    <div className={["rounded-lg border bg-surface-2 p-3", warning ? "border-amber-400/70" : "border-border"].join(" ")}>
+    <div className={["rounded-lg border bg-surface-2 p-3", warning ? "border-warn-border" : "border-border"].join(" ")}>
       <div className="flex items-center justify-between">
         <p className="text-xs text-text">
           <AccountLabel accountId={accountId} />
@@ -90,12 +90,12 @@ function AccountBalanceRow({ accountId, value, loading, dataStale }: { accountId
         </>
       ) : null}
       {warning ? (
-        <p className="mt-1 rounded border border-amber-400/70 bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
+        <p className="mt-1 rounded border border-warn-border bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
           {warning}
         </p>
       ) : null}
       {dataStale ? (
-        <p className="mt-1 rounded border border-amber-400/70 bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
+        <p className="mt-1 rounded border border-warn-border bg-warn-dim px-2 py-0.5 text-[10px] text-warn">
           Account data changed since this compute — refresh for current values.
         </p>
       ) : null}

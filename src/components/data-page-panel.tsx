@@ -64,7 +64,7 @@ export function DataPagePanel({ heading, nextAction }: DataPagePanelProps) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-400/40 bg-neg-dim p-6 text-sm text-neg">
+      <div className="rounded-2xl border border-neg-border bg-neg-dim p-6 text-sm text-neg">
         <p className="font-semibold">Unable to load page data.</p>
         <p className="mt-2">{error}</p>
       </div>

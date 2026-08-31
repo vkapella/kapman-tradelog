@@ -53,9 +53,9 @@ export function ReconciliationWidget() {
       {snapshot ? (
         <div className="mb-2 flex items-center gap-2 text-[11px] text-text-2">
           <span>As of {formatSnapshotTime(snapshot.snapshotAt)}</span>
-          {stale ? <span className="rounded border border-amber-400/50 bg-warn-dim px-1.5 py-0.5 text-warn">Stale</span> : null}
+          {stale ? <span className="rounded border border-warn-border bg-warn-dim px-1.5 py-0.5 text-warn">Stale</span> : null}
           {staleDataAccountIds.length > 0 ? (
-            <span className="rounded border border-amber-400/50 bg-warn-dim px-1.5 py-0.5 text-warn" title="Source data changed since this compute (imports, adjustments, or capital edits). Compute again for current figures.">
+            <span className="rounded border border-warn-border bg-warn-dim px-1.5 py-0.5 text-warn" title="Source data changed since this compute (imports, adjustments, or capital edits). Compute again for current figures.">
               Data changed since compute
             </span>
           ) : null}
@@ -83,7 +83,7 @@ export function ReconciliationWidget() {
       {!loading && !error && snapshot && snapshot.status !== "FAILED" ? (
         <div className="space-y-2 text-xs">
           {!startingCapitalConfigured ? (
-            <p className="rounded border border-amber-400/40 bg-warn-dim px-2 py-1 text-warn">
+            <p className="rounded border border-warn-border bg-warn-dim px-2 py-1 text-warn">
               Set starting capital on the <code>/accounts</code> page to reconcile against your initial portfolio value.
             </p>
           ) : null}

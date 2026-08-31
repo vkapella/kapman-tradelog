@@ -18,11 +18,11 @@ function formatNumber(value: number | null): string {
 
 function statusBadgeClass(status: FidelityExecutionPreviewRow["status"]): string {
   if (status === "VALID") {
-    return "border-emerald-400/50 bg-pos-dim text-pos";
+    return "border-pos-border bg-pos-dim text-pos";
   }
 
   if (status === "WARNING") {
-    return "border-amber-400/50 bg-warn-dim text-warn";
+    return "border-warn-border bg-warn-dim text-warn";
   }
 
   return "border-border bg-surface-3 text-text";

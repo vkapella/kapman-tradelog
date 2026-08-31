@@ -544,7 +544,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                     <span className="ml-1 text-xs text-text-2">({uploadResult.account.accountId})</span>
                   </p>
                   {uploadResult.account.isNew ? (
-                    <p className="mt-2 rounded border border-amber-500/40 bg-warn-dim p-3 text-sm text-warn">
+                    <p className="mt-2 rounded border border-warn-border bg-warn-dim p-3 text-sm text-warn">
                       This account does not exist yet — committing will create it. If that is unexpected (for example a renamed or
                       mis-detected file), choose Discard Upload below and no records will be kept.
                     </p>
@@ -654,7 +654,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               <dt className="text-text-3">Inserted count</dt>
               <dd>{deleteConfirmationImport.insertedExecutions}</dd>
             </dl>
-            <p className="mt-4 rounded border border-amber-500/40 bg-warn-dim p-3 text-sm text-warn">
+            <p className="mt-4 rounded border border-warn-border bg-warn-dim p-3 text-sm text-warn">
               This will remove {deleteConfirmationImport.insertedExecutions} executions and all matched lots derived from them. Manual adjustments
               will be preserved and re-applied on next import.
             </p>
