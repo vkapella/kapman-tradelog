@@ -123,7 +123,7 @@ Siblings re-vendor `design/kapman-ui.css` and `design/kapman-grid.css` at the
 SHA named here. Do not re-vendor on your own initiative — the theme owner
 announces it.
 
-**Current: `<pending>`** — no CSS change since `007d624`; re-vendor is for the
+**Current: `2336389`** — no CSS change since `007d624`; re-vendor is for the
 `vendor-integrity` rule in `scripts/check-design-system.mjs`, plus two lint
 gating fixes reported by the Screener. Copy the script as well as the CSS.
 Previous: `007d624`.
