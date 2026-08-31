@@ -114,8 +114,13 @@ CSS. Each was written by whichever repo hit the problem first.
   cascade defect the vendored copies carry. `kapman-ui.css` only; the grid CSS
   and `check-design-system.mjs` are unchanged since `2336389`.
 - Tradelog: UI-0 → UI-8, UI-C and UI-D complete, including the UI-D2 tail.
-  **Design lint at 0 findings.** Last deployed at Fly v39; Amendment 03's three
-  passes are merged to `main` and not yet deployed.
+  **Design lint at 0 findings.**
+- **What is actually in production: Fly v39 was built from `9e3b121`.** Batch 01
+  and an earlier revision of this file both said v39 was `73bc155` — wrong by
+  five commits, and read off the docs rather than the machine. The authority is
+  `flyctl ssh console -a kapman-tradelog -C "printenv APP_GIT_SHA"`, which is
+  the SHA `scripts/deploy.sh` bakes in and the version chip shows. Check the
+  machine, not this file, before reasoning about what is live.
 - **10 items open with Design, 21 queued — nothing `BLOCKING`.** Amendment 03
   ruled both blockers. Newly queued: the theme's coarse-pointer floor had never
   applied to `.km-icon-btn` or `.km-pin`, which also corrects an earlier entry
