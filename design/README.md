@@ -195,3 +195,39 @@ No hamburger drawer at any width; primary nav is always visible.
 - `--chart-purple` ruled app-local permanently (Amendment 01): chart colours
   encode series identity, not state; the token system does not cover them.
 - ~~Desktop modal panels vs mobile sheet~~ ruled (Amendment 01): both `--surface-2`.
+
+## App icons
+
+Generated from the KapMan brand mark (bull + lion forming the K). The source
+banner is 1024×416 with the wordmark below the mark; the wordmark is cropped
+away because it is illegible below ~120px.
+
+Regenerate from a new source with:
+
+```bash
+SRC=path/to/logo.jpg
+magick "$SRC" -crop 250x250+391+14 +repage \
+  -background "#12151c" -alpha remove -alpha off -resize 1024x1024 master.png
+magick master.png -resize 180x180 src/app/apple-icon.png     # iOS home screen
+magick master.png -resize 180x180 public/apple-touch-icon.png # iOS root probe
+magick master.png -resize 32x32   src/app/icon.png            # browser tab
+magick master.png -define icon:auto-resize=48,32,16 src/app/favicon.ico
+magick master.png -resize 192x192 public/icons/icon-192.png
+magick master.png -resize 512x512 public/icons/icon-512.png
+magick master.png -resize 400x400 -background "#12151c" -gravity center \
+  -extent 512x512 public/icons/icon-maskable-512.png          # Android safe zone
+```
+
+Two things that are easy to get wrong here:
+
+- **Next's App Router file conventions win over `metadata.icons`.** Icons live at
+  `src/app/{favicon.ico,icon.png,apple-icon.png}` and Next emits the `<link>`
+  tags from them. Declaring the same icons in `metadata.icons` is silently
+  ignored, and a `public/favicon.ico` alongside `src/app/favicon.ico` makes
+  `/favicon.ico` return **500** — two handlers for one route.
+- **`public/apple-touch-icon.png` is kept deliberately** even though the tag
+  points at `/apple-icon.png`: iOS probes the site root for that exact filename
+  when a page carries no apple-touch-icon tag.
+
+The icon is opaque by design — iOS composites transparency to black on some
+versions — and keeps margin because iOS applies its own squircle mask.
