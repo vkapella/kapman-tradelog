@@ -27,6 +27,31 @@ defect is far more persuasive than one repo asserting a rule.
 Batches go out when a repo finishes an issue, or when a `BLOCKING` item forces
 a send anyway (blockers carry the batch with them).
 
+## Re-vendoring: detection and authorisation are separate
+
+The Screener built a vendor-integrity gate that notices when upstream
+`design/` has moved and its copy is stale. Keep it — it is better than
+anything the governance originally specified, and it belongs in all three
+repos. But it answers only half the question.
+
+**A gate can see that the file changed. It cannot see whether the owner had
+finished changing it.** Freshness and completeness are different properties,
+and only the owning session knows the second one. On 2026-08-30 the Screener
+detected `6d78e55` and re-vendored immediately; its copy came out
+byte-identical to the announced SHA and nothing needed redoing — but only
+because that change happened to be atomic. Had the gate fired two commits into
+a three-commit theme change, it would have vendored a half-state and been
+confident, because the file was new and looked coherent.
+
+So:
+
+| | Job |
+|---|---|
+| **The integrity gate** | Detects drift and **alerts** — "upstream moved, my copy is stale". It never authorises. |
+| **The Vendor SHA below** | **Authorises.** The owner names it only once integration is complete. Re-vendor when it is newer than your copy. |
+
+Never re-vendor on drift detection alone.
+
 ---
 
 ## OPEN — sent, awaiting ruling
@@ -72,6 +97,7 @@ a send anyway (blockers carry the batch with them).
 | Touch-floor scoping is inconsistent across primitives | `NOTE` | Tradelog, 2026-08-30 | `.km-btn` / `.km-icon-btn` / `.km-pin` / `.km-input` take 44px under bare `(pointer: coarse)` at **any** width; `.km-nav-item` (`6d78e55`) scopes to `≤1023.98px`. A touchscreen laptop at 1400px gets 44px buttons and 38px nav items. The spec's own rule is scoped by both pointer and width, so the four unbounded ones may be the wrong pair. Not resolved unilaterally — needs one answer applied to all five. |
 | `--pos`/`--neg` migration scope | `RULING` | Tradelog lint | 233 lint findings in the theme owner: palette-class 103, raw-color 88, token-escape 33, z-index 7. Proposed as UI-D, one commit per rule. |
 | `z-[1]` for intra-component stacking | `RULING` | Tradelog lint | 7 sites. Sticky-cell stacking inside a component is arguably not a `--z-*` concern. Suppress with reasons, or extend the scale? |
+| Vendor-integrity gate should be shared tooling | `NOTE` | Screener, 2026-08-30 | The Screener built a gate that detects upstream `design/` drift against its vendored copy. Worth having in all three repos, which by the same argument as the lint and the contrast gate means it should live in `kapman-tradelog/scripts/` and be copied out, not reimplemented per repo. Requested from the Screener. |
 | Column reorder coverage | `NOTE` | Tradelog UI-2 | Reorder lives in `ConfigVirtualTable` only; positions and imports still render pre-migration header rows (#340 debt, not UI-2 scope). |
 
 ---
