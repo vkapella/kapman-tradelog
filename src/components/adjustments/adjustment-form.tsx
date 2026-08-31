@@ -606,7 +606,7 @@ export function AdjustmentForm({
                 !executionResolved))
           }
           onClick={handleCreate}
-          className="rounded border border-border bg-[color:var(--accent-dim)] px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border border-border bg-accent-dim px-3 py-1 text-xs text-text disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving..." : "Create Adjustment"}
         </button>

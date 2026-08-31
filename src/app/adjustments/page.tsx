@@ -124,7 +124,7 @@ export default function Page() {
       </header>
 
       {error ? <p className="rounded border border-red-400/60 bg-red-400/10 px-3 py-2 text-xs text-red-200">{error}</p> : null}
-      {rebuildMessage ? <p className="rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-3 py-2 text-xs text-accent">{rebuildMessage}</p> : null}
+      {rebuildMessage ? <p className="rounded border border-accent-border bg-accent-dim px-3 py-2 text-xs text-accent">{rebuildMessage}</p> : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <AdjustmentForm

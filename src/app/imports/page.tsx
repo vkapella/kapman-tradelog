@@ -21,7 +21,7 @@ function TabLink({ tab, activeTab, label }: { tab: ImportTab; activeTab: ImportT
       aria-current={active ? "page" : undefined}
       className={[
         "rounded-lg border px-3 py-1 text-xs font-medium",
-        active ? "border-accent bg-[color:var(--accent-dim)] text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
+        active ? "border-accent bg-accent-dim text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
       ].join(" ")}
     >
       {label}

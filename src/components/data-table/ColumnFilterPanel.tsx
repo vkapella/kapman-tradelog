@@ -203,14 +203,14 @@ export function ColumnFilterPanel<Row>({
             <button
               type="button"
               onClick={() => setDraftSortDirection("asc")}
-              className={draftSortDirection === "asc" ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
+              className={draftSortDirection === "asc" ? "rounded border border-accent-border bg-accent-dim px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
             >
               Asc
             </button>
             <button
               type="button"
               onClick={() => setDraftSortDirection("desc")}
-              className={draftSortDirection === "desc" ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
+              className={draftSortDirection === "desc" ? "rounded border border-accent-border bg-accent-dim px-2 py-1 text-accent" : "rounded border border-border px-2 py-1 text-text"}
             >
               Desc
             </button>
@@ -301,7 +301,7 @@ export function ColumnFilterPanel<Row>({
         <button type="button" onClick={onClose} className="rounded border border-border px-2 py-1 text-text-2">
           Close
         </button>
-        <button type="button" onClick={apply} className="rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-2 py-1 text-accent">
+        <button type="button" onClick={apply} className="rounded border border-accent-border bg-accent-dim px-2 py-1 text-accent">
           Apply
         </button>
       </div>

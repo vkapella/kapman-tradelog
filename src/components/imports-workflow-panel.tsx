@@ -65,7 +65,7 @@ const ImportsHistoryTableRow = memo(function ImportsHistoryTableRow({
               type="button"
               onClick={() => void onRequestDeleteImport(row)}
               disabled={deletingImportId === row.id}
-              className="inline-flex items-center justify-center rounded border border-[color:var(--neg)] bg-[color:var(--neg-dim)] p-1.5 text-neg disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded border border-neg bg-neg-dim p-1.5 text-neg disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={`Delete import ${row.filename}`}
               title={row.status === "COMMITTED" ? "Delete committed import" : "Delete uploaded import"}
             >
@@ -509,7 +509,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
               type="button"
               onClick={handleUpload}
               disabled={!selectedFile || uploading}
-              className="rounded-lg border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-4 py-2 text-sm text-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-accent-border bg-accent-dim px-4 py-2 text-sm text-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploading ? (uploadPhase === "parsing" ? "Parsing..." : "Uploading...") : "Upload Statement"}
             </button>
@@ -564,7 +564,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                   type="button"
                   onClick={handleCommit}
                   disabled={!canCommit}
-                  className="rounded-lg border border-[color:var(--pos)] bg-[color:var(--pos-dim)] px-4 py-2 text-sm text-pos disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-pos bg-pos-dim px-4 py-2 text-sm text-pos disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {committing ? "Committing..." : commitResult ? "Committed" : "Commit Import"}
                 </button>
@@ -573,7 +573,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                     type="button"
                     onClick={() => void handleDiscardUpload()}
                     disabled={committing || discarding}
-                    className="rounded-lg border border-[color:var(--neg)] bg-[color:var(--neg-dim)] px-4 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-neg bg-neg-dim px-4 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {discarding ? "Discarding..." : "Discard Upload"}
                   </button>
@@ -671,7 +671,7 @@ export function ImportsWorkflowPanel({ mode = "all" }: ImportsWorkflowPanelProps
                 type="button"
                 onClick={() => void executeDeleteImport(deleteConfirmationImport)}
                 disabled={deletingImportId === deleteConfirmationImport.id}
-                className="rounded border border-[color:var(--neg)] bg-[color:var(--neg-dim)] px-3 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-neg bg-neg-dim px-3 py-2 text-sm text-neg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deletingImportId === deleteConfirmationImport.id ? "Deleting..." : "Delete Import"}
               </button>

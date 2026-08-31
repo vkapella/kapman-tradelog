@@ -128,16 +128,16 @@ export function getTtsStatusColor(status: TtsRagStatus): string {
 
 export function getTtsStatusTintClass(status: TtsRagStatus): string {
   if (status === "green") {
-    return "bg-[color:color-mix(in_srgb,var(--pos)_18%,transparent)] text-[color:var(--pos)]";
+    return "bg-[color:color-mix(in_srgb,var(--pos)_18%,transparent)] text-pos";
   }
 
   if (status === "amber") {
-    return "bg-[color:color-mix(in_srgb,var(--warn)_18%,transparent)] text-[color:var(--warn)]";
+    return "bg-[color:color-mix(in_srgb,var(--warn)_18%,transparent)] text-warn";
   }
 
   if (status === "red") {
-    return "bg-[color:color-mix(in_srgb,var(--neg)_18%,transparent)] text-[color:var(--neg)]";
+    return "bg-[color:color-mix(in_srgb,var(--neg)_18%,transparent)] text-neg";
   }
 
-  return "bg-surface-3 text-[color:var(--accent)]";
+  return "bg-surface-3 text-accent";
 }

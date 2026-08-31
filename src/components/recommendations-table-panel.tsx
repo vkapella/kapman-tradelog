@@ -317,7 +317,7 @@ function RunChip({
       aria-pressed={active}
       className={[
         "shrink-0 rounded-lg border px-3 py-2 text-left text-xs",
-        active ? "border-accent bg-[color:var(--accent-dim)] text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
+        active ? "border-accent bg-accent-dim text-text" : "border-border bg-surface-3 text-text-2 hover:text-text",
       ].join(" ")}
     >
       <span className="block font-medium">{title}</span>

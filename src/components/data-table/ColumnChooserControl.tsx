@@ -62,7 +62,7 @@ export function ColumnChooserControl<Row>({
         aria-expanded={isOpen}
         className={
           hiddenCount > 0
-            ? "rounded border border-[color:var(--accent-border)] bg-[color:var(--accent-dim)] px-3 py-1.5 text-xs text-accent"
+            ? "rounded border border-accent-border bg-accent-dim px-3 py-1.5 text-xs text-accent"
             : "rounded border border-border bg-surface-3 px-3 py-1.5 text-xs text-text"
         }
       >

@@ -26,12 +26,23 @@ const config: Config = {
         pos: "var(--pos)",
         neg: "var(--neg)",
         warn: "var(--warn)",
+        // Tinted fills. These composite over a known opaque ground, so they
+        // stay alpha rather than flattening to a token (decision 32 flattens
+        // SURFACE tints; semantic tints keep their alpha).
+        "accent-dim": "var(--accent-dim)",
+        "pos-dim": "var(--pos-dim)",
+        "neg-dim": "var(--neg-dim)",
+        "warn-dim": "var(--warn-dim)",
       },
       borderColor: {
         DEFAULT: "var(--border)",
         border: "var(--border)",
         "border-subtle": "var(--border-subtle)",
         "border-strong": "var(--border-strong)",
+        // Deliberately NOT aliased as `accent`: borderColor.accent would
+        // override the colours-derived one and silently drop four existing
+        // full-opacity `border-accent` usages to 30%.
+        "accent-border": "var(--accent-border)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

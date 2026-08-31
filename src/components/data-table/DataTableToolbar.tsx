@@ -20,7 +20,7 @@ export function DataTableToolbar({
       <div className="flex items-center gap-2">
         {activeFilterCount > 0 ? (
           <>
-            <span className="rounded-full bg-[color:var(--accent-dim)] px-2 py-1 text-xs text-accent">{activeFilterCount} active filter{activeFilterCount === 1 ? "" : "s"}</span>
+            <span className="rounded-full bg-accent-dim px-2 py-1 text-xs text-accent">{activeFilterCount} active filter{activeFilterCount === 1 ? "" : "s"}</span>
             <button type="button" onClick={onClearAllFilters} className="rounded border border-border bg-surface-3 px-3 py-1.5 text-xs text-text">
               Clear all filters
             </button>

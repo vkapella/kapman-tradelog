@@ -241,13 +241,13 @@ export function TtsEvidencePanel() {
       </header>
 
       {loading ? <LoadingSkeleton lines={8} /> : null}
-      {error ? <p className="text-sm text-[color:var(--neg)]">{error}</p> : null}
+      {error ? <p className="text-sm text-neg">{error}</p> : null}
 
       {!loading && !error && !hasData ? (
         <div className="rounded-2xl border border-border bg-surface p-6">
           <h2 className="text-xl font-semibold text-text">No evidence metrics yet</h2>
           <p className="mt-2 text-sm text-text-2">Commit imports and generate matched lots to compute holding-period and activity evidence metrics.</p>
-          <Link href="/imports" className="mt-4 inline-block text-sm text-[color:var(--accent)] underline">
+          <Link href="/imports" className="mt-4 inline-block text-sm text-accent underline">
             Go to Imports & Connections
           </Link>
         </div>
