@@ -30,6 +30,36 @@ after UI-0 (token values) and UI-0a (role reassignment) merged.
    `pos`, `neg`, `warn`). Editing `:root` alone does not make a token
    reachable from a class name.
 
+**`scripts/check-design-system.mjs` is a vendored file under the same rule.**
+Copy it in; do not invoke it across repos. That was briefly advised here and it
+is wrong: Fair Value runs `npm run lint:design` as a CI gate on a plain
+single-repo `actions/checkout`, where `node ../kapman-tradelog/scripts/…` is
+`MODULE_NOT_FOUND` and turns a release gate red. The Screener can invoke it only
+because its `check:design` is a developer command no workflow calls — that is
+the exception, not the pattern.
+
+Put the app paths in the invocation, and split the CI run from the local one:
+
+```json
+"lint:design":        "KAPMAN_APP_SRC=src KAPMAN_APP_CSS=src/index.css KAPMAN_VENDOR_DIR=src/design node scripts/check-design-system.mjs",
+"lint:design:vendor": "KAPMAN_THEME_SOURCE=../kapman-tradelog/design npm run lint:design"
+```
+
+`lint:design` omits `KAPMAN_THEME_SOURCE` deliberately: with no sibling on
+disk, `vendor-integrity` warns and skips rather than failing CI.
+`lint:design:vendor` is the local run that actually checks it. Fair Value's
+`ci.yml` documents exactly this split; adopt its shape.
+
+**A vendored tool goes stale in a way a vendored stylesheet does not,** because
+its failure is silence. Fair Value's copy was 158 lines behind, reported "No
+design-system findings", ignored every environment variable it was given, and
+passed a seeded `#ff00ff`. `vendor-integrity` now compares the running script
+against the authoring repo's copy and reports a stale lint as a finding — so
+the tool that detects stale vendored files finally watches itself. It can only
+check this when the sibling is on disk, which is the `lint:design:vendor` run;
+under CI the rule has already skipped. A stale copy still cannot detect its own
+staleness — the check arrives with the re-vendor, not before it.
+
 ## The role mapping (from UI-0a — do not re-derive)
 
 Apply by **role**, not by whatever token or colour a call site used before.
