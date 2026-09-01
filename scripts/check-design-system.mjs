@@ -97,14 +97,27 @@ const findings = [];
 const report = (rule, file, line, message) =>
   findings.push({ rule, file: relative(ROOT, file), line, message });
 
+// .css is collected as well as the script extensions. Without it no
+// stylesheet was ever colour-scanned: this repo keeps its colours in Tailwind
+// class strings inside TSX, which walk() already reached, so the gap was
+// invisible from the authoring side — while a plain-CSS consumer keeps them in
+// a stylesheet that nothing read. Two raw hexes sat unreported in the
+// Screener's styles.css until it grepped for them. Screener, 2026-09-01.
+//
+// The vendored theme is skipped by RESOLVED PATH, not by the directory name:
+// the name only happened to match because both siblings call it design/.
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
+      if (resolve(full) === resolve(VENDOR_DIR)) continue; // not ours to lint
       if (entry === "design") continue; // the vendored theme is not ours to lint
       if (entry === "node_modules" || entry === "__tests__") continue;
       walk(full, out);
-    } else if ([".jsx", ".js", ".tsx", ".ts"].includes(extname(entry)) && !entry.includes(".test.")) {
+    } else if (
+      [".jsx", ".js", ".tsx", ".ts", ".css"].includes(extname(entry)) &&
+      !entry.includes(".test.")
+    ) {
       out.push(full);
     }
   }
@@ -115,25 +128,77 @@ function walk(dir, out = []) {
 const SRC_FILES = SRC_OK ? walk(SRC) : [];
 const APP_CSS_TEXT = APP_CSS_OK ? readFileSync(APP_CSS, "utf8") : "";
 
+// Does this repo CONSUME the vendored theme, or AUTHOR it? FOUR rules depend
+// on the answer — raw-color, shadowed-primitive, token parity and coverage —
+// because a consuming app has no :root and no reason to restate a primitive,
+// while the authoring app has both by definition. Computed here, before the
+// first rule that reads it, rather than beside the rules that used to.
+const CONSUMES_THEME = /@import[^;]*kapman-ui\.css|kapman-ui\.css["']/.test(
+  APP_CSS_TEXT + SRC_FILES.map((f) => readFileSync(f, "utf8")).join("\n"),
+);
+
+// Comment text, with block state tracked across lines. Used for two things:
+// keeping a documented colour out of raw-color, and deciding what is prose
+// when walking back to a suppression marker. The `://` guard keeps a URL from
+// truncating its own line.
+function stripComments(lines) {
+  let inBlock = false;
+  return lines.map((line) => {
+    let out = "";
+    for (let i = 0; i < line.length; i += 1) {
+      if (inBlock) {
+        if (line.startsWith("*/", i)) {
+          inBlock = false;
+          i += 1;
+        }
+        continue;
+      }
+      if (line.startsWith("/*", i)) {
+        inBlock = true;
+        i += 1;
+        continue;
+      }
+      if (line.startsWith("//", i) && line[i - 1] !== ":") break;
+      out += line[i];
+    }
+    return out;
+  });
+}
+
 const MARKER = /design-lint-allow:\s*\S/;
 const CODE_BOUNDARY = /[;{}]/;
 const MAX_COMMENT_LINES = 6;
+
+const strippedCache = new WeakMap();
+function codeOnly(lines) {
+  let cached = strippedCache.get(lines);
+  if (!cached) {
+    cached = stripComments(lines);
+    strippedCache.set(lines, cached);
+  }
+  return cached;
+}
 
 // A suppression covers its own line, or attaches to the comment block directly
 // above it — so a reason long enough to be worth reading can wrap across
 // lines. Walking back stops at the previous statement, which keeps a marker
 // from silently covering code further down the file.
-const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
-
 function allowed(lines, index) {
   if (MARKER.test(lines[index])) return true;
+  const code = codeOnly(lines);
   for (let i = index - 1; i >= 0 && index - i <= MAX_COMMENT_LINES; i -= 1) {
     if (MARKER.test(lines[i])) return true;
-    // Only real code ends the walk-back. Prose inside a comment routinely
-    // contains a semicolon, and treating that as a statement boundary made a
-    // multi-line reason silently fail to suppress — the worst failure mode
-    // for a tool whose whole value is being trusted.
-    if (!COMMENT_LINE.test(lines[i]) && CODE_BOUNDARY.test(lines[i])) break;
+    // Only real CODE ends the walk-back, decided by stripping comments rather
+    // than by how the line begins. A previous fix tested for a `//`, `/*` or
+    // `*` prefix, which is the JSDoc shape — but a CSS block comment's
+    // continuation lines are bare prose, so a reason containing a semicolon
+    // read as a statement boundary and the marker above it was never reached.
+    // The Screener's `.fb-badge` suppression ("...that amendment; taking a
+    // local substitute...") silently did not suppress, while its `.fl-hit-yes`
+    // one did, purely because that prose had no semicolon. Screener,
+    // 2026-09-01. A tool that silently ignores a written exemption is the one
+    // failure this programme cannot afford.
+    if (CODE_BOUNDARY.test(code[i])) break;
   }
   return false;
 }
@@ -185,40 +250,14 @@ for (const file of SRC_FILES) {
 // noise for; none of the three apps uses one.
 // ---------------------------------------------------------------------------
 const COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?\b|\brgba?\(|\bhsla?\(|\boklch\(/g;
-// A hex inside a COMMENT is documentation, not a colour the app ships. The
-// Screener's format.ts:56 records a measured contrast decision —
-// `// #1d7549 (not the old #1f7a4d): ... 4.45:1` — and both hexes were
-// reported. Same family as the 3-digit issue-reference fix, different
-// trigger; and a rule that fires on the rationale specifically punishes
-// writing the rationale down. Block state is tracked across lines. The `://`
-// guard keeps a URL from truncating its own line.
-function stripComments(lines) {
-  let inBlock = false;
-  return lines.map((line) => {
-    let out = "";
-    for (let i = 0; i < line.length; i += 1) {
-      if (inBlock) {
-        if (line.startsWith("*/", i)) {
-          inBlock = false;
-          i += 1;
-        }
-        continue;
-      }
-      if (line.startsWith("/*", i)) {
-        inBlock = true;
-        i += 1;
-        continue;
-      }
-      if (line.startsWith("//", i) && line[i - 1] !== ":") break;
-      out += line[i];
-    }
-    return out;
-  });
-}
 
-// APP_CSS is the app's :root — the token definitions themselves. Linting it
-// for raw colour asks the source of truth to look itself up.
-for (const file of SRC_FILES.filter((f) => f !== APP_CSS)) {
+// APP_CSS means two different files depending on who is running. In the
+// AUTHORING repo it is the token definitions — linting it for raw colour asks
+// the source of truth to look itself up, so it stays exempt. In a CONSUMER it
+// is just the app stylesheet, with no :root of its own, and exempting it hid
+// real colours. Same authoring-vs-consuming split the other rules already make.
+const colourScanExempt = (f) => !CONSUMES_THEME && f === APP_CSS;
+for (const file of SRC_FILES.filter((f) => !colourScanExempt(f))) {
   const lines = readFileSync(file, "utf8").split("\n");
   // Raw lines for allowed() — it reads comments to find the suppression
   // marker — and comment-stripped lines for matching.
@@ -241,13 +280,6 @@ for (const file of SRC_FILES.filter((f) => f !== APP_CSS)) {
 // and had its own `body` reported as a hand-rolled `.km-btn`. Those were
 // false signals, not findings. Gate both on whether the app actually imports
 // the theme.
-// Does this repo CONSUME the vendored theme, or AUTHOR it? Three rules depend
-// on the answer — shadowed-primitive, token parity, and the coverage count —
-// because a consuming app has no :root and no reason to restate a primitive,
-// while the authoring app has both by definition.
-const CONSUMES_THEME = /@import[^;]*kapman-ui\.css|kapman-ui\.css["']/.test(
-  APP_CSS_TEXT + SRC_FILES.map((f) => readFileSync(f, "utf8")).join("\n"),
-);
 
 // ---------------------------------------------------------------------------
 // Rule 6 — token parity between the app's :root and the vendored theme.
