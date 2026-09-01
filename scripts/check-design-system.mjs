@@ -165,6 +165,21 @@ function stripComments(lines) {
   });
 }
 
+// Blank out CSS comments while PRESERVING every newline and every character
+// offset, so line numbers and match indices still refer to the real file.
+//
+// Why this is not cosmetic: a comment inside a rule swallowed the declaration
+// after it, by two routes. With a semicolon in the prose the `;` split cut the
+// comment in half and kept the tail as a bogus declaration; without one the
+// comment and the next declaration formed a single chunk starting with `/*`
+// and were filtered out together. Either way the real declaration never
+// reached the comparison, so a documented rule scored lower than an
+// undocumented one. Third time this programme has shipped a rule that
+// penalises writing the rationale down, after the 3-digit issue references and
+// hex-in-comments. Screener gap 3, 2026-09-01.
+const blankCssComments = (css) =>
+  css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+
 const MARKER = /design-lint-allow:\s*\S/;
 const CODE_BOUNDARY = /[;{}]/;
 const MAX_COMMENT_LINES = 6;
@@ -309,7 +324,7 @@ function parseTokens(css) {
   // `.km-btn--primary:hover` and `.km-cell--overridden::before` both contain
   // `--name:`. Splitting on braces and semicolons puts every real declaration
   // at the start of its own line, so the anchor can stay.
-  const normalised = css.replace(/([{};])/g, "$1\n");
+  const normalised = blankCssComments(css).replace(/([{};])/g, "$1\n");
   for (const match of normalised.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)) {
     const value = match[2].replace(/\s*\/\*.*/, "").trim();
     tokens.set(match[1], [...(tokens.get(match[1]) ?? []), value]);
@@ -355,18 +370,25 @@ if (!APP_CSS_OK) {
 // ---------------------------------------------------------------------------
 function parseRules(css) {
   const rules = new Map();
+  const source = blankCssComments(css);
   // Flat rule parse — good enough for a token/primitive sheet, which has no
   // nesting beyond @media blocks whose inner rules parse the same way.
-  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = match[1].trim().split("\n").pop().trim();
     if (!selector || selector.startsWith("@") || selector.startsWith(":root")) continue;
     const decls = new Set(
       match[2]
         .split(";")
         .map((d) => d.trim().replace(/\s+/g, " ").toLowerCase())
-        .filter((d) => d.includes(":") && !d.startsWith("/*"))
+        .filter((d) => d.includes(":"))
     );
-    if (decls.size) rules.set(selector, decls);
+    if (!decls.size) continue;
+    // Offsets are unchanged by blanking, so these are real file lines: the
+    // selector shares a line with its `{`, and endLine closes the body. A
+    // finding needs both — one to point at, one to bound a marker search.
+    const line = source.slice(0, match.index + match[1].length).split("\n").length;
+    const endLine = source.slice(0, match.index + match[0].length).split("\n").length;
+    rules.set(selector, { decls, line, endLine });
   }
   return rules;
 }
@@ -399,18 +421,35 @@ const appRules = parseRules(APP_CSS_TEXT);
 const SHADOW_MIN_SHARED = 3;
 const SHADOW_MIN_COVERAGE = 0.5;
 
-for (const [appSelector, appDecls] of CONSUMES_THEME ? appRules : []) {
-  for (const [themeSelector, themeDecls] of themeRules) {
+// A finding must be suppressible, or a deliberate deferral makes the gate
+// permanently red and it stops being usable as a CI gate at all. This rule
+// reported at line 0 — no anchor, nothing for a marker to attach to, and a
+// message reading "styles.css:?" that made the reader grep for the selector.
+// It now reports at the rule's own line and honours a `design-lint-allow`
+// either in the comment block above the selector or anywhere inside the rule
+// body, because that is where a reason about a declaration naturally goes.
+// Screener gap 4, 2026-09-01. (token-parity still reports at line 0; its
+// escape hatch is APP_ONLY_TOKENS, which is deliberate and documented.)
+const appCssLines = APP_CSS_TEXT.split("\n");
+const ruleSuppressed = (rule) =>
+  allowed(appCssLines, rule.line - 1) ||
+  appCssLines.slice(rule.line - 1, rule.endLine).some((l) => MARKER.test(l));
+
+for (const [appSelector, appRule] of CONSUMES_THEME ? appRules : []) {
+  const appDecls = appRule.decls;
+  for (const [themeSelector, themeRule] of themeRules) {
     if (!themeSelector.startsWith(".km-")) continue;
+    const themeDecls = themeRule.decls;
     const shared = [...appDecls].filter((d) => themeDecls.has(d));
     const coverage = shared.length / themeDecls.size;
     if (shared.length >= SHADOW_MIN_SHARED && coverage >= SHADOW_MIN_COVERAGE) {
+      if (ruleSuppressed(appRule)) continue;
       // Worded as a LEAD, not a verdict. Both of the Screener's survivors were
       // true findings under the wrong name: one was a third site for an
       // untokenised pairing, the other an adoption gap against a different
       // primitive than the one named. "Use the primitive instead of
       // re-implementing it" would have had both actioned wrongly.
-      report("shadowed-primitive", APP_CSS, 0,
+      report("shadowed-primitive", APP_CSS, appRule.line,
         `"${appSelector}" shares ${shared.length} of "${themeSelector}"'s ${themeDecls.size} declarations (${Math.round(coverage * 100)}%) — its closest match in the theme. Worth checking whether it should adopt a primitive, or whether the theme is missing one.`);
     }
   }
@@ -454,6 +493,34 @@ if (!existsSync(THEME_SOURCE)) {
         `edited — land the change in the authoring repo's design/${file} on a ` +
         `theme/<name> branch, merge, then re-vendor. (diff "${mine}" "${theirs}")`);
     }
+  }
+
+  // THIS SCRIPT IS A VENDORED FILE TOO, and nothing was watching it. Decision
+  // 04 says copy verbatim, which is right — Fair Value runs the lint as a CI
+  // gate on a sibling-less checkout, so cross-repo invocation is not available
+  // to it. But a copied TOOL goes stale invisibly in a way a copied stylesheet
+  // does not: a stale copy reports "No design-system findings" and the reader
+  // cannot tell that from a clean repo. Fair Value's 341-line copy was passing
+  // a seeded `#ff00ff` while reporting zero, and ignoring every env var it was
+  // given. The tool that detects stale vendored files did not watch itself.
+  //
+  // Only checkable when the sibling is on disk, which is exactly the local
+  // re-vendor run. Under CI, where THEME_SOURCE is deliberately unset, the
+  // whole rule has already skipped loudly above. Fair Value, 2026-09-01.
+  const SELF = fileURLToPath(import.meta.url);
+  const upstreamSelf = join(THEME_SOURCE, "..", "scripts", "check-design-system.mjs");
+  if (!existsSync(upstreamSelf)) {
+    console.warn(
+      `WARN  vendor-integrity: cannot find the upstream copy of this script at ` +
+        `${upstreamSelf} — staleness of the lint itself is unchecked.`,
+    );
+  } else if (resolve(SELF) !== resolve(upstreamSelf)
+      && readFileSync(SELF, "utf8") !== readFileSync(upstreamSelf, "utf8")) {
+    report("vendor-integrity", SELF, 0,
+      `this lint is a STALE COPY of the shared script. Every result above was ` +
+      `produced by an out-of-date tool and a clean report cannot be trusted. ` +
+      `Re-vendor it the way you re-vendor the CSS. ` +
+      `(diff "${SELF}" "${upstreamSelf}")`);
   }
 }
 
