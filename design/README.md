@@ -125,6 +125,29 @@ width under a coarse pointer, so the floor had never applied to them, and
 `.km-remove` is an `.km-icon-btn`. A touch floor is not something you can read
 off the source and believe; measure it.
 
+**A consuming app can defeat the floor from outside the theme, and only in one
+precise way.** The rule above governs placement *within* `kapman-ui.css`; the
+same cascade tie exists one layer out, because the app sheet loads after the
+theme. The Screener shipped `.filter-clear-all { min-height: 26px }` over a
+`.km-btn` and measured **26px under a coarse pointer** — decision 54's floor
+defeated from the app side, with nothing detecting it: the lint has no rule for
+this, and the comment in the theme file only warns about reordering the theme.
+
+The hazard is narrower than "don't override compactly", and stating it too
+broadly sends people to pointer-scope declarations that were never a threat.
+**Only an override of the *same property* can win.** Measured, headless
+Chromium at 1366 under a coarse pointer, with the app utilities emitted last:
+
+| App declaration on a `.km-*` control | Coarse | Verdict |
+|---|---|---|
+| `min-height` / `min-block-size: 26px` | **26px** | floor defeated — cascade tie, source order decides |
+| `height: 20px` (e.g. Tailwind `h-5`) | **44px** | floor holds — `min-height` clamps `height` by the used-value rules |
+
+So: a compact **`min-height`** override of a theme control must be scoped to
+`(pointer: fine)`. A height or size utility on the same element needs nothing —
+it cannot beat the minimum. Reported and fixed by the Screener, corroborated by
+measurement here, 2026-09-01.
+
 ## The brand mark
 
 The 28px tile renders the **commissioned mark**, `assets/kapman-mark.png` from
