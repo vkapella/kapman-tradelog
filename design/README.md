@@ -255,7 +255,23 @@ decision 55's "width-driven" means it comes off entirely is still open.
 **Fair Value mirrors this query in JS** (`KapmanGrid.jsx` `useTokenRowHeight`)
 so its engine and CSS agree — it must move that string with the re-vendor.
 
-No hamburger drawer at any width; primary nav is always visible.
+**The drawer stays.** It is shipped in Tradelog (`root-shell.tsx`) with focus
+restoration, a scrim, and scroll lock, and with a rail arriving in the `md`–`lg`
+band its job is that band. An earlier "no hamburger at any width" line belonged
+to the 1180/820 ladder that was replaced on 2026-08-30 and stood here until
+2026-09-02; it was never implementable, because below `md` the drawer is the
+only route to more than half the app:
+
+| Band | Persistent nav | Reaches | Drawer-only |
+|---|---|---|---|
+| ≥ 1024 | Sidebar, all eleven destinations | everything | — (no drawer) |
+| 768–1024 | Icon rail, all eleven, `aria-label` each | everything, icons only | the **labels** |
+| < 768 | Bottom tabs: Dashboard, Today, Positions, Recs, Analytics | five | **six destinations + Sign out** — Executions / Lots / Setups, Imports & Connections, Accounts, Adjustments, TTS Evidence, Diagnostics |
+
+Sign out lives in the drawer footer below `lg` by decision 44. The six
+drawer-only paths are pinned by `navigation.test.ts` ("returns null for
+drawer-only destinations"); a nav change that makes that test pass by deleting
+the drawer has removed the destinations, not simplified the nav.
 
 ## Set filters: one meaning for a click
 
