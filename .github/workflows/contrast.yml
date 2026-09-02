@@ -38,6 +38,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # The design lint ran locally only in the theme owner's repo while the
+      # consuming repos gated it in CI — three gating stories from one
+      # programme. It needs no server or database; the authoring self-run is
+      # a token-parity and vendor self-comparison and must stay at zero.
+      - name: Design lint
+        run: npm run lint:design
       - run: npx playwright install --with-deps chromium
       - run: npx prisma generate
       - run: npx prisma migrate deploy
