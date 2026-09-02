@@ -244,7 +244,34 @@ One ladder, Tailwind's default screens (revised 2026-08-30 — the earlier
 | 768–1024 (`md`) | Rail `--rail-w`, icons + `aria-label` | `--row-h-touch` |
 | < 768 | Bottom tabs `--tabbar-h` + safe-area | `--row-h-touch` |
 
+**The grid CSS now agrees with this table** (owner ruling 57, 2026-09-02).
+Until then `kapman-grid.css` scoped `--row-h-touch` to `max-width: 767px`
+while this table and Tradelog's own `globals.css` said 1023 — so a 12.9″ iPad
+in the rail band rendered 44px rows in Tradelog and 30px rows in the two apps
+that copy the file. Both queries are `(pointer: coarse) and (max-width:
+1023.98px)`. Measured, old file first: 800 and 1023px coarse went 30 → 44;
+1024 and any fine pointer stay 30. The pointer clause is retained; whether
+decision 55's "width-driven" means it comes off entirely is still open.
+**Fair Value mirrors this query in JS** (`KapmanGrid.jsx` `useTokenRowHeight`)
+so its engine and CSS agree — it must move that string with the re-vendor.
+
 No hamburger drawer at any width; primary nav is always visible.
+
+## Set filters: one meaning for a click
+
+**Owner ruling 58, 2026-09-02.** The three apps shipped three behaviours for
+the checkbox list behind a column filter, and #109 asked which is canonical.
+**Tradelog's is:** the panel opens with **nothing checked**, a click **adds**
+that value, and the filter **commits on Apply** — never per toggle. Escape
+reverts the draft. It is the literal reading, it cannot re-filter the table on
+an accidental tap, and it is the only one of the three that already matched
+the keyboard contract (Enter commits, Escape reverts).
+
+The two that change: **Fair Value** opens all-checked, a click excludes, and
+commits on every toggle (`SetFilter.jsx:61–62`); **the Screener** opens
+all-checked with "first click means only this" (`SetFilter.tsx:79`), a local
+fix for a real confusion that is now superseded by the system rule. Neither
+persisted filter shape moves — this is panel behaviour only.
 
 ## Icons
 
