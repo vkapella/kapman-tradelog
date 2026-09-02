@@ -10,7 +10,16 @@
 
 /* ---- row height ----
    Pointer: var(--row-h). Touch: var(--row-h-touch) = 44px.
-   The value of --row-h itself is owned by kapman-ui.css (UI-7). */
+   The value of --row-h itself is owned by kapman-ui.css (UI-7).
+
+   The touch rule is scoped (pointer: coarse) and (max-width: 1023.98px):
+   the README ladder puts BOTH the <768 tab-bar band and the 768-1024 rail
+   band on --row-h-touch, and Tradelog's own globals.css already did. Until
+   2026-09-02 this file said 767px, so a 12.9" iPad in the rail band got 44px
+   rows in Tradelog and 30px rows in the two apps that copy this file — the
+   copied file was the outlier, not the spec. The pointer clause stays
+   pending a reading of decision 55's "width-driven"; the number is what
+   the siblings measured against. */
 
 /* ---- AG Grid adapter (Screener) ----
    Replaces the raw-hex --ag-* block: theme params point AT the tokens so
@@ -32,7 +41,7 @@
   --ag-cell-horizontal-padding:     8px;
   --ag-grid-size:                   4px;
 }
-@media (pointer: coarse) and (max-width: 767px) {
+@media (pointer: coarse) and (max-width: 1023.98px) {
   .ag-theme-kapman { --ag-row-height: var(--row-h-touch); }
 }
 
@@ -40,7 +49,7 @@
 .km-grid { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
 .km-grid-head { background: var(--surface-2); color: var(--text-2); }
 .km-grid-row { min-height: var(--row-h); border-bottom: 1px solid var(--border-subtle); }
-@media (pointer: coarse) and (max-width: 767px) { .km-grid-row { min-height: var(--row-h-touch); } }
+@media (pointer: coarse) and (max-width: 1023.98px) { .km-grid-row { min-height: var(--row-h-touch); } }
 .km-grid-row:hover { background: var(--surface-2); }   /* hover never changes row height */
 
 /* selection: accent-dim wash + 2px accent left rail */
