@@ -283,6 +283,14 @@ reverts the draft. It is the literal reading, it cannot re-filter the table on
 an accidental tap, and it is the only one of the three that already matched
 the keyboard contract (Enter commits, Escape reverts).
 
+**Reopening a column that already has a filter committed shows the committed
+set checked**, not an empty list — "nothing checked" is the unfiltered case.
+Escape reverts the draft to that committed set, leaving the filter in force.
+Fair Value had to interpret this from the text above; it is Tradelog's shipped
+behaviour (`ColumnFilterPanel.tsx:46` seeds the draft from `currentValues`,
+`:55–62` re-seeds it when the committed filter changes, `ConfigVirtualTable.tsx:141`
+passes `table.filters[columnId] ?? []`), stated here so nobody else has to.
+
 The two that change: **Fair Value** opens all-checked, a click excludes, and
 commits on every toggle (`SetFilter.jsx:61–62`); **the Screener** opens
 all-checked with "first click means only this" (`SetFilter.tsx:79`), a local
