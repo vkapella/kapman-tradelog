@@ -15,8 +15,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { prisma } from "../src/lib/db/prisma";
 import { parseJournalLogFile } from "../src/lib/recommendations/journal-md";
-import { upsertRecommendations } from "../src/lib/recommendations/upsert";
-import { recommendationIngestSchema } from "../src/lib/recommendations/types";
+import { RecommendationIngestError, upsertRecommendations } from "../src/lib/recommendations/upsert";
+import { recommendationIngestSchema, scopeIncompleteRecIds } from "../src/lib/recommendations/types";
 
 function walkMarkdownFiles(dir: string): string[] {
   const out: string[] = [];
@@ -82,14 +82,35 @@ async function main() {
       totalParsed += valid.length;
       totalSkipped += skipped.length;
 
+      // A run file missing its legal_entity or environment frontmatter is not
+      // ingested half-scoped (#349); the whole file is reported instead.
+      const incomplete = scopeIncompleteRecIds(valid);
+      if (incomplete.length > 0) {
+        totalInvalid += valid.length;
+        console.warn(`  SCOPE_INCOMPLETE ${relPath}: run_id present but legal_entity/environment missing — ${valid.length} rows not ingested`);
+        continue;
+      }
+
       let created = 0;
       let updated = 0;
       if (!dryRun && valid.length > 0) {
-        const result = await upsertRecommendations(valid);
-        created = result.created;
-        updated = result.updated;
-        totalCreated += created;
-        totalUpdated += updated;
+        try {
+          const result = await upsertRecommendations(valid);
+          created = result.created;
+          updated = result.updated;
+          totalCreated += created;
+          totalUpdated += updated;
+        } catch (error) {
+          if (error instanceof RecommendationIngestError) {
+            totalInvalid += valid.length;
+            console.warn(`  ${error.code} ${relPath}: ${error.message}`);
+            for (const detail of error.details) {
+              console.warn(`    ${detail}`);
+            }
+            continue;
+          }
+          throw error;
+        }
       }
 
       console.log(

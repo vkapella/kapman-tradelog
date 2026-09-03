@@ -19,7 +19,7 @@ import {
   parseStrikes,
   type NormalizedDisposition,
 } from "@/lib/recommendations/normalize";
-import type { RecommendationIngest } from "@/lib/recommendations/types";
+import type { RecommendationIngest, TradingEnvironmentValue } from "@/lib/recommendations/types";
 
 export interface SkippedRow {
   line: number;
@@ -111,6 +111,18 @@ function lineageFromPath(relativePath: string): string | null {
 }
 
 /**
+ * Since journal_schema_version 4.1 run records are named by their run_id stem,
+ * `<lineage>-RNN.md` (JOURNAL_MGMT "Run ID format"). The run is read from the
+ * frontmatter first and the filename second; two runs off one handoff must
+ * never collapse into one recId (#349).
+ */
+function runIdFromPath(relativePath: string): string | null {
+  const base = relativePath.split("/").pop() ?? "";
+  const match = base.match(/^([A-Z]{2}-\d{8}-\d{4}-\d{2}-R\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
  * The as_of key itself drifts across runs (as_of / date / session_date, or
  * absent). The lineage ID is derived from the export's own exported_at
  * timestamp (JOURNAL_MGMT), so reading the date out of the lineage is
@@ -123,6 +135,12 @@ function resolveAsOf(frontmatter: Record<string, string>, lineageId: string): st
   }
   const fromLineage = lineageId.match(/^[A-Z]{2}-(\d{4})(\d{2})(\d{2})-/);
   return fromLineage ? `${fromLineage[1]}-${fromLineage[2]}-${fromLineage[3]}` : null;
+}
+
+/** kb writes `environment: live | paper`; anything else is left unset, never guessed. */
+function normalizeEnvironment(value: string | undefined): TradingEnvironmentValue | null {
+  const upper = value?.trim().toUpperCase();
+  return upper === "LIVE" || upper === "PAPER" ? upper : null;
 }
 
 function passFromPath(relativePath: string, kind: string | undefined): "PASS1" | "PASS2" | null {
@@ -141,6 +159,9 @@ export function parseJournalLogFile(content: string, relativePath: string): Pars
   const lines = content.split("\n");
   const frontmatter = parseFrontmatter(lines);
   const lineageId = lineageFromPath(relativePath);
+  const runId = frontmatter.run_id?.trim() || runIdFromPath(relativePath);
+  const legalEntitySlug = frontmatter.legal_entity?.trim() || null;
+  const environment = normalizeEnvironment(frontmatter.environment);
   const pass = passFromPath(relativePath, frontmatter.kind);
   const rows: RecommendationIngest[] = [];
   const skipped: SkippedRow[] = [];
@@ -227,9 +248,14 @@ export function parseJournalLogFile(content: string, relativePath: string): Pars
     const optionType = strikes?.optionType ?? optionTypeFromStructure(structure);
 
     rows.push({
-      recId: `${lineageId}/${localRecId}`,
+      // A scoped run keys its rows on the run so two runs off one handoff
+      // never collide; legacy files keep the lineage key (#349).
+      recId: `${runId ?? lineageId}/${localRecId}`,
       lineageId,
       localRecId,
+      runId,
+      legalEntitySlug,
+      environment,
       pass,
       disposition,
       asOf,

@@ -40,6 +40,55 @@ function exec(overrides: Partial<PlanExecRow> = {}): PlanExecRow {
   };
 }
 
+describe("matchRecommendationToExecutions — entity scope (#349)", () => {
+  const personalFill = exec({ id: "personal", accountId: "fidelity", accountLegalEntityId: "le_personal", accountPaperMoney: false, price: 16.7 });
+  const corporateFill = exec({ id: "corporate", accountId: "schwab-corp", accountLegalEntityId: "le_corp", accountPaperMoney: false, price: 18.2 });
+  const paperFill = exec({ id: "paper", accountId: "d-53", accountLegalEntityId: "le_personal", accountPaperMoney: true, price: 16.0 });
+
+  it("attributes only the entity's own live fill to a scoped recommendation", () => {
+    const personal = matchRecommendationToExecutions(
+      rec({ recId: "VS-1-R1/P2-01", legalEntityId: "le_personal", legalEntitySlug: "personal-vkapella", environment: "LIVE" }),
+      [personalFill, corporateFill, paperFill],
+      5,
+    );
+    expect(personal.scope).toEqual({ kind: "SCOPED", legalEntitySlug: "personal-vkapella", environment: "LIVE" });
+    expect(personal.legs[0]?.executionIds).toEqual(["personal"]);
+    expect(personal.effectivePrice).toBe(16.7);
+
+    const corporate = matchRecommendationToExecutions(
+      rec({ recId: "VS-1-R2/P2-01", legalEntityId: "le_corp", legalEntitySlug: "kapman-capital", environment: "LIVE" }),
+      [personalFill, corporateFill, paperFill],
+      5,
+    );
+    expect(corporate.legs[0]?.executionIds).toEqual(["corporate"]);
+    expect(corporate.effectivePrice).toBe(18.2);
+  });
+
+  it("keeps a paper run away from live fills and vice versa", () => {
+    const paperRun = matchRecommendationToExecutions(
+      rec({ legalEntityId: "le_personal", legalEntitySlug: "personal-vkapella", environment: "PAPER" }),
+      [personalFill, paperFill],
+      5,
+    );
+    expect(paperRun.legs[0]?.executionIds).toEqual(["paper"]);
+  });
+
+  it("never matches an unclassified account to a scoped recommendation", () => {
+    const result = matchRecommendationToExecutions(
+      rec({ legalEntityId: "le_corp", legalEntitySlug: "kapman-capital", environment: "LIVE" }),
+      [exec({ id: "unclassified", accountLegalEntityId: null, accountPaperMoney: false })],
+      5,
+    );
+    expect(result.taken).toBe(false);
+  });
+
+  it("keeps the all-accounts join for legacy unscoped recommendations and says so", () => {
+    const result = matchRecommendationToExecutions(rec(), [personalFill, corporateFill], 5);
+    expect(result.scope).toEqual({ kind: "LEGACY_UNSCOPED" });
+    expect(result.legs[0]?.executionIds).toEqual(["personal", "corporate"]);
+  });
+});
+
 describe("matchRecommendationToExecutions — single leg", () => {
   it("marks a same-day fill inside the range", () => {
     const result = matchRecommendationToExecutions(rec(), [exec()], 5);

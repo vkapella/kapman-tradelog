@@ -12,12 +12,26 @@
  * Pure functions over plain rows — the route fetches, this file matches.
  */
 
+/**
+ * Which accounts a recommendation may be matched against. A scoped
+ * recommendation (segregation Phase 3, #349) only ever joins fills from
+ * accounts of its own legal entity and environment; a legacy unscoped one
+ * keeps the original all-accounts join and says so.
+ */
+export type PlanVsActualScope =
+  | { kind: "LEGACY_UNSCOPED" }
+  | { kind: "SCOPED"; legalEntitySlug: string; environment: "LIVE" | "PAPER" };
+
 export interface PlanRecRow {
   recId: string;
   ticker: string;
   structure: string | null;
   disposition: string;
   asOf: Date;
+  /** Internal LegalEntity id of the producing run; null = LEGACY_UNSCOPED. */
+  legalEntityId?: string | null;
+  legalEntitySlug?: string | null;
+  environment?: "LIVE" | "PAPER" | null;
   optionType: string | null;
   strike: number | null;
   strikeShort: number | null;
@@ -30,6 +44,9 @@ export interface PlanRecRow {
 export interface PlanExecRow {
   id: string;
   accountId: string;
+  /** Owning account's legal entity (null = unclassified) and environment. */
+  accountLegalEntityId?: string | null;
+  accountPaperMoney?: boolean;
   tradeDate: Date;
   underlyingSymbol: string | null;
   optionType: string | null;
@@ -56,6 +73,7 @@ export interface PlanVsActualRow {
   ticker: string;
   structure: string | null;
   asOf: string;
+  scope: PlanVsActualScope;
   expirationDate: string | null;
   entryRangeLow: number | null;
   entryRangeHigh: number | null;
@@ -107,6 +125,26 @@ function openingSideForSingleLeg(structure: string | null): "BUY" | "SELL" | nul
   }
 }
 
+function resolveScope(rec: PlanRecRow): PlanVsActualScope {
+  if (rec.legalEntityId && rec.legalEntitySlug && rec.environment) {
+    return { kind: "SCOPED", legalEntitySlug: rec.legalEntitySlug, environment: rec.environment };
+  }
+  return { kind: "LEGACY_UNSCOPED" };
+}
+
+/**
+ * A scoped recommendation only sees fills from accounts of its entity and
+ * environment; an unclassified account (null entity) never matches a scoped
+ * recommendation. Legacy rows keep the all-accounts join.
+ */
+function inScope(rec: PlanRecRow, exec: PlanExecRow): boolean {
+  if (!(rec.legalEntityId && rec.environment)) {
+    return true;
+  }
+  const accountEnvironment = exec.accountPaperMoney ? "PAPER" : "LIVE";
+  return exec.accountLegalEntityId === rec.legalEntityId && accountEnvironment === rec.environment;
+}
+
 function withinWindow(exec: PlanExecRow, rec: PlanRecRow, windowDays: number): boolean {
   const start = rec.asOf.getTime();
   const end = start + windowDays * DAY_MS;
@@ -152,11 +190,13 @@ export function matchRecommendationToExecutions(
   executions: PlanExecRow[],
   windowDays: number,
 ): PlanVsActualRow {
+  const scope = resolveScope(rec);
   const base = {
     recId: rec.recId,
     ticker: rec.ticker,
     structure: rec.structure,
     asOf: rec.asOf.toISOString().slice(0, 10),
+    scope,
     expirationDate: rec.expirationDate ? rec.expirationDate.toISOString().slice(0, 10) : null,
     entryRangeLow: rec.entryRangeLow,
     entryRangeHigh: rec.entryRangeHigh,
@@ -178,6 +218,7 @@ export function matchRecommendationToExecutions(
 
   const candidates = executions.filter(
     (exec) =>
+      inScope(rec, exec) &&
       exec.underlyingSymbol?.toUpperCase() === rec.ticker.toUpperCase() &&
       sameDate(exec.expirationDate, rec.expirationDate) &&
       (rec.optionType === null || exec.optionType === null || exec.optionType === rec.optionType) &&

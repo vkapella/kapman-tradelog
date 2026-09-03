@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/Badge";
 import { ColumnChooserControl } from "@/components/data-table/ColumnChooserControl";
@@ -106,6 +106,30 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
     width: "180px",
     tier: 2,
     render: (row) => <span className="font-mono">{row.lineageId}</span>,
+  },
+  {
+    definition: {
+      id: "scope",
+      label: "Run / scope",
+      sortMode: "string",
+      getSortValue: (row) => row.runId ?? "",
+    },
+    width: "220px",
+    tier: 2,
+    // Entity + environment of the consuming run (#349); Legacy = produced
+    // before runs carried scope, matched across every account.
+    render: (row) =>
+      row.runId === null ? (
+        <span className="rounded border border-neg-border bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg">Legacy</span>
+      ) : (
+        <span className="flex items-center gap-1">
+          <span className="font-mono">{row.runId}</span>
+          {row.legalEntity ? <span className="text-[10px] text-text-2">{row.legalEntity.legalName}</span> : null}
+          {row.environment === "PAPER" ? (
+            <span className="rounded border border-warn-border bg-warn-dim px-1 py-px text-[9px] uppercase tracking-wide text-warn">Paper</span>
+          ) : null}
+        </span>
+      ),
   },
   {
     definition: {
@@ -299,16 +323,44 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
   },
 ];
 
+/**
+ * Same badge vocabulary as the account selector (#335): entity name, Paper,
+ * and — for rows produced before runs carried scope — Legacy (#349).
+ */
+function ScopeBadges({ summary }: { summary: Pick<RecommendationLineageSummaryRecord, "runId" | "legalEntity" | "environment"> }) {
+  if (summary.runId === null) {
+    return (
+      <span className="rounded border border-neg-border bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg" title="LEGACY_UNSCOPED: produced before runs carried a legal entity and environment">
+        Legacy
+      </span>
+    );
+  }
+  return (
+    <>
+      {summary.legalEntity ? (
+        <span className="truncate text-[10px] text-text-2" title={summary.legalEntity.slug}>
+          {summary.legalEntity.legalName}
+        </span>
+      ) : null}
+      {summary.environment === "PAPER" ? (
+        <span className="rounded border border-warn-border bg-warn-dim px-1 py-px text-[9px] uppercase tracking-wide text-warn">Paper</span>
+      ) : null}
+    </>
+  );
+}
+
 function RunChip({
   active,
   onSelect,
   title,
   subtitle,
+  badges,
 }: {
   active: boolean;
   onSelect: () => void;
   title: string;
   subtitle: string | null;
+  badges?: ReactNode;
 }) {
   return (
     <button
@@ -322,6 +374,7 @@ function RunChip({
     >
       <span className="block font-medium">{title}</span>
       {subtitle ? <span className="mt-0.5 block font-mono text-[10px]">{subtitle}</span> : null}
+      {badges ? <span className="mt-1 flex items-center gap-1">{badges}</span> : null}
     </button>
   );
 }
@@ -393,7 +446,10 @@ export function RecommendationsTablePanel() {
       try {
         const query = new URLSearchParams();
         if (selectedLineage) {
-          query.set("lineageId", selectedLineage);
+          // The selector key is the run when the rows carry one (#349); a bare
+          // lineage (legacy group, or a ?lineage= deep link) filters by lineage.
+          const selectedSummary = summaries?.find((summary) => summary.groupKey === selectedLineage) ?? null;
+          query.set(selectedSummary?.runId ? "runId" : "lineageId", selectedLineage);
         }
         const payload = await fetchAllPages<RecommendationRecord>("/api/recommendations", query);
         if (!cancelled) {
@@ -416,7 +472,7 @@ export function RecommendationsTablePanel() {
     return () => {
       cancelled = true;
     };
-  }, [lineageInitialized, selectedLineage]);
+  }, [lineageInitialized, selectedLineage, summaries]);
 
   const [detailRow, setDetailRow] = useState<RecommendationRecord | null>(null);
   // Every rendered track is config-derived (#340): the reserved "Outcome"
@@ -487,11 +543,12 @@ export function RecommendationsTablePanel() {
         />
         {(summaries ?? []).map((summary) => (
           <RunChip
-            key={summary.lineageId}
-            active={selectedLineage === summary.lineageId}
-            onSelect={() => setSelectedLineage(summary.lineageId)}
-            title={`${summary.asOf ? summary.asOf.slice(0, 10) : "—"} · ${summary.lineageId}`}
+            key={summary.groupKey}
+            active={selectedLineage === summary.groupKey}
+            onSelect={() => setSelectedLineage(summary.groupKey)}
+            title={`${summary.asOf ? summary.asOf.slice(0, 10) : "—"} · ${summary.groupKey}`}
             subtitle={`${summary.rowCount} rows · ${formatDispositionBreakdown(summary.dispositions)}`}
+            badges={<ScopeBadges summary={summary} />}
           />
         ))}
       </div>

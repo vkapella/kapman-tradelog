@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   }
   const includeFlagged = url.searchParams.get("includeFlagged") === "true";
   const lineageId = url.searchParams.get("lineageId") ?? undefined;
+  const runId = url.searchParams.get("runId") ?? undefined;
   const ticker = url.searchParams.get("ticker") ?? undefined;
 
   const recRows = await prisma.tradeRecommendation.findMany({
@@ -27,8 +28,10 @@ export async function GET(request: Request) {
       pass: "PASS2",
       disposition: includeFlagged ? { in: ["VALIDATED", "FLAGGED"] } : "VALIDATED",
       ...(lineageId ? { lineageId } : {}),
+      ...(runId ? { runId } : {}),
       ...(ticker ? { ticker: ticker.toUpperCase() } : {}),
     },
+    include: { legalEntity: { select: { slug: true } } },
     orderBy: [{ asOf: "desc" }, { recId: "asc" }],
   });
 
@@ -37,6 +40,8 @@ export async function GET(request: Request) {
   }
 
   const tickers = Array.from(new Set(recRows.map((rec) => rec.ticker)));
+  // Every account's fills are loaded; the matcher restricts a scoped
+  // recommendation to its own entity and environment (#349).
   const execRows = await prisma.execution.findMany({
     where: {
       assetClass: "OPTION",
@@ -46,6 +51,7 @@ export async function GET(request: Request) {
     select: {
       id: true,
       accountId: true,
+      account: { select: { legalEntityId: true, paperMoney: true } },
       tradeDate: true,
       underlyingSymbol: true,
       optionType: true,
@@ -61,6 +67,8 @@ export async function GET(request: Request) {
   const executions: PlanExecRow[] = execRows.map((exec) => ({
     id: exec.id,
     accountId: exec.accountId,
+    accountLegalEntityId: exec.account.legalEntityId,
+    accountPaperMoney: exec.account.paperMoney,
     tradeDate: exec.tradeDate,
     underlyingSymbol: exec.underlyingSymbol,
     optionType: exec.optionType ? exec.optionType.toUpperCase() : null,
@@ -79,6 +87,9 @@ export async function GET(request: Request) {
       structure: rec.structure,
       disposition: rec.disposition,
       asOf: rec.asOf,
+      legalEntityId: rec.legalEntityId,
+      legalEntitySlug: rec.legalEntity?.slug ?? null,
+      environment: rec.environment,
       optionType: rec.optionType,
       strike: rec.strike === null ? null : rec.strike.toNumber(),
       strikeShort: rec.strikeShort === null ? null : rec.strikeShort.toNumber(),

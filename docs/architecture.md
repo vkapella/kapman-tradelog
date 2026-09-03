@@ -139,3 +139,15 @@ These differences mean NLV-based portfolio return and strategy analytics may not
 Quote-backed position snapshots use `src/lib/mcp/market-data.ts`, which calls an MCP client wrapper for equity and option quotes. Position snapshot compute persists the quoted mark values, marked positions, current NLV, unrealized P&L, realized P&L, cash adjustments, manual adjustments, total gain, starting capital, and unexplained delta in `PositionSnapshot`.
 
 If quote retrieval fails, snapshot status becomes `FAILED` and the UI keeps the previous cached open-position view where available.
+
+## Recommendation Mirror
+
+`trade_recommendations` mirrors the kapman-journal Pass 1 / Pass 2 records (kb `JOURNAL_MGMT_v4.0.md`, "a mirror, never a second authority"). Two producers write it: `POST /api/recommendations` (the KB session at end of run) and `scripts/ingest-recommendations.ts` (replay from a journal clone). Both are idempotent on `recId`. The shared contract is `RecommendationRecord` / `RecommendationLineageSummaryRecord` in `types/api.ts`.
+
+**Run scope (segregation Phase 3, #349).** Each row may carry the consuming run: `runId` (`<lineage_id>-RNN`), `legalEntityId` (FK to `legal_entities`), `environment` (`LIVE | PAPER`; the kb `live | paper` spelling is accepted and stored uppercase). Rows without a run are `LEGACY_UNSCOPED` and are never backfilled.
+
+- `POST /api/recommendations`: `runId`, `legalEntitySlug`, `environment` are optional but all-or-nothing (`SCOPE_INCOMPLETE`); the slug must resolve (`UNKNOWN_LEGAL_ENTITY`). A `recId` already stored under a different run is refused with `REC_ID_RUN_MISMATCH` (409) instead of overwritten. A scoped re-POST may stamp a legacy unscoped row once; an unscoped re-POST never strips a scope.
+- Journal parser: run records are named `<lineage>-RNN.md`; the run is read from `run_id` frontmatter, then the filename stem, and scoped rows are keyed `<run_id>/<local rec id>` so two runs off one handoff never collide.
+- `GET /api/recommendations`: filter by `runId` or `lineageId`.
+- `GET /api/recommendations/lineages`: one group per run when rows carry one, else per lineage; each group exposes `groupKey`, `runId`, `legalEntity`, `environment`.
+- `GET /api/recommendations/plan-vs-actual`: a scoped recommendation is matched only against fills from accounts whose legal entity and paper flag equal the run's; every row reports `scope` (`SCOPED` or `LEGACY_UNSCOPED`, the latter still joining across all accounts).

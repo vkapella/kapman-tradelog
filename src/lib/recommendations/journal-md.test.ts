@@ -211,6 +211,53 @@ kind: pass2_log
     expect(parsed.rows[0].lineageId).toBe("VS-20260727-2348-01");
   });
 
+  // #349: two runs off one handoff (personal + corporate) share the lineage
+  // and local rec ids; the run keys them apart. Legacy files keep the lineage key.
+  it("keys scoped run records on the run so two runs off one handoff never collide", () => {
+    const table = [
+      "## Validated",
+      "",
+      "| rec_id | ticker | structure | strike | expiration | entry range |",
+      "|---|---|---|---|---|---|",
+      "| P2-01 | MSFT | Long Call | 510 | 2026-11-20 | $12.00–$13.00 |",
+    ].join("\n");
+    const personal = parseJournalLogFile(
+      ["---", "kind: pass2_log", "run_id: VS-20260901-1400-01-R1", "source_lineage_id: VS-20260901-1400-01", "legal_entity: personal-vkapella", "environment: live", "date: 2026-09-01", "---", table].join("\n"),
+      "log/pass2/2026-09/VS-20260901-1400-01-R1.md",
+    );
+    const corporate = parseJournalLogFile(
+      ["---", "kind: pass2_log", "date: 2026-09-01", "legal_entity: kapman-capital", "environment: LIVE", "---", table].join("\n"),
+      "log/pass2/2026-09/VS-20260901-1400-01-R2.md",
+    );
+
+    expect(personal.rows[0]).toMatchObject({
+      recId: "VS-20260901-1400-01-R1/P2-01",
+      lineageId: "VS-20260901-1400-01",
+      runId: "VS-20260901-1400-01-R1",
+      legalEntitySlug: "personal-vkapella",
+      environment: "LIVE",
+    });
+    // Run read from the filename stem when the frontmatter lacks run_id.
+    expect(corporate.rows[0]).toMatchObject({
+      recId: "VS-20260901-1400-01-R2/P2-01",
+      lineageId: "VS-20260901-1400-01",
+      runId: "VS-20260901-1400-01-R2",
+      legalEntitySlug: "kapman-capital",
+      environment: "LIVE",
+    });
+    expect(personal.rows[0].recId).not.toBe(corporate.rows[0].recId);
+  });
+
+  it("leaves legacy single-run files unscoped and keyed on the lineage", () => {
+    const parsed = parseJournalLogFile(PASS2_20260807, "log/pass2/2026-08/VS-20260807-1425-01.md");
+    expect(parsed.rows[0]).toMatchObject({
+      recId: "VS-20260807-1425-01/P2-01",
+      runId: null,
+      legalEntitySlug: null,
+      environment: null,
+    });
+  });
+
   it("refuses a file whose name carries no lineage", () => {
     const parsed = parseJournalLogFile("# old format", "log/pass2/2026-06/PASS2-20260629-1352-live.md");
     expect(parsed.rows).toEqual([]);

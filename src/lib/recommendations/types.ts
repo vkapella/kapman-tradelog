@@ -11,11 +11,27 @@ export const RECOMMENDATION_DISPOSITIONS = [
   "FLAGGED",
   "REJECTED",
 ] as const;
+export const TRADING_ENVIRONMENTS = ["LIVE", "PAPER"] as const;
+export type TradingEnvironmentValue = (typeof TRADING_ENVIRONMENTS)[number];
+
+/**
+ * kb JOURNAL_MGMT writes `environment: live | paper`; the tradelog export scope
+ * block and this table use uppercase. Accept either, store uppercase (#349).
+ */
+const environmentSchema = z.preprocess(
+  (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),
+  z.enum(TRADING_ENVIRONMENTS),
+);
 
 export const recommendationIngestSchema = z.object({
   recId: z.string().min(1),
   lineageId: z.string().min(1),
   localRecId: z.string().min(1),
+  /// Consuming-run identity `<lineage_id>-RNN`; absent on legacy single-run records.
+  runId: z.string().min(1).nullish(),
+  /// Slug of the legal entity the run traded for (must resolve: UNKNOWN_LEGAL_ENTITY).
+  legalEntitySlug: z.string().min(1).nullish(),
+  environment: environmentSchema.nullish(),
   pass: z.enum(RECOMMENDATION_PASSES),
   disposition: z.enum(RECOMMENDATION_DISPOSITIONS),
   asOf: z.string().regex(isoDate, "asOf must be YYYY-MM-DD"),
@@ -45,3 +61,24 @@ export const recommendationIngestSchema = z.object({
 export const recommendationIngestArraySchema = z.array(recommendationIngestSchema).min(1);
 
 export type RecommendationIngest = z.infer<typeof recommendationIngestSchema>;
+
+/** A row is scoped when it carries a run; unscoped rows are LEGACY_UNSCOPED. */
+export function hasScope(row: Pick<RecommendationIngest, "runId" | "legalEntitySlug" | "environment">): boolean {
+  return row.runId != null;
+}
+
+/**
+ * Scope is all-or-nothing: a run without its entity and environment would be a
+ * row nobody can attribute. Returns the recIds that supply some but not all of
+ * `runId`, `legalEntitySlug`, `environment` (SCOPE_INCOMPLETE).
+ */
+export function scopeIncompleteRecIds(
+  rows: Array<Pick<RecommendationIngest, "recId" | "runId" | "legalEntitySlug" | "environment">>,
+): string[] {
+  return rows
+    .filter((row) => {
+      const present = [row.runId, row.legalEntitySlug, row.environment].filter((value) => value != null).length;
+      return present > 0 && present < 3;
+    })
+    .map((row) => row.recId);
+}

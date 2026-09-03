@@ -1040,11 +1040,19 @@ export type RecommendationDispositionValue = "ELIGIBLE" | "NO_TRADE" | "WAIT" | 
 
 /// Serialized TradeRecommendation row from GET /api/recommendations. Decimal
 /// columns arrive as strings; date columns as ISO strings.
+export type TradingEnvironmentValue = "LIVE" | "PAPER";
+
 export interface RecommendationRecord {
   id: string;
   recId: string;
   lineageId: string;
   localRecId: string;
+  /// Consuming run `<lineage_id>-RNN`; null on legacy single-run records (#349).
+  runId: string | null;
+  legalEntityId: string | null;
+  /// Joined from LegalEntity; null = LEGACY_UNSCOPED.
+  legalEntity: { slug: string; legalName: string } | null;
+  environment: TradingEnvironmentValue | null;
   pass: RecommendationPassValue;
   disposition: RecommendationDispositionValue;
   asOf: string;
@@ -1073,8 +1081,15 @@ export interface RecommendationRecord {
 }
 
 /// Per-run aggregate from GET /api/recommendations/lineages, newest first.
+/// Grouped by runId when the rows carry one, else by lineageId (#349).
 export interface RecommendationLineageSummaryRecord {
+  /// Selection key: runId when present, else lineageId. Filter rows with
+  /// `?runId=` or `?lineageId=` accordingly.
+  groupKey: string;
   lineageId: string;
+  runId: string | null;
+  legalEntity: { slug: string; legalName: string } | null;
+  environment: TradingEnvironmentValue | null;
   asOf: string | null;
   rowCount: number;
   passes: Record<string, number>;

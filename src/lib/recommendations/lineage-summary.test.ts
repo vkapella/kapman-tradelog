@@ -53,6 +53,26 @@ describe("buildLineageSummaries", () => {
   });
 });
 
+describe("buildLineageSummaries — run scope (#349)", () => {
+  it("groups by run when rows carry one, keeping the lineage visible on each group", () => {
+    const summaries = buildLineageSummaries([
+      { lineageId: "VS-20260901-1400-01", runId: "VS-20260901-1400-01-R1", legalEntity: { slug: "personal-vkapella", legalName: "Victor Kapella" }, environment: "LIVE", pass: "PASS2", disposition: "VALIDATED", rowCount: 3, maxAsOf: "2026-09-01T00:00:00.000Z" },
+      { lineageId: "VS-20260901-1400-01", runId: "VS-20260901-1400-01-R2", legalEntity: { slug: "kapman-capital", legalName: "Kapman Capital Inc." }, environment: "LIVE", pass: "PASS2", disposition: "VALIDATED", rowCount: 2, maxAsOf: "2026-09-01T00:00:00.000Z" },
+      { lineageId: "VS-20260901-1400-01", runId: "VS-20260901-1400-01-R2", legalEntity: { slug: "kapman-capital", legalName: "Kapman Capital Inc." }, environment: "LIVE", pass: "PASS2", disposition: "FLAGGED", rowCount: 1, maxAsOf: "2026-09-01T00:00:00.000Z" },
+    ]);
+
+    expect(summaries.map((summary) => [summary.groupKey, summary.lineageId, summary.rowCount, summary.legalEntity?.slug, summary.environment])).toEqual([
+      ["VS-20260901-1400-01-R2", "VS-20260901-1400-01", 3, "kapman-capital", "LIVE"],
+      ["VS-20260901-1400-01-R1", "VS-20260901-1400-01", 3, "personal-vkapella", "LIVE"],
+    ]);
+  });
+
+  it("keys legacy rows on the lineage with no entity or environment", () => {
+    const [summary] = buildLineageSummaries(morningRun);
+    expect(summary).toMatchObject({ groupKey: "VS-20260823-1422-01", runId: null, legalEntity: null, environment: null });
+  });
+});
+
 describe("formatDispositionBreakdown", () => {
   it("lists non-zero dispositions in canonical order", () => {
     expect(formatDispositionBreakdown({ WAIT: 60, ELIGIBLE: 11 })).toBe("11 ELIGIBLE · 60 WAIT");

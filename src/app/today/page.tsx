@@ -57,6 +57,8 @@ interface PlanVsActualRow {
   effectivePrice: number | null;
   fillVsRange: string | null;
   rangeDeviationPct: number | null;
+  /** LEGACY_UNSCOPED rows still join fills from every account (#349). */
+  scope: { kind: "LEGACY_UNSCOPED" } | { kind: "SCOPED"; legalEntitySlug: string; environment: "LIVE" | "PAPER" };
 }
 
 const REGIMES = [
@@ -268,6 +270,21 @@ export default function TodayPage() {
       },
       { definition: { id: "chain", label: "Chain" }, width: "auto", tier: 2, renderCell: (rec) => rec.chainQuality ?? "—" },
       { definition: { id: "taken", label: "Taken" }, width: "auto", renderCell: taken },
+      {
+        definition: { id: "scope", label: "Scope" }, width: "auto", tier: 2,
+        renderCell: (rec) => {
+          const scope = pva.get(rec.recId)?.scope;
+          if (!scope) return "—";
+          if (scope.kind === "LEGACY_UNSCOPED") {
+            return (
+              <span className="rounded border border-neg-border bg-neg-dim px-1 py-px text-[9px] uppercase tracking-wide text-neg" title="Produced before runs carried scope: fills are matched across every account">
+                Legacy
+              </span>
+            );
+          }
+          return <span className="font-mono text-[10px]">{scope.legalEntitySlug} · {scope.environment}</span>;
+        },
+      },
       { definition: { id: "fillVsRange", label: "Fill vs range" }, width: "auto", tier: 2, renderCell: (rec) => <span className="font-mono">{fillVsRange(rec)}</span> },
       {
         definition: { id: "__details", label: "Details" }, width: "auto", mobileOnly: true, includeInDetails: false,
@@ -323,10 +340,10 @@ export default function TodayPage() {
           <p className="mb-2 text-xs text-text-2">
             Latest screen:{" "}
             <Link
-              href={`/recommendations?lineage=${encodeURIComponent(latestScreen.lineageId)}`}
+              href={`/recommendations?lineage=${encodeURIComponent(latestScreen.groupKey)}`}
               className="text-accent underline"
             >
-              {latestScreen.lineageId} — {latestScreen.dispositions.ELIGIBLE ?? 0} eligible /{" "}
+              {latestScreen.groupKey} — {latestScreen.dispositions.ELIGIBLE ?? 0} eligible /{" "}
               {latestScreen.dispositions.WAIT ?? 0} wait →
             </Link>
           </p>
