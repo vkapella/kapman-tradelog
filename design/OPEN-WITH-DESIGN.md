@@ -89,8 +89,8 @@ Never re-vendor on drift detection alone.
 | 02 | Decision 28 closed at 30px; measured contrast table replaces §02 arithmetic | `afb5f17`, `036172c` |
 | 03 | Decision 53 — `z-[1]`/`z-[2]` for intra-component sticky stacking is sanctioned; the `--z-*` scale does not extend downward. Seven sites suppressed with the written reason, canonical statement at `column-config.ts` | `26f4898` |
 | 03 | Decision 54 — the touch floor loses its width clause: one bare `(pointer: coarse)` rule, all five controls. **Fixing it revealed the old rules had never applied to two of them** — see below | `26f4898` |
-| owner, 2026-09-02 | **Ruling 57 — the grid CSS row-height query moves to `(max-width: 1023.98px)`; the pointer clause stays.** The copied file was the outlier against both the README ladder and Tradelog's `globals.css:147`; the 768–1024 rail band now takes `--row-h-touch` in every repo that vendors it. Measured old-file-first (800 and 1023 coarse: 30 → 44; 1024 and fine: 30). Fair Value's JS mirror in `KapmanGrid.jsx` must move with the re-vendor. Numbered by the owner pending Amendment 04. | `5052040` |
-| owner, 2026-09-02 | **Ruling 58 — set filters take Tradelog's semantics: nothing checked on open, a click adds, commit on Apply, Escape reverts.** Closes #109(b). Fair Value (all-checked, exclude, per-toggle commit) and the Screener ("first click means only this") both change; persisted filter shapes do not. Written up in `design/README.md` § Set filters. | siblings |
+| owner, 2026-09-02 | **Ruling 57 — the grid CSS row-height query moves to `(max-width: 1023.98px)`; the pointer clause stays.** The copied file was the outlier against both the README ladder and Tradelog's `globals.css:147`; the 768–1024 rail band now takes `--row-h-touch` in every repo that vendors it. Measured old-file-first (800 and 1023 coarse: 30 → 44; 1024 and fine: 30). Fair Value's JS mirror in `KapmanGrid.jsx` must move with the re-vendor. Numbered by the owner pending Amendment 04. | `5052040`; re-vendored and in prod — Fair Value `869b208` (JS mirror moved in the same commit, pinned by `test/row-height-mirror.test.js`), Screener `366743f` |
+| owner, 2026-09-02 | **Ruling 58 — set filters take Tradelog's semantics: nothing checked on open, a click adds, commit on Apply, Escape reverts.** Closes #109(b). Fair Value (all-checked, exclude, per-toggle commit) and the Screener ("first click means only this") both change; persisted filter shapes do not. Written up in `design/README.md` § Set filters. | In prod — Fair Value `869b208`, Screener `366743f` (re-seed rides `afterGuiAttached`); both measured on the built SPA with row counts scoped to the grid under test |
 | 03 | Decision 49 — `--pos-border` / `--neg-border` / `--warn-border` at 30%; the theme's 40%/45% sites converge, `.km-remove:hover`'s 8% fill becomes `--neg-dim`. Semantic colour now has `--accent`'s three levels; more emphasis steps to the solid token, never a bespoke percentage | `af0c364` |
 
 ---
@@ -146,6 +146,11 @@ CSS disagree in the rail band. `scripts/check-design-system.mjs` is at
 `62f88ef` (three fixes since `2336389`); a copied lint older than that reports
 clean for rules it does not have.
 Previous: `26f4898` (Amendment 03, `kapman-ui.css`); `2336389` before that.
+
+**Re-vendor complete, 2026-09-02:** both siblings are at `5052040` (grid file
+byte-identical, `kapman-ui.css` byte-identical at `26f4898`). Fair Value's lint
+copy is at `62f88ef` and its `lint:design:vendor` now runs the copy; the
+Screener invokes the canonical script and reports zero findings.
 
 **Decision 49** — `--pos-border` / `--neg-border` / `--warn-border` at 30%, and
 the six divergent theme sites converged onto them.
