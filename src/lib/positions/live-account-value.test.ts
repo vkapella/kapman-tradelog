@@ -159,6 +159,17 @@ describe("resolveLiveAccountValue stale marks", () => {
     expect(value.staleMarkAsOf).toBe("2026-08-14");
   });
 
+  it("does not treat a par-value money-market mark as stale", () => {
+    const value = resolve([
+      position({ instrumentKey: "SNSXX", symbol: "SNSXX", mark: 1, netQty: 199960, markSource: "PAR" }),
+    ]);
+
+    // 1000 cash + 199,960 at $1.00 par.
+    expect(value.reconstructedNlv).toBe("200960.00");
+    expect(value.staleMarkCount).toBe(0);
+    expect(value.status).toBe("CURRENT");
+  });
+
   it("reports the oldest contributing close as the account's stale date", () => {
     const value = resolve([
       position({ mark: 750, markSource: "HISTORICAL", markAsOf: "2026-08-14" }),

@@ -296,8 +296,15 @@ Rules:
 - Strip wrapper formatting such as `="..."` before matching IDs
 - Strip non-semantic prefixes such as `tIP` and `tIPAD` from descriptions during parsing
 - Cash Balance `BAL` rows populate `daily_account_snapshots`
-- Cash Balance `FND`, `LIQ`, and `RAD` rows must be parsed and persisted to a
-  dedicated cash events ledger — do not silently drop non-BAL row types
+- Cash Balance `FND`, `LIQ`, `RAD`, `JRN`, and `WIN` rows must be parsed and
+  persisted to a dedicated cash events ledger; `JRN`/`WIN` rows whose
+  description says `FUNDS RECEIVED` are external funding and normalize to
+  `TRANSFER_IN`. Any other non-BAL row type must produce a
+  `CASH_BALANCE_UNHANDLED_ROW_TYPE` warning — never a silent drop
+- Trade History rows with `Spread`/`Type` = `FUND` are money-market sweeps:
+  keep them as positions but price them at a constant $1.00 par
+  (`src/lib/positions/par-value-instruments.ts`); never request a quote or
+  historical mark for them
 - Snapshot parsing is required for the Overview equity curve
 
 ## Ledger rules

@@ -13,7 +13,7 @@ export const MAX_FALLBACK_MARK_AGE_DAYS = 10;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type MarkSource = "LIVE" | "HISTORICAL";
+export type MarkSource = "LIVE" | "HISTORICAL" | "PAR";
 
 export interface FallbackMark {
   mark: number;

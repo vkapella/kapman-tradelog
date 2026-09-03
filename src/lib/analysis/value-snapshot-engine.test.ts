@@ -118,4 +118,33 @@ describe("computeAccountValueForDate", () => {
     expect(result.equityValue).toBe(5000);
     expect(result.unpricedPositionCount).toBe(0);
   });
+
+  // #348: a swept money-market fund has no mark source; it is priced at par.
+  it("prices par-value holdings at $1.00 without a historical mark", () => {
+    const result = computeAccountValueForDate({
+      snapshotDate: new Date("2026-08-27T00:00:00.000Z"),
+      cashValue: 0,
+      holdings: [holding({ instrumentKey: "acct|EQUITY|SNSXX", symbol: "SNSXX", assetClass: "EQUITY", netQty: 199960 })],
+      marksByKey: marks([]),
+      parValueInstrumentKeys: new Set(["acct|EQUITY|SNSXX"]),
+      brokerNlv: 199960,
+    });
+
+    expect(result.equityValue).toBe(199960);
+    expect(result.totalValue).toBe(199960);
+    expect(result.unpricedPositionCount).toBe(0);
+    expect(result.reconcileDelta).toBe(0);
+  });
+
+  it("still counts a money-market holding as unpriced when it is not declared par-value", () => {
+    const result = computeAccountValueForDate({
+      snapshotDate: new Date("2026-08-27T00:00:00.000Z"),
+      cashValue: 0,
+      holdings: [holding({ instrumentKey: "acct|EQUITY|SNSXX", symbol: "SNSXX", assetClass: "EQUITY", netQty: 199960 })],
+      marksByKey: marks([]),
+    });
+
+    expect(result.totalValue).toBe(0);
+    expect(result.unpricedPositionCount).toBe(1);
+  });
 });

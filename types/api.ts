@@ -153,6 +153,9 @@ export interface ExecutionRecord {
   expirationDate: string | null;
   spreadGroupId: string | null;
   importId: string;
+  /// Broker row as parsed. Optional on list records; valuation paths load it to
+  /// recognise par-value (money-market) instruments and cash-neutral transfers.
+  rawRowJson?: unknown;
 }
 
 export interface ExecutionDetailRecord extends ExecutionRecord {
@@ -631,8 +634,9 @@ export type PositionSnapshotStatus = "PENDING" | "COMPLETE" | "FAILED";
 export interface PositionSnapshotOpenPosition extends OpenPosition {
   mark: number | null;
   /// How the mark was obtained. "HISTORICAL" is a daily close standing in for an
-  /// unavailable live quote. Optional: older persisted snapshots predate it.
-  markSource?: "LIVE" | "HISTORICAL" | null;
+  /// unavailable live quote; "PAR" is the constant $1.00 NAV of a money-market
+  /// fund (never stale). Optional: older persisted snapshots predate it.
+  markSource?: "LIVE" | "HISTORICAL" | "PAR" | null;
   /// Effective date of a historical mark (YYYY-MM-DD); null for a live mark.
   markAsOf?: string | null;
   // Open-leg excursion (daily-mark, since entry). Optional: older persisted snapshots predate it.

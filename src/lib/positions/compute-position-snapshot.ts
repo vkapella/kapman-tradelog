@@ -8,6 +8,7 @@ import { computeOpenPositions } from "@/lib/positions/compute-open-positions";
 import { resolveLiveAccountValue, sumCompleteReconstructedNlv } from "@/lib/positions/live-account-value";
 import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/compute-open-leg-excursions";
 import { loadFallbackMarks } from "@/lib/positions/fallback-marks";
+import { collectParValueInstrumentKeys, PAR_VALUE_MARK } from "@/lib/positions/par-value-instruments";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
 import type {
   EquityQuoteRecord,
@@ -73,6 +74,7 @@ function mapExecutionRowsToRecords(rows: Array<{
   expirationDate: Date | null;
   spreadGroupId: string | null;
   importId: string;
+  rawRowJson?: Prisma.JsonValue | null;
 }>): ExecutionRecord[] {
   return rows.map((row) => ({
     id: row.id,
@@ -94,6 +96,7 @@ function mapExecutionRowsToRecords(rows: Array<{
     expirationDate: row.expirationDate?.toISOString() ?? null,
     spreadGroupId: row.spreadGroupId,
     importId: row.importId,
+    rawRowJson: row.rawRowJson ?? null,
   }));
 }
 
@@ -211,6 +214,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
           expirationDate: true,
           spreadGroupId: true,
           importId: true,
+          rawRowJson: true,
         },
       }),
       tx.matchedLot.findMany({
@@ -244,7 +248,11 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const openPositions = computeOpenPositions(executions, matchedLots, manualAdjustments);
     detailLog(snapshotId, "computed-open-positions", startedAtMs, { openPositionCount: openPositions.length });
 
-    const equityPositions = openPositions.filter((position) => position.assetClass === "EQUITY");
+    // Money-market funds are priced at par, never quoted (#348).
+    const parValueInstrumentKeys = collectParValueInstrumentKeys(executions);
+    const equityPositions = openPositions.filter(
+      (position) => position.assetClass === "EQUITY" && !parValueInstrumentKeys.has(position.instrumentKey),
+    );
     const optionPositions = openPositions.filter(
       (position) => position.assetClass === "OPTION" && position.optionType && position.expirationDate && position.strike,
     );
@@ -273,6 +281,9 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
 
     const liveMarks = new Map<string, number>();
     for (const position of openPositions) {
+      if (parValueInstrumentKeys.has(position.instrumentKey)) {
+        continue;
+      }
       const mark = position.assetClass === "EQUITY"
         ? equityQuotes?.[position.symbol]?.mark ?? null
         : optionQuotes.get(position.instrumentKey) ?? null;
@@ -284,7 +295,9 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     // A recent daily close beats no value at all, but only inside the recency
     // window and only when a live quote is genuinely unavailable.
     const fallbackMarks = await loadFallbackMarks(
-      openPositions.filter((position) => !liveMarks.has(position.instrumentKey)).map((position) => position.instrumentKey),
+      openPositions
+        .filter((position) => !liveMarks.has(position.instrumentKey) && !parValueInstrumentKeys.has(position.instrumentKey))
+        .map((position) => position.instrumentKey),
       new Date(),
     );
     detailLog(snapshotId, "loaded-fallback-marks", startedAtMs, {
@@ -294,9 +307,10 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
 
     let totalMarkedValue = 0;
     const pricedPositions: PositionSnapshotOpenPosition[] = openPositions.map((position) => {
-      const liveMark = liveMarks.get(position.instrumentKey) ?? null;
-      const fallback = liveMark === null ? fallbackMarks.get(position.instrumentKey) ?? null : null;
-      const mark = liveMark ?? fallback?.mark ?? null;
+      const parMark = parValueInstrumentKeys.has(position.instrumentKey) ? PAR_VALUE_MARK : null;
+      const liveMark = parMark === null ? liveMarks.get(position.instrumentKey) ?? null : null;
+      const fallback = parMark === null && liveMark === null ? fallbackMarks.get(position.instrumentKey) ?? null : null;
+      const mark = parMark ?? liveMark ?? fallback?.mark ?? null;
 
       if (mark !== null) {
         totalMarkedValue += mark * position.netQty * (position.assetClass === "OPTION" ? 100 : 1);
@@ -305,7 +319,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       return {
         ...position,
         mark,
-        markSource: mark === null ? null : liveMark !== null ? "LIVE" : "HISTORICAL",
+        markSource: mark === null ? null : parMark !== null ? "PAR" : liveMark !== null ? "LIVE" : "HISTORICAL",
         markAsOf: fallback?.markDate ?? null,
       };
     });

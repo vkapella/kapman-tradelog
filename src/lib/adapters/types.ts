@@ -46,6 +46,8 @@ export type CashEventRowType =
   | "FND"
   | "LIQ"
   | "RAD"
+  | "JRN"
+  | "WIN"
   | "DIVIDEND"
   | "REINVESTMENT"
   | "REDEMPTION"

@@ -1,4 +1,5 @@
 import type { OpenPosition } from "@/types/api";
+import { PAR_VALUE_MARK } from "@/lib/positions/par-value-instruments";
 
 export interface HistoricalMarkValue {
   close: number;
@@ -13,6 +14,8 @@ export interface AccountValueForDateInput {
   brokerNlv?: number | null;
   snapshotDate: Date;
   fallbackCalendarDays?: number;
+  /** Holdings priced at a constant $1.00 (money-market funds); see par-value-instruments. */
+  parValueInstrumentKeys?: ReadonlySet<string>;
 }
 
 export interface AccountValueForDateResult {
@@ -83,7 +86,9 @@ export function computeAccountValueForDate(input: AccountValueForDateInput): Acc
   let unpricedPositionCount = 0;
 
   for (const holding of input.holdings) {
-    const mark = findMarkForDate(input.marksByKey.get(holding.instrumentKey), input.snapshotDate, fallbackCalendarDays);
+    const mark = input.parValueInstrumentKeys?.has(holding.instrumentKey)
+      ? { close: PAR_VALUE_MARK }
+      : findMarkForDate(input.marksByKey.get(holding.instrumentKey), input.snapshotDate, fallbackCalendarDays);
     if (!mark) {
       unpricedPositionCount += 1;
       continue;

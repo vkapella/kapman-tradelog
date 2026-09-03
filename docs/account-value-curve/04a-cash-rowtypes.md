@@ -28,3 +28,18 @@ Treatment for Story 04 after cash-reconstruction correction:
 
 This keeps reconstructed cash from double-counting deployed capital while preserving
 `DailyAccountSnapshot.totalCash` and broker NLV as reconciliation checks.
+
+## Live Schwab accounts (added 2026-09-03, #348)
+
+- External funding of a live thinkorswim account arrives as `JRN` ("FUNDS RECEIVED") or
+  `WIN` ("WIRED FUNDS RECEIVED") rows, not `FND`. The parser persists both and normalizes
+  funding rows to `TRANSFER_IN`, so they count as contributed capital in return-on-capital
+  and as cash in the reconstructed ledger. Other `JRN`/`WIN` rows keep their broker type.
+- Any other non-BAL row type (`DOI` interest, `ADJ` credits, ...) is not persisted yet and
+  raises a `CASH_BALANCE_UNHANDLED_ROW_TYPE` warning with a per-type count.
+- Money-market sweeps (`BOT 100000.0 SNSXX`) appear in Trade History as `Spread=FUND`,
+  `Type=FUND` and are persisted as EQUITY executions. They reduce cash like any purchase and
+  the holding is valued at a constant $1.00 par (`par-value-instruments.ts`) in both the
+  value engine and the live position snapshot. This matches the broker statement line for
+  line: cash 0, fund position at NAV, NLV = the sum.
+

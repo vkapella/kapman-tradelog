@@ -18,7 +18,7 @@ import type {
  */
 export interface StoredQuote {
   mark: number;
-  markSource: "LIVE" | "HISTORICAL" | null;
+  markSource: "LIVE" | "HISTORICAL" | "PAR" | null;
   markAsOf: string | null;
 }
 

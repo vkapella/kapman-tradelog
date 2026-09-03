@@ -4,6 +4,29 @@ const KNOWN_SPREAD_LABELS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", 
 const DERIVATIVE_SECTION_HEADERS = ["Forex Statements", "Futures Statements", "Crypto Statements"] as const;
 const CASH_BALANCE_STOP_SECTIONS = new Set([...DERIVATIVE_SECTION_HEADERS, "Account Order History", "Account Trade History"]);
 
+/**
+ * Cash Balance row types persisted to the cash-events ledger. FND/LIQ/RAD are
+ * the paper-account movements; JRN (journal) and WIN (wire in) are how a live
+ * Schwab account receives external funding ("FUNDS RECEIVED", "WIRED FUNDS
+ * RECEIVED") — dropping them left the corporate account with no contributions
+ * and a value series that could not reconcile (#348).
+ */
+const PERSISTED_CASH_ROW_TYPES: ReadonlySet<string> = new Set(["FND", "LIQ", "RAD", "JRN", "WIN"]);
+
+const EXTERNAL_FUNDING_DESCRIPTION = /\bFUNDS RECEIVED\b/i;
+
+/**
+ * External funding arriving as a JRN or WIN row is normalized to TRANSFER_IN so
+ * return-on-capital counts it as contributed capital (see
+ * EXTERNAL_CAPITAL_ROW_TYPES); every other row keeps the broker's type.
+ */
+function normalizeCashRowType(rowType: string, description: string): CashEventRowType {
+  if ((rowType === "JRN" || rowType === "WIN") && EXTERNAL_FUNDING_DESCRIPTION.test(description)) {
+    return "TRANSFER_IN";
+  }
+  return rowType as CashEventRowType;
+}
+
 type DerivativeSectionHeader = (typeof DERIVATIVE_SECTION_HEADERS)[number];
 
 function splitCsvLine(line: string): string[] {
@@ -257,6 +280,7 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
 
   let inCashBalanceSection = false;
   const skippedDerivativeSections = new Set<DerivativeSectionHeader>();
+  const unhandledRowTypeCounts = new Map<string, number>();
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex] ?? "";
@@ -322,7 +346,7 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
       continue;
     }
 
-    if (rowType !== "FND" && rowType !== "LIQ" && rowType !== "RAD") {
+    if (!PERSISTED_CASH_ROW_TYPES.has(rowType)) {
       if (rowType === "EXP") {
         const eventTimestamp = parseUsDateTime(dateRaw, timeRaw);
         const refNumber = parseRefNumber(refRaw);
@@ -366,6 +390,9 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
       }
 
       if (rowType !== "TRD") {
+        // Never drop a cash row silently (AGENTS.md): count it so Diagnostics
+        // can show which broker row types this parser does not yet persist.
+        unhandledRowTypeCounts.set(rowType, (unhandledRowTypeCounts.get(rowType) ?? 0) + 1);
         continue;
       }
 
@@ -400,10 +427,17 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
 
     cashEvents.push({
       eventDate,
-      rowType: rowType as CashEventRowType,
+      rowType: normalizeCashRowType(rowType, description),
       refNumber,
       description,
       amount,
+    });
+  }
+
+  for (const [unhandledRowType, count] of Array.from(unhandledRowTypeCounts.entries()).sort()) {
+    warnings.push({
+      code: "CASH_BALANCE_UNHANDLED_ROW_TYPE",
+      message: `Skipped ${count} Cash Balance row${count === 1 ? "" : "s"} of type ${unhandledRowType}: not persisted by the thinkorswim parser.`,
     });
   }
 

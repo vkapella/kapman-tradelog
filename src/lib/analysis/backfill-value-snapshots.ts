@@ -4,6 +4,7 @@ import { parsePayloadByType } from "@/lib/adjustments/types";
 import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromPersistedExecution } from "@/lib/ledger/instrument-key";
 import { computeHoldingsAsOf } from "@/lib/positions/compute-holdings-asof";
+import { collectParValueInstrumentKeys } from "@/lib/positions/par-value-instruments";
 import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 import {
   computeAccountValueForDate,
@@ -196,6 +197,7 @@ function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
     expirationDate: row.expirationDate?.toISOString() ?? null,
     spreadGroupId: row.spreadGroupId,
     importId: row.importId,
+    rawRowJson: row.rawRowJson ?? null,
   };
 }
 
@@ -464,6 +466,7 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
   for (const account of accounts) {
     const accountExecutionRows = executionRows.filter((execution) => execution.accountId === account.id);
     const accountExecutions = executions.filter((execution) => execution.accountId === account.id);
+    const parValueInstrumentKeys = collectParValueInstrumentKeys(accountExecutions);
     const accountMatchedLots = matchedLots.filter((lot) => lot.accountId === account.id);
     const accountAdjustments = adjustments.filter((adjustment) => adjustment.accountId === account.id);
     const accountCashEvents = cashEventRows.filter((event) => event.accountId === account.id);
@@ -503,6 +506,7 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
         cashValue,
         brokerNlv: brokerNlvByAccountDate.get(`${account.id}:${dateKey(snapshotDate)}`) ?? null,
         snapshotDate,
+        parValueInstrumentKeys,
       });
 
       unpricedPositionCount += value.unpricedPositionCount;

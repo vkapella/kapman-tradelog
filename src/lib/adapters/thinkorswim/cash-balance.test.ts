@@ -58,6 +58,48 @@ describe("parseCashBalanceSnapshots", () => {
     });
   });
 
+  // #348: a live Schwab account is funded by JRN/WIN rows, not FND.
+  it("persists JRN and WIN funding rows as TRANSFER_IN and keeps other journal rows by broker type", () => {
+    const csv = [
+      "Cash Balance",
+      "DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE",
+      "8/26/26,01:00:00,BAL,,Cash balance at the start of business day 26.08 CST,,,,0.00",
+      "8/26/26,13:24:59,JRN,=\"129145481101\",FUNDS RECEIVED 100000.0 US$,,,\"100,000.00\",\"100,000.00\"",
+      "8/26/26,20:22:37,TRD,=\"129181781548\",BOT 100000.0 SNSXX UPON ,,,\"-100,000.00\",0.00",
+      "8/27/26,14:40:12,WIN,=\"129287438901\",WIRED FUNDS RECEIVED 99960.0 US$,,,\"99,960.00\",\"99,960.00\"",
+      "8/28/26,09:00:00,JRN,=\"129300000000\",tIP Journal adjustment,,,\"-12.34\",\"99,947.66\"",
+      "Account Trade History",
+    ].join("\n");
+
+    const parsed = parseCashBalanceRows(csv);
+
+    expect(parsed.cashEvents).toHaveLength(3);
+    expect(parsed.cashEvents[0]).toMatchObject({ rowType: "TRANSFER_IN", refNumber: "129145481101", amount: 100000 });
+    expect(parsed.cashEvents[1]).toMatchObject({ rowType: "TRANSFER_IN", refNumber: "129287438901", amount: 99960 });
+    expect(parsed.cashEvents[2]).toMatchObject({ rowType: "JRN", description: "Journal adjustment", amount: -12.34 });
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  it("warns, per row type, about cash rows it does not persist instead of dropping them silently", () => {
+    const csv = [
+      "Cash Balance",
+      "DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE",
+      "8/29/26,01:00:00,BAL,,Cash balance at the start of business day 29.08 CST,,,,0.00",
+      "8/29/26,02:00:00,DOI,=\"129400000001\",INTEREST INCOME,,,\"4.10\",\"4.10\"",
+      "8/30/26,02:00:00,DOI,=\"129400000002\",INTEREST INCOME,,,\"4.20\",\"8.30\"",
+      "8/30/26,03:00:00,ADJ,=\"129400000003\",COURTESY CREDIT,,,\"25.00\",\"33.30\"",
+      "Account Trade History",
+    ].join("\n");
+
+    const parsed = parseCashBalanceRows(csv);
+
+    expect(parsed.cashEvents).toEqual([]);
+    expect(parsed.warnings).toEqual([
+      { code: "CASH_BALANCE_UNHANDLED_ROW_TYPE", message: "Skipped 1 Cash Balance row of type ADJ: not persisted by the thinkorswim parser." },
+      { code: "CASH_BALANCE_UNHANDLED_ROW_TYPE", message: "Skipped 2 Cash Balance rows of type DOI: not persisted by the thinkorswim parser." },
+    ]);
+  });
+
   it("extracts TRD rows as trade references with broker ref numbers", () => {
     const csv = [
       "Cash Balance",
