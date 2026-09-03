@@ -88,6 +88,7 @@ describe("parseCashBalanceSnapshots", () => {
       "8/29/26,02:00:00,DOI,=\"129400000001\",INTEREST INCOME,,,\"4.10\",\"4.10\"",
       "8/30/26,02:00:00,DOI,=\"129400000002\",INTEREST INCOME,,,\"4.20\",\"8.30\"",
       "8/30/26,03:00:00,ADJ,=\"129400000003\",COURTESY CREDIT,,,\"25.00\",\"33.30\"",
+      ",,,,TOTAL,,,,$33.30",
       "Account Trade History",
     ].join("\n");
 

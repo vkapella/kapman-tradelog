@@ -18,7 +18,9 @@ const REQUIRED_TRADE_HISTORY_COLUMNS = [
   "Order Type",
 ] as const;
 const OPTIONAL_TRADE_HISTORY_COLUMNS = new Set(["Total Cost"]);
-const KNOWN_SPREADS = new Set(["SINGLE", "STOCK", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
+// FUND is a money-market sweep (e.g. BOT 100000 SNSXX): single-leg, priced at
+// par downstream (par-value-instruments.ts), never a warning (#348).
+const KNOWN_SPREADS = new Set(["SINGLE", "STOCK", "FUND", "VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
 const MULTI_LEG_SPREADS = new Set(["VERTICAL", "DIAGONAL", "CALENDAR", "COMBO", "CUSTOM"]);
 
 function splitCsvLine(line: string): string[] {

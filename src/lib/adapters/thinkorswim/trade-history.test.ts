@@ -55,6 +55,24 @@ describe("parseThinkorswimTradeHistory", () => {
     expect(new Set(rklbRows.map((row) => row.brokerRefNumber))).toEqual(new Set(["5278319313", "5278319395"]));
   });
 
+  it("treats a FUND money-market sweep as a known single-leg spread without warning", () => {
+    const csv = [
+      "Account Statement for 18528700SCHW (margin) since 7/29/26 through 8/27/26",
+      "",
+      "Account Trade History",
+      ",Exec Time,Spread,Side,Qty,Pos Effect,Symbol,Exp,Strike,Type,Price,Net Price,Order Type",
+      ",8/26/26 20:22:37,FUND,BUY,+100000,TO OPEN,SNSXX,,,FUND,1.00,1.00,AMT",
+      "",
+    ].join("\n");
+
+    const parsed = parseThinkorswimTradeHistory(csv);
+
+    expect(parsed.executions).toHaveLength(1);
+    expect(parsed.executions[0]).toMatchObject({ symbol: "SNSXX", assetClass: "EQUITY", quantity: 100000, side: "BUY" });
+    expect(parsed.executions[0]?.rawRowJson).toMatchObject({ spread: "FUND", type: "FUND" });
+    expect(parsed.warnings.filter((warning) => warning.code === "UNKNOWN_SPREAD_TYPE")).toEqual([]);
+  });
+
   it("handles price '~' as null and warns on unknown spread", () => {
     const synthetic = [
       "This document was exported from the paperMoney platform.",

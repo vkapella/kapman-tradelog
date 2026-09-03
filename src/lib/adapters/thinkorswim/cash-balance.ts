@@ -392,7 +392,10 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
       if (rowType !== "TRD") {
         // Never drop a cash row silently (AGENTS.md): count it so Diagnostics
         // can show which broker row types this parser does not yet persist.
-        unhandledRowTypeCounts.set(rowType, (unhandledRowTypeCounts.get(rowType) ?? 0) + 1);
+        // The section's ",,,,TOTAL,,,,$0.00" footer has no type and is not a row.
+        if (rowType !== "") {
+          unhandledRowTypeCounts.set(rowType, (unhandledRowTypeCounts.get(rowType) ?? 0) + 1);
+        }
         continue;
       }
 
