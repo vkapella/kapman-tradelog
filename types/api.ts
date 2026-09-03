@@ -458,7 +458,7 @@ export interface DiagnosticsResponse {
   syntheticExpirationCount: number;
   accountCash: Array<{
     accountId: string;
-    cashSource: "snapshot" | "heuristic_fallback";
+    cashSource: "snapshot" | "value_snapshot" | "heuristic_fallback";
     cashAsOf: string | null;
   }>;
   duplicateSnapshotDateCount: number;
@@ -666,7 +666,7 @@ export interface LiveAccountValue {
   staleMarkAsOf: string | null;
   status: LiveAccountValueStatus;
   valuationBasis: "MARK";
-  cashSource: "snapshot" | "heuristic_fallback";
+  cashSource: "snapshot" | "value_snapshot" | "heuristic_fallback";
   /** Source-data revision the compute observed for this account (string — BigInt
    *  does not survive JSON). Null on legacy rows and non-transactional reads;
    *  consumers must fall back to canonical enqueue precedence, never assume equality. */

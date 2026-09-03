@@ -23,6 +23,9 @@ const routeMocks = vi.hoisted(() => {
     dailyAccountSnapshot: {
       findMany: vi.fn(),
     },
+    accountValueSnapshot: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     cashEvent: {
       aggregate: vi.fn(),
       groupBy: vi.fn(),
@@ -49,6 +52,7 @@ vi.mock("@/lib/db/prisma", () => {
     matchedLot: routeMocks.matchedLot,
     manualAdjustment: routeMocks.manualAdjustment,
     dailyAccountSnapshot: routeMocks.dailyAccountSnapshot,
+    accountValueSnapshot: routeMocks.accountValueSnapshot,
     cashEvent: routeMocks.cashEvent,
     positionSnapshot: routeMocks.positionSnapshot,
     positionSnapshotAccount: routeMocks.positionSnapshotAccount,

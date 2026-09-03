@@ -233,7 +233,7 @@ Overall status is red if any threshold metric is red, amber if any is amber, oth
 | Uncategorized count | Setup inference uncategorized total. |
 | Warning count | Import warnings plus open-position adjustment warnings, excluding `CANCEL_REBOOK`. |
 | Synthetic expiration count | Count of `EXPIRATION_INFERRED` executions. |
-| Account cash | Latest account cash source and date from account-balance context. |
+| Account cash | Latest account cash source and date from account-balance context. `snapshot` = broker-reported `DailyAccountSnapshot.totalCash` (thinkorswim); `value_snapshot` = the value engine's reconciled `AccountValueSnapshot.cashValue`, used for brokers whose daily-snapshot cash is an importer reconstruction (Fidelity: swept deposits never appear as `MONEY_MARKET_*` rows, #346); `heuristic_fallback` = summed ledger deltas for accounts with no snapshots. |
 | Duplicate snapshot dates | Count of duplicate snapshot-date warning records. |
 | Skipped non-cash sections | Counts of skipped forex, futures, and crypto cash-balance sections. |
 | Setup inference diagnostics | Totals and samples from `inferSetupGroups()`. |
