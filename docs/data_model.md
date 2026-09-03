@@ -77,7 +77,7 @@ Important fields:
 - `brokerName`: display name such as Schwab or Fidelity
 - `broker`: enum value used by imports and executions
 - `paperMoney`: whether the account is paper-money data
-- `startingCapital`: per-account baseline for return and reconciliation metrics
+- `startingCapital`: per-account baseline for return and reconciliation metrics. Defaulted to $100,000 only for thinkorswim paperMoney accounts (the platform's seeded balance); a live account is created with `null` and the operator sets it on `/accounts` (0 for an account that opened empty and was wire-funded, since wires land as `TRANSFER_IN` cash events and count as contributions). Null is coalesced to 0 in every calculation, so an unset live account silently reads as 0 until set (#327)
 
 Accounts are created or updated during upload. Defaults are ensured by `ensureAccountDefaults()` when `/api/accounts` is loaded.
 

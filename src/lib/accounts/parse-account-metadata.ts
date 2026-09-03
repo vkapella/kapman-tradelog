@@ -23,7 +23,12 @@ export function parseAccountMetadataFromCsv(csvText: string): ParsedAccountMetad
 
   const accountId = match[1].trim();
   const accountTypeText = match[2].trim().toLowerCase();
-  const paperMoney = /paper|simulated|papermoney/i.test(normalized) || accountTypeText.includes("paper");
+  // Paper money is declared by the export banner ("exported from the paperMoney
+  // platform ... simulated trading environment") or the account type, never by
+  // a word appearing somewhere in the statement body: a live corporate
+  // statement reads "Account Statement for <id> (Corporate)" with no banner.
+  const bannerLine = lines.find((line) => /exported from the paperMoney/i.test(line) || /simulated trading environment/i.test(line));
+  const paperMoney = bannerLine !== undefined || /paper|simulated/.test(accountTypeText);
 
   return {
     accountId,

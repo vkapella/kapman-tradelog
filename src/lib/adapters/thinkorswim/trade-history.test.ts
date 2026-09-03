@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import {
+  buildCorporateStatementCsv,
+  CORPORATE_STATEMENT_NLV,
+  CORPORATE_STATEMENT_WIRE_ONE,
+  CORPORATE_STATEMENT_WIRE_TWO,
+} from "./corporate-statement.fixture";
 import { parseThinkorswimTradeHistory } from "./trade-history";
 
 describe("parseThinkorswimTradeHistory", () => {
@@ -53,6 +59,26 @@ describe("parseThinkorswimTradeHistory", () => {
 
     expect(rklbRows).toHaveLength(2);
     expect(new Set(rklbRows.map((row) => row.brokerRefNumber))).toEqual(new Set(["5278319313", "5278319395"]));
+  });
+
+  // #327: the business account's export layout (synthetic; real statements are gitignored).
+  it("parses the corporate statement layout: funding wires, money-market sweeps, statement NLV", () => {
+    const result = parseThinkorswimTradeHistory(buildCorporateStatementCsv());
+
+    expect(result.executions.map((row) => [row.symbol, row.spread, row.side, row.quantity, row.price])).toEqual([
+      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_TWO, 1],
+      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_ONE, 1],
+    ]);
+    expect(result.cashEvents.map((event) => [event.rowType, event.amount])).toEqual([
+      ["TRANSFER_IN", CORPORATE_STATEMENT_WIRE_ONE],
+      ["TRANSFER_IN", CORPORATE_STATEMENT_WIRE_TWO],
+    ]);
+    expect(result.snapshots).toHaveLength(4);
+    const statementDay = result.snapshots.find((row) => row.snapshotDate.toISOString().startsWith("2026-08-27"));
+    expect(statementDay?.balance).toBe(0);
+    expect(statementDay?.brokerNetLiquidationValue).toBe(CORPORATE_STATEMENT_NLV);
+    expect(result.warnings.filter((warning) => warning.code === "UNKNOWN_SPREAD_TYPE")).toEqual([]);
+    expect(result.warnings.filter((warning) => warning.code === "CASH_BALANCE_UNHANDLED_ROW_TYPE")).toEqual([]);
   });
 
   it("treats a FUND money-market sweep as a known single-leg spread without warning", () => {

@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         broker,
         brokerName: getBrokerDisplayName(broker),
         paperMoney: parsed.accountMetadata.paperMoney,
-        startingCapital: getDefaultStartingCapital(broker),
+        startingCapital: getDefaultStartingCapital(broker, parsed.accountMetadata.paperMoney),
       },
     });
 

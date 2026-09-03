@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildCorporateStatementCsv } from "@/lib/adapters/thinkorswim/corporate-statement.fixture";
 
 const uploadRouteMocks = vi.hoisted(() => {
   return {
@@ -150,5 +151,35 @@ describe("POST /api/imports/upload", () => {
         },
       ],
     });
+    expect(uploadRouteMocks.account.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ paperMoney: true, startingCapital: expect.objectContaining({}) }),
+      }),
+    );
+    expect(String(uploadRouteMocks.account.upsert.mock.calls[0][0].create.startingCapital)).toBe("100000");
+  });
+
+  // #327: a live business account gets no starting-capital default.
+  it("creates a live thinkorswim account with starting capital unset", async () => {
+    uploadRouteMocks.account.findUnique.mockResolvedValueOnce(null);
+    uploadRouteMocks.account.upsert.mockResolvedValueOnce({
+      id: "acct-corp",
+      accountId: "12345678SCHW",
+      label: "corporate 12345678SCHW",
+      displayLabel: null,
+    });
+    uploadRouteMocks.import.create.mockResolvedValueOnce({ id: "import-corp" });
+
+    const { POST } = await import("./route");
+    const response = await POST(buildCsvUploadRequest("2026-08-27-AccountStatement5678-3.csv", buildCorporateStatementCsv()));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.account).toEqual({ accountId: "12345678SCHW", label: "corporate 12345678SCHW", isNew: true });
+    expect(uploadRouteMocks.account.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ paperMoney: false, startingCapital: null }),
+      }),
+    );
   });
 });

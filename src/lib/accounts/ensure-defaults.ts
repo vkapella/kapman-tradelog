@@ -9,6 +9,7 @@ export async function ensureAccountDefaults(): Promise<void> {
       broker: true,
       displayLabel: true,
       brokerName: true,
+      paperMoney: true,
       startingCapital: true,
     },
   });

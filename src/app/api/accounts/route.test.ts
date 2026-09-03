@@ -33,6 +33,8 @@ describe("GET /api/accounts", () => {
           broker: "SCHWAB_THINKORSWIM",
           displayLabel: null,
           brokerName: null,
+          // paperMoney: the $100k default applies only to the paperMoney platform (#327).
+          paperMoney: true,
           startingCapital: null,
         },
       ])

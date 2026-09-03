@@ -251,6 +251,12 @@ Additional UI requirements:
   - `label`
   - `broker`
   - `paper_money`
+- A live business account exports the same thinkorswim statement
+  (`Account Statement for <id> (Corporate)`, no paperMoney banner); it is
+  `SCHWAB_THINKORSWIM` with `paper_money = false`, not a new broker value
+- Never infer a live account's starting capital: default $100,000 only for
+  paperMoney accounts (the platform seeds that balance); live accounts are
+  created with `starting_capital = null` and the operator sets it on `/accounts`
 
 ## thinkorswim CSV rules
 These rules are critical and must not be approximated.

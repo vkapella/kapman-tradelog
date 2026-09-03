@@ -193,7 +193,9 @@ export function AccountsManager() {
             <tbody>
               {rows.map((row) => {
                 const draft = drafts[row.id] ?? buildDraft(row);
-                const promptForStartingCapital = (row.brokerName ?? draft.brokerName).toLowerCase().includes("fidelity") && Number(draft.startingCapital || "0") === 0;
+                // A live account's starting capital is never defaulted (#327); until the
+                // operator sets it, every denominator-derived figure silently reads 0.
+                const promptForStartingCapital = !row.paperMoney && row.startingCapital === null && draft.startingCapital === "";
                 const isDirty = dirtyIds.has(row.id);
                 const isSaving = savingId === row.id;
                 const wasSaved = savedId === row.id;
@@ -251,7 +253,9 @@ export function AccountsManager() {
                         className="w-full rounded border border-border bg-surface-3 px-2 py-1 text-sm text-text"
                       />
                       {promptForStartingCapital ? (
-                        <p className="mt-1 text-[11px] text-warn">Prompt: set a Fidelity starting capital before relying on total-return views.</p>
+                        <p className="mt-1 text-[11px] text-warn">
+                          Not set: enter the value at first import, or 0 if the account opened empty and was funded by transfers.
+                        </p>
                       ) : null}
                     </td>
                     <td className="px-3 py-3 align-top text-xs text-text-2">{formatCreatedAt(row.createdAt)}</td>

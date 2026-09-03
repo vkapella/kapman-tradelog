@@ -112,7 +112,7 @@ async function main() {
         broker,
         brokerName: getBrokerDisplayName(broker),
         paperMoney: metadata.paperMoney,
-        startingCapital: getDefaultStartingCapital(broker),
+        startingCapital: getDefaultStartingCapital(broker, metadata.paperMoney),
       },
     });
 

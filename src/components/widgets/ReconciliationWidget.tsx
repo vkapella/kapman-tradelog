@@ -20,7 +20,7 @@ function formatSnapshotTime(value: string): string {
 }
 
 export function ReconciliationWidget() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, getAccountMeta } = useAccountFilterContext();
   const { snapshot, loading, stale, computing, error, staleDataAccountIds, triggerCompute } = usePositionSnapshot(selectedAccounts);
 
   const action = (
@@ -46,7 +46,9 @@ export function ReconciliationWidget() {
         { label: "Unexplained Delta", value: safeNumber(snapshot.unexplainedDelta), highlighted: true },
       ]
     : [];
-  const startingCapitalConfigured = safeNumber(snapshot?.startingCapital) > 0;
+  // "Configured" is whether the operator set a value, not whether it is
+  // positive: a wire-funded account legitimately starts at 0 (#327/#348).
+  const startingCapitalConfigured = selectedAccounts.every((accountId) => getAccountMeta(accountId)?.startingCapitalSet ?? true);
 
   return (
     <WidgetCard title="Portfolio Reconciliation" action={action}>

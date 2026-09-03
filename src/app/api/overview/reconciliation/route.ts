@@ -67,9 +67,13 @@ export async function GET(request: Request) {
       }),
       prisma.account.findMany({
         where: { id: { in: resolvedAccountIds } },
-        select: { id: true, dataRevision: true },
+        select: { id: true, dataRevision: true, startingCapital: true },
       }),
     ]);
+    // "Configured" means the operator set a value, including 0 for an account
+    // that opened empty and was wire-funded (#327/#348); a live account's
+    // starting capital is never defaulted, so null is the unset state.
+    const startingCapitalConfigured = revisionRows.every((row) => row.startingCapital !== null);
 
     const sum = (select: (child: (typeof children)[number]) => { toString(): string } | null) => {
       let total = 0;
@@ -96,7 +100,7 @@ export async function GET(request: Request) {
     const startingCapital = sum((child) => child.startingCapital);
     const payload: ReconciliationResponse = {
       startingCapital: money(startingCapital),
-      startingCapitalConfigured: startingCapital > 0,
+      startingCapitalConfigured,
       currentNlv: anyNull((child) => child.reconstructedNlv) ? "0.00" : money(sum((child) => child.reconstructedNlv)),
       totalGain: anyNull((child) => child.totalGain) ? "0.00" : money(sum((child) => child.totalGain)),
       unrealizedPnl: anyNull((child) => child.unrealizedPnl) ? "0.00" : money(sum((child) => child.unrealizedPnl)),

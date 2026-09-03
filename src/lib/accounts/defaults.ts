@@ -1,13 +1,20 @@
 import { Broker, Prisma } from "@prisma/client";
 
-const SCHWAB_STARTING_CAPITAL = new Prisma.Decimal(100000);
-const FIDELITY_STARTING_CAPITAL = new Prisma.Decimal(0);
+/**
+ * thinkorswim's paperMoney platform seeds every simulated account with
+ * $100,000 — a platform fact, so it is the one starting capital that can be
+ * defaulted. A live account's starting capital is never inferred (#327): it is
+ * left null until the operator sets it (0 for an account that opened empty
+ * and was funded by wires, which then arrive as TRANSFER_IN cash events).
+ */
+const PAPER_MONEY_STARTING_CAPITAL = new Prisma.Decimal(100000);
 
 export interface AccountDefaultsInput {
   broker: Broker;
   label: string;
   displayLabel: string | null;
   brokerName: string | null;
+  paperMoney: boolean;
   startingCapital: Prisma.Decimal | null;
 }
 
@@ -15,8 +22,8 @@ export function getBrokerDisplayName(broker: Broker): string {
   return broker === "FIDELITY" ? "Fidelity" : "Schwab";
 }
 
-export function getDefaultStartingCapital(broker: Broker): Prisma.Decimal {
-  return broker === "FIDELITY" ? FIDELITY_STARTING_CAPITAL : SCHWAB_STARTING_CAPITAL;
+export function getDefaultStartingCapital(broker: Broker, paperMoney: boolean): Prisma.Decimal | null {
+  return broker === "SCHWAB_THINKORSWIM" && paperMoney ? PAPER_MONEY_STARTING_CAPITAL : null;
 }
 
 export function buildAccountDefaults(input: AccountDefaultsInput): {
@@ -39,7 +46,10 @@ export function buildAccountDefaults(input: AccountDefaultsInput): {
   }
 
   if (input.startingCapital === null) {
-    next.startingCapital = getDefaultStartingCapital(input.broker);
+    const defaultStartingCapital = getDefaultStartingCapital(input.broker, input.paperMoney);
+    if (defaultStartingCapital !== null) {
+      next.startingCapital = defaultStartingCapital;
+    }
   }
 
   return next;

@@ -17,6 +17,8 @@ export interface AccountEntityMeta {
   entitySlug: string | null; // null = unclassified (quarantined)
   entityName: string | null;
   paperMoney: boolean;
+  /** False when the operator has not set starting capital (live accounts get no default, #327). */
+  startingCapitalSet: boolean;
 }
 
 interface AccountFilterContextValue {
@@ -104,6 +106,7 @@ export function AccountFilterContextProvider({ children }: { children: React.Rea
               entitySlug: row.legalEntity?.slug ?? null,
               entityName: row.legalEntity?.legalName ?? null,
               paperMoney: row.paperMoney,
+              startingCapitalSet: row.startingCapital !== null,
             },
           ]),
         );
