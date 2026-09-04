@@ -125,6 +125,15 @@ export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decim
     return 0;
   }
 
+  // A money-market dividend arrives as two rows: the dividend (positive,
+  // income) and its reinvestment (negative). The reinvestment only moves the
+  // income into the fund — a cash equivalent — so it is sweep bookkeeping too.
+  // Deducting it under-counted Fidelity cash by every reinvested dividend
+  // since 2024 (#352).
+  if (event.rowType === "MONEY_MARKET_DIVIDEND" && Number(event.amount) < 0) {
+    return 0;
+  }
+
   return Number(event.amount);
 }
 

@@ -29,6 +29,14 @@ describe("buildFirstActivityDateByAccount", () => {
 });
 
 describe("cumulativeLedgerAmountForCashEvent", () => {
+  // #352: FSIXX pays 104.42 (income) and reinvests 104.42 (into the fund).
+  // Cash-equivalents grow by 104.42 once, not zero.
+  it("counts a money-market dividend as income but not its reinvestment", () => {
+    expect(cumulativeLedgerAmountForCashEvent({ rowType: "MONEY_MARKET_DIVIDEND", amount: 104.42 })).toBe(104.42);
+    expect(cumulativeLedgerAmountForCashEvent({ rowType: "MONEY_MARKET_DIVIDEND", amount: -104.42 })).toBe(0);
+    expect(cumulativeLedgerAmountForCashEvent({ rowType: "MONEY_MARKET_DIVIDEND", amount: new Prisma.Decimal("-83.43") })).toBe(0);
+  });
+
   it("includes external cash-event row types in the reconstructed cash ledger", () => {
     const rows = [
       ["DIVIDEND", "6.55", 6.55],

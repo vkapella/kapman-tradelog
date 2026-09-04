@@ -25,6 +25,13 @@ Treatment for Story 04 after cash-reconstruction correction:
   the reconstructed value curve. They are excluded from `cashValue` because trade cash flows
   already capture buying-power changes; including sweeps would double-count internal movement
   between cash and money-market funds.
+- `MONEY_MARKET_DIVIDEND` is two rows per month: the dividend (positive, counted as income)
+  and its reinvestment (negative, excluded — it only moves the income into the fund, which is
+  itself a cash equivalent). Deducting the reinvestment under-counted Fidelity cash by every
+  reinvested dividend since 2024 (#352).
+- Starting capital for a real account is the balance *before* the first exported row (Fidelity
+  X19467537: $0.04), never the first deposit — deposits arrive as `TRANSFER_IN` rows and are
+  already counted as contributions (#352, #327).
 
 This keeps reconstructed cash from double-counting deployed capital while preserving
 `DailyAccountSnapshot.totalCash` and broker NLV as reconciliation checks.
