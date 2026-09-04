@@ -69,4 +69,30 @@ describe("fidelityAdapter.parse", () => {
     expect(xleCashEvent).toBeUndefined();
     expect(parsed.warnings.some((warning) => warning.code === "ACAT_BASIS_OVERRIDE_RECOMMENDED")).toBe(true);
   });
+
+  // #351: the rows that funded the corporate Schwab account (History -33/-34),
+  // previously skipped as UNKNOWN_ACTION and so invisible to the cash ledger.
+  it("persists outbound wires and the wire adjustment as signed external capital flows", () => {
+    const file = makeFile([
+      '08/27/2026,WIRE TRANSFER TO BANK (Cash),"",No Description,Cash,"",0,"","","","-99960",0,""',
+      '08/26/2026,WIRE TRANSFER TO BANK (Cash),"",No Description,Cash,"",0,"","","","-100000",68597.68,""',
+      '08/26/2026,ADJUST WIRE TRANSFER (Cash),"",No Description,Cash,"",0,"","","",99960,168597.68,""',
+      '08/24/2026,TRANSFERRED FROM VS Z09-630438-1 (Cash),"",No Description,Cash,"",0,"","","",50000,68637.68,""',
+    ]);
+
+    const parsed = fidelityAdapter.parse(file);
+
+    expect(parsed.skippedRows).toBe(0);
+    expect(parsed.warnings.filter((warning) => warning.code === "UNKNOWN_ACTION")).toEqual([]);
+    expect(
+      parsed.cashEvents.map((event) => [event.eventDate.toISOString().slice(0, 10), event.rowType, event.amount]).sort(),
+    ).toEqual([
+      ["2026-08-24", "TRANSFER_IN", 50000],
+      ["2026-08-26", "TRANSFER_ADJUSTMENT", 99960],
+      ["2026-08-26", "TRANSFER_OUT", -100000],
+      ["2026-08-27", "TRANSFER_OUT", -99960],
+    ]);
+    // Net external flow across the four rows: the $100,000 that left for good.
+    expect(parsed.cashEvents.reduce((sum, event) => sum + event.amount, 0)).toBe(-50000);
+  });
 });

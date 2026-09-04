@@ -124,7 +124,7 @@ describe("GET /api/overview/summary", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           accountId: { in: ["acct-internal-1"] },
-          rowType: { in: ["TRANSFER_IN", "ACAT_RECEIVE", "ACAT_CREDIT"] },
+          rowType: { in: ["TRANSFER_IN", "TRANSFER_OUT", "TRANSFER_ADJUSTMENT", "ACAT_RECEIVE", "ACAT_CREDIT"] },
           eventDate: {
             gte: new Date("2026-01-01"),
             lte: new Date("2026-05-24T23:59:59.999Z"),

@@ -29,6 +29,15 @@ Treatment for Story 04 after cash-reconstruction correction:
 This keeps reconstructed cash from double-counting deployed capital while preserving
 `DailyAccountSnapshot.totalCash` and broker NLV as reconciliation checks.
 
+## Fidelity outbound wires (added 2026-09-04, #351)
+
+- `WIRE TRANSFER TO BANK` → `TRANSFER_OUT` and `ADJUST WIRE TRANSFER` → `TRANSFER_ADJUSTMENT`,
+  both with the signed amount Fidelity exports (a wire out is negative; an adjustment that
+  reverses one is positive). Both are external capital flows (`EXTERNAL_CAPITAL_ROW_TYPES`):
+  return-on-capital counts negatives as withdrawals and positives as contributions, and the
+  reconstructed cash ledger includes them. Dropping them as unknown actions had overstated the
+  Fidelity cash by the $100,000 net that left to fund the corporate Schwab account.
+
 ## Live Schwab accounts (added 2026-09-03, #348)
 
 - External funding of a live thinkorswim account arrives as `JRN` ("FUNDS RECEIVED") or

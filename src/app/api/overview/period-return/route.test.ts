@@ -63,7 +63,7 @@ describe("GET /api/overview/period-return", () => {
     expect(routeMocks.prisma.cashEvent.aggregate).toHaveBeenCalledWith({
       where: {
         accountId: { in: ["acct-internal-1"] },
-        rowType: { in: ["TRANSFER_IN", "ACAT_RECEIVE", "ACAT_CREDIT"] },
+        rowType: { in: ["TRANSFER_IN", "TRANSFER_OUT", "TRANSFER_ADJUSTMENT", "ACAT_RECEIVE", "ACAT_CREDIT"] },
         eventDate: {
           gte: new Date("2025-09-02"),
           lte: new Date("2025-09-30T23:59:59.999Z"),

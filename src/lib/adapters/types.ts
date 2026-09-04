@@ -58,6 +58,8 @@ export type CashEventRowType =
   | "MONEY_MARKET_EXCHANGE_IN"
   | "MONEY_MARKET"
   | "TRANSFER_IN"
+  | "TRANSFER_OUT"
+  | "TRANSFER_ADJUSTMENT"
   | "ACAT_RECEIVE"
   | "ACAT_CREDIT";
 

@@ -139,4 +139,10 @@ describe("classifyAction", () => {
       cashEventType: "MONEY_MARKET_EXCHANGE_OUT",
     });
   });
+
+  // #351: the 2026-08-26/27 wires that funded the corporate account.
+  it("classifies outbound wires and wire adjustments as external capital flows", () => {
+    expect(classifyAction("WIRE TRANSFER TO BANK (Cash)")).toEqual({ kind: "CASH_EVENT", cashEventType: "TRANSFER_OUT" });
+    expect(classifyAction("ADJUST WIRE TRANSFER (Cash)")).toEqual({ kind: "CASH_EVENT", cashEventType: "TRANSFER_ADJUSTMENT" });
+  });
 });

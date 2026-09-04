@@ -60,6 +60,18 @@ export function classifyAction(rawAction: string): ActionClassification {
     return { kind: "CASH_EVENT", cashEventType: "TRANSFER_IN" };
   }
 
+  // Outbound wires (2026-08-26/27: the corporate Schwab funding left this
+  // account) and Fidelity's signed wire adjustments. Both carry the exported
+  // sign and count as external capital flows; dropping them overstated cash by
+  // $100,000 (#351).
+  if (normalized.includes("WIRE TRANSFER TO BANK")) {
+    return { kind: "CASH_EVENT", cashEventType: "TRANSFER_OUT" };
+  }
+
+  if (normalized.includes("ADJUST WIRE TRANSFER")) {
+    return { kind: "CASH_EVENT", cashEventType: "TRANSFER_ADJUSTMENT" };
+  }
+
   if (normalized.includes("TRANSFER OF ASSETS ACAT RECEIVE")) {
     return { kind: "CASH_EVENT", cashEventType: "ACAT_RECEIVE" };
   }

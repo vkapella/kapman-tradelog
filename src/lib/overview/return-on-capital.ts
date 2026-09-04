@@ -1,4 +1,16 @@
-export const EXTERNAL_CAPITAL_ROW_TYPES = ["TRANSFER_IN", "ACAT_RECEIVE", "ACAT_CREDIT"] as const;
+/**
+ * Cash-event row types that are external capital flows (contributions when
+ * positive, withdrawals when negative). Wires out and Fidelity's signed wire
+ * adjustments joined in #351 so return-on-capital and the value engine see the
+ * money that left to fund another account.
+ */
+export const EXTERNAL_CAPITAL_ROW_TYPES = [
+  "TRANSFER_IN",
+  "TRANSFER_OUT",
+  "TRANSFER_ADJUSTMENT",
+  "ACAT_RECEIVE",
+  "ACAT_CREDIT",
+] as const;
 
 export type ReturnOnCapitalEndingValueSource = "position_snapshot" | "daily_account_snapshot" | "mixed" | "unavailable";
 
