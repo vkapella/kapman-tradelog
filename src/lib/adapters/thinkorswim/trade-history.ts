@@ -576,6 +576,29 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
   const cashBalanceRows = parseCashBalanceRows(csvText);
   warnings.push(...cashBalanceRows.warnings);
   executions.push(...cashBalanceRows.assignmentExecutions);
+
+  // Money-market dividend reinvestments exist only as Cash Balance TRD rows;
+  // the sweeps that also appear in Account Trade History are already
+  // executions and must not be doubled.
+  const knownTradeKeys = new Set(
+    executions.map((execution) =>
+      buildTradeRefNoPriceKey(execution.eventTimestamp, execution.symbol, execution.side, execution.quantity, execution.optionType),
+    ),
+  );
+  const synthesizedFundTrades = cashBalanceRows.fundTradeCandidates.filter(
+    (candidate) =>
+      !knownTradeKeys.has(
+        buildTradeRefNoPriceKey(candidate.eventTimestamp, candidate.symbol, candidate.side, candidate.quantity, candidate.optionType),
+      ),
+  );
+  for (const synthesized of synthesizedFundTrades) {
+    warnings.push({
+      code: "FUND_REINVESTMENT_SYNTHESIZED",
+      message: `${synthesized.side} ${synthesized.quantity} ${synthesized.symbol} taken from the Cash Balance section; Account Trade History does not list money-market reinvestments.`,
+      rowRef: synthesized.sourceRowRef,
+    });
+  }
+  executions.push(...synthesizedFundTrades);
   assignBrokerReferenceNumbers(executions, cashBalanceRows.tradeReferences);
   const snapshots = applyAccountSummaryToSnapshots(cashBalanceRows.snapshots, csvText);
   const cashEvents: NormalizedCashEvent[] = cashBalanceRows.cashEvents;
@@ -590,7 +613,7 @@ export function parseThinkorswimTradeHistory(csvText: string): ParseResult {
     executions,
     snapshots,
     cashEvents,
-    parsedRows: parsedRows + cashBalanceRows.assignmentExecutions.length,
+    parsedRows: parsedRows + cashBalanceRows.assignmentExecutions.length + synthesizedFundTrades.length,
     skippedRows,
   };
 }

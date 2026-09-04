@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   buildCorporateStatementCsv,
+  CORPORATE_STATEMENT_CREDIT,
+  CORPORATE_STATEMENT_FUND_SHARES,
   CORPORATE_STATEMENT_NLV,
+  CORPORATE_STATEMENT_REINVESTED_DIVIDEND,
   CORPORATE_STATEMENT_WIRE_ONE,
   CORPORATE_STATEMENT_WIRE_TWO,
 } from "./corporate-statement.fixture";
@@ -65,20 +68,28 @@ describe("parseThinkorswimTradeHistory", () => {
   it("parses the corporate statement layout: funding wires, money-market sweeps, statement NLV", () => {
     const result = parseThinkorswimTradeHistory(buildCorporateStatementCsv());
 
-    expect(result.executions.map((row) => [row.symbol, row.spread, row.side, row.quantity, row.price])).toEqual([
-      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_TWO, 1],
-      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_ONE, 1],
+    // Two sweeps from Account Trade History (with their Cash Balance refs) plus
+    // the dividend reinvestment synthesized from Cash Balance alone — never a
+    // duplicate of a sweep that appears in both sections.
+    expect(result.executions.map((row) => [row.symbol, row.spread, row.side, row.quantity, row.price, row.brokerRefNumber])).toEqual([
+      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_TWO, 1, "129308084328"],
+      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_WIRE_ONE, 1, "129181781548"],
+      ["SNSXX", "FUND", "BUY", CORPORATE_STATEMENT_REINVESTED_DIVIDEND, 1, "129552485614"],
     ]);
+    expect(result.executions.reduce((sum, row) => sum + row.quantity, 0)).toBeCloseTo(CORPORATE_STATEMENT_FUND_SHARES, 6);
     expect(result.cashEvents.map((event) => [event.rowType, event.amount])).toEqual([
       ["TRANSFER_IN", CORPORATE_STATEMENT_WIRE_ONE],
       ["TRANSFER_IN", CORPORATE_STATEMENT_WIRE_TWO],
+      ["DIVIDEND", CORPORATE_STATEMENT_REINVESTED_DIVIDEND],
+      ["JRN", CORPORATE_STATEMENT_CREDIT],
     ]);
-    expect(result.snapshots).toHaveLength(4);
-    const statementDay = result.snapshots.find((row) => row.snapshotDate.toISOString().startsWith("2026-08-27"));
+    expect(result.snapshots).toHaveLength(6);
+    const statementDay = result.snapshots.find((row) => row.snapshotDate.toISOString().startsWith("2026-09-01"));
     expect(statementDay?.balance).toBe(0);
     expect(statementDay?.brokerNetLiquidationValue).toBe(CORPORATE_STATEMENT_NLV);
     expect(result.warnings.filter((warning) => warning.code === "UNKNOWN_SPREAD_TYPE")).toEqual([]);
     expect(result.warnings.filter((warning) => warning.code === "CASH_BALANCE_UNHANDLED_ROW_TYPE")).toEqual([]);
+    expect(result.warnings.filter((warning) => warning.code === "FUND_REINVESTMENT_SYNTHESIZED")).toHaveLength(1);
   });
 
   it("treats a FUND money-market sweep as a known single-leg spread without warning", () => {

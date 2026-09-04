@@ -311,6 +311,11 @@ Rules:
   keep them as positions but price them at a constant $1.00 par
   (`src/lib/positions/par-value-instruments.ts`); never request a quote or
   historical mark for them
+- `DOI` rows are dividend/interest income and persist as `DIVIDEND`. A
+  money-market dividend reinvestment appears ONLY as a Cash Balance `TRD` row
+  (`BOT 84.33 SNSXX UPON ...`), never in Account Trade History: synthesize the
+  execution from the Cash Balance row (`FUND_REINVESTMENT_SYNTHESIZED`
+  warning) and dedupe against Trade History by timestamp/symbol/side/quantity
 - Snapshot parsing is required for the Overview equity curve
 
 ## Ledger rules

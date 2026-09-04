@@ -11,9 +11,30 @@ const CASH_BALANCE_STOP_SECTIONS = new Set([...DERIVATIVE_SECTION_HEADERS, "Acco
  * RECEIVED") — dropping them left the corporate account with no contributions
  * and a value series that could not reconcile (#348).
  */
-const PERSISTED_CASH_ROW_TYPES: ReadonlySet<string> = new Set(["FND", "LIQ", "RAD", "JRN", "WIN"]);
+const PERSISTED_CASH_ROW_TYPES: ReadonlySet<string> = new Set(["FND", "LIQ", "RAD", "JRN", "WIN", "DOI"]);
 
 const EXTERNAL_FUNDING_DESCRIPTION = /\bFUNDS RECEIVED\b/i;
+
+/**
+ * Money-market fund trades read "BOT 84.33 SNSXX UPON SCHWAB US TREASURY MONEY
+ * INVESTOR": fractional quantity, no price, "UPON" after the symbol. The
+ * dividend reinvestment appears ONLY here (never in Account Trade History), so
+ * it must become an execution or the fund position drifts from the broker's by
+ * every reinvested dividend (2026-09-03: 199,960 held vs 200,044.33 at Schwab).
+ */
+const FUND_TRADE_DESCRIPTION = /^(BOT|SOLD)\s+([0-9]+(?:\.[0-9]+)?)\s+([A-Z][A-Z0-9.]*)\s+UPON\b/i;
+
+function parseFundTradeDescriptor(description: string): { side: "BUY" | "SELL"; quantity: number; symbol: string } | null {
+  const match = parseDescription(description).match(FUND_TRADE_DESCRIPTION);
+  if (!match) {
+    return null;
+  }
+  const quantity = Number(match[2]);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+  return { side: match[1].toUpperCase() === "BOT" ? "BUY" : "SELL", quantity, symbol: match[3].toUpperCase() };
+}
 
 /**
  * External funding arriving as a JRN or WIN row is normalized to TRANSFER_IN so
@@ -23,6 +44,11 @@ const EXTERNAL_FUNDING_DESCRIPTION = /\bFUNDS RECEIVED\b/i;
 function normalizeCashRowType(rowType: string, description: string): CashEventRowType {
   if ((rowType === "JRN" || rowType === "WIN") && EXTERNAL_FUNDING_DESCRIPTION.test(description)) {
     return "TRANSFER_IN";
+  }
+  // DOI = dividend or interest income (the money-market fund's monthly
+  // dividend); same ledger semantics as Fidelity's DIVIDEND rows.
+  if (rowType === "DOI") {
+    return "DIVIDEND";
   }
   return rowType as CashEventRowType;
 }
@@ -257,6 +283,12 @@ export interface ParsedCashBalanceRows {
   cashEvents: NormalizedCashEvent[];
   tradeReferences: ParsedCashTradeReference[];
   assignmentExecutions: NormalizedExecution[];
+  /**
+   * Money-market fund trades seen in Cash Balance. The trade-history parser
+   * keeps only those with no Account Trade History counterpart (dividend
+   * reinvestments) so the fund position tracks the broker share for share.
+   */
+  fundTradeCandidates: NormalizedExecution[];
   warnings: AdapterWarning[];
 }
 
@@ -276,6 +308,7 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
   const cashEvents: NormalizedCashEvent[] = [];
   const tradeReferences: ParsedCashTradeReference[] = [];
   const assignmentExecutions: NormalizedExecution[] = [];
+  const fundTradeCandidates: NormalizedExecution[] = [];
   const warnings: AdapterWarning[] = [];
 
   let inCashBalanceSection = false;
@@ -401,6 +434,52 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
 
       const eventTimestamp = parseUsDateTime(dateRaw, timeRaw);
       const refNumber = parseRefNumber(refRaw);
+
+      const fundTrade = parseFundTradeDescriptor(descriptionRaw);
+      if (fundTrade && eventTimestamp && refNumber) {
+        const amount = parseCurrency(amountRaw);
+        tradeReferences.push({
+          eventTimestamp,
+          refNumber,
+          side: fundTrade.side,
+          quantity: fundTrade.quantity,
+          symbol: fundTrade.symbol,
+          optionType: null,
+          price: null,
+        });
+        fundTradeCandidates.push({
+          eventTimestamp,
+          tradeDate: new Date(Date.UTC(eventTimestamp.getUTCFullYear(), eventTimestamp.getUTCMonth(), eventTimestamp.getUTCDate())),
+          eventType: "TRADE",
+          assetClass: "EQUITY",
+          symbol: fundTrade.symbol,
+          side: fundTrade.side,
+          quantity: fundTrade.quantity,
+          price: amount === null ? 1 : Math.abs(amount) / fundTrade.quantity,
+          grossAmount: amount === null ? null : Math.abs(amount),
+          netAmount: amount,
+          openingClosingEffect: fundTrade.side === "BUY" ? "TO_OPEN" : "TO_CLOSE",
+          underlyingSymbol: fundTrade.symbol,
+          optionType: null,
+          strike: null,
+          expirationDate: null,
+          spread: "FUND",
+          spreadGroupId: null,
+          brokerRefNumber: refNumber,
+          sourceRowRef: String(lineIndex + 1),
+          rawRowJson: {
+            rowType,
+            spread: "FUND",
+            type: "FUND",
+            refNumber,
+            description: parseDescription(descriptionRaw),
+            amount: amountRaw || null,
+            balance: balanceRaw || null,
+          },
+        });
+        continue;
+      }
+
       const tradeDescriptor = parseTradeDescriptor(descriptionRaw);
 
       if (!eventTimestamp || !refNumber || !tradeDescriptor) {
@@ -465,7 +544,7 @@ export function parseCashBalanceRows(csvText: string): ParsedCashBalanceRows {
     snapshotDates.add(dateKey);
   }
 
-  return { snapshots, cashEvents, tradeReferences, assignmentExecutions, warnings };
+  return { snapshots, cashEvents, tradeReferences, assignmentExecutions, fundTradeCandidates, warnings };
 }
 
 export function parseCashBalanceSnapshots(csvText: string): NormalizedDailyAccountSnapshot[] {

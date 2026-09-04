@@ -94,10 +94,37 @@ describe("parseCashBalanceSnapshots", () => {
 
     const parsed = parseCashBalanceRows(csv);
 
-    expect(parsed.cashEvents).toEqual([]);
+    // DOI (dividend/interest income) is persisted as DIVIDEND; ADJ is still unhandled.
+    expect(parsed.cashEvents.map((event) => [event.rowType, event.amount])).toEqual([
+      ["DIVIDEND", 4.1],
+      ["DIVIDEND", 4.2],
+    ]);
     expect(parsed.warnings).toEqual([
       { code: "CASH_BALANCE_UNHANDLED_ROW_TYPE", message: "Skipped 1 Cash Balance row of type ADJ: not persisted by the thinkorswim parser." },
-      { code: "CASH_BALANCE_UNHANDLED_ROW_TYPE", message: "Skipped 2 Cash Balance rows of type DOI: not persisted by the thinkorswim parser." },
+    ]);
+  });
+
+  // 2026-09-03: the SNSXX dividend was reinvested; the buy appears only here.
+  it("emits money-market fund trades as execution candidates with fractional quantity and a reference", () => {
+    const csv = [
+      "Cash Balance",
+      "DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE",
+      "8/26/26,20:22:37,TRD,=\"129181781548\",BOT 100000.0 SNSXX UPON ,,,\"-100,000.00\",0.00",
+      "8/31/26,20:33:26,TRD,=\"129552485614\",BOT 84.33 SNSXX UPON SCHWAB US TREASURY MONEY INVESTOR,,,-84.33,-84.33",
+      "8/31/26,20:39:25,DOI,=\"129554667157\",SCHWAB US TREASURY MONEY INVESTOR 84.33 US$,,,84.33,0.00",
+      "Account Trade History",
+    ].join("\n");
+
+    const parsed = parseCashBalanceRows(csv);
+
+    expect(parsed.fundTradeCandidates.map((row) => [row.symbol, row.side, row.quantity, row.price, row.netAmount, row.spread, row.brokerRefNumber])).toEqual([
+      ["SNSXX", "BUY", 100000, 1, -100000, "FUND", "129181781548"],
+      ["SNSXX", "BUY", 84.33, 1, -84.33, "FUND", "129552485614"],
+    ]);
+    expect(parsed.fundTradeCandidates[1]?.rawRowJson).toMatchObject({ spread: "FUND", type: "FUND", rowType: "TRD" });
+    expect(parsed.tradeReferences.map((ref) => [ref.refNumber, ref.quantity])).toEqual([["129181781548", 100000], ["129552485614", 84.33]]);
+    expect(parsed.cashEvents).toEqual([
+      expect.objectContaining({ rowType: "DIVIDEND", amount: 84.33, refNumber: "129554667157" }),
     ]);
   });
 

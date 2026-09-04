@@ -11,7 +11,13 @@
 export const CORPORATE_STATEMENT_ACCOUNT_ID = "12345678SCHW";
 export const CORPORATE_STATEMENT_WIRE_ONE = 50000;
 export const CORPORATE_STATEMENT_WIRE_TWO = 49980;
-export const CORPORATE_STATEMENT_NLV = CORPORATE_STATEMENT_WIRE_ONE + CORPORATE_STATEMENT_WIRE_TWO;
+/** Month-end fund dividend, reinvested: a DOI row plus a Cash-Balance-only TRD row. */
+export const CORPORATE_STATEMENT_REINVESTED_DIVIDEND = 42.17;
+/** A Schwab courtesy credit (JRN, not funding), left as cash. */
+export const CORPORATE_STATEMENT_CREDIT = 40;
+export const CORPORATE_STATEMENT_FUND_SHARES =
+  CORPORATE_STATEMENT_WIRE_ONE + CORPORATE_STATEMENT_WIRE_TWO + CORPORATE_STATEMENT_REINVESTED_DIVIDEND;
+export const CORPORATE_STATEMENT_NLV = CORPORATE_STATEMENT_FUND_SHARES + CORPORATE_STATEMENT_CREDIT;
 
 function money(value: number): string {
   return `"${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`;
@@ -20,8 +26,11 @@ function money(value: number): string {
 export function buildCorporateStatementCsv(): string {
   const one = CORPORATE_STATEMENT_WIRE_ONE;
   const two = CORPORATE_STATEMENT_WIRE_TWO;
+  const reinvested = CORPORATE_STATEMENT_REINVESTED_DIVIDEND;
+  const credit = CORPORATE_STATEMENT_CREDIT;
+  const shares = CORPORATE_STATEMENT_FUND_SHARES;
   return [
-    `Account Statement for ${CORPORATE_STATEMENT_ACCOUNT_ID} (Corporate) since 7/29/26 through 8/27/26`,
+    `Account Statement for ${CORPORATE_STATEMENT_ACCOUNT_ID} (Corporate) since 7/29/26 through 9/1/26`,
     "",
     "Cash Balance",
     "DATE,TIME,TYPE,REF #,DESCRIPTION,Misc Fees,Commissions & Fees,AMOUNT,BALANCE",
@@ -33,14 +42,19 @@ export function buildCorporateStatementCsv(): string {
     "8/27/26,01:00:00,BAL,,Cash balance at the start of business day 27.08 CST,,,,0.00",
     `8/27/26,14:40:12,WIN,="129287438901",WIRED FUNDS RECEIVED ${two}.0 US$,,,${money(two)},${money(two)}`,
     `8/27/26,20:39:34,TRD,="129308084328",BOT ${two}.0 SNSXX UPON ,,,${money(-two)},0.00`,
-    ",,,,TOTAL,,,,$0.00",
+    "8/31/26,01:00:00,BAL,,Cash balance at the start of business day 31.08 CST,,,,0.00",
+    `8/31/26,20:33:26,TRD,="129552485614",BOT ${reinvested} SNSXX UPON SCHWAB US TREASURY MONEY INVESTOR,,,-${reinvested},-${reinvested}`,
+    `8/31/26,20:39:25,DOI,="129554667157",SCHWAB US TREASURY MONEY INVESTOR ${reinvested} US$,,,${reinvested},0.00`,
+    "9/1/26,01:00:00,BAL,,Cash balance at the start of business day 01.09 CST,,,,0.00",
+    `9/1/26,09:16:17,JRN,="129572994936",CUST SERVICE GEST ${credit}.0 US$,,,${credit}.00,${credit}.00`,
+    `,,,,TOTAL,,,$${credit}.00,$${credit}.00`,
     "",
     "Futures Statements",
     "Trade Date,Exec Date,Exec Time,Type,Ref #,Description,Misc Fees,Commissions & Fees,Amount,Balance",
     "8/27/26,8/27/26,01:00:00,BAL,--,Futures cash balance at the start of business day 27.08 CST,--,--,--,0.00",
     "",
     " ",
-    "Total Cash $0.00",
+    `Total Cash $${credit}.00`,
     "",
     "",
     "Forex Statements",
@@ -58,15 +72,15 @@ export function buildCorporateStatementCsv(): string {
     "",
     "Others",
     "Symbol,Description,Qty,Trade Price,Mark,Mark Value",
-    `SNSXX,SCHWAB US TREASURY MONEY INVESTOR,+${one + two},1.00,1.00,"$${money(one + two).slice(1)}`,
-    `,OVERALL TOTALS,,,,"$${money(one + two).slice(1)}`,
+    `SNSXX,SCHWAB US TREASURY MONEY INVESTOR,+${shares},1.00,1.00,"$${money(shares).slice(1)}`,
+    `,OVERALL TOTALS,,,,"$${money(shares).slice(1)}`,
     "",
     "Profits and Losses",
     "Symbol,Description,P/L Open,P/L %,P/L Day,P/L YTD,P/L Diff,Mark Value",
-    `SNSXX,SCHWAB US TREASURY MONEY INVESTOR,$0.00,0.00%,$0.00,$0.00,N/A,"$${money(one + two).slice(1)}`,
+    `SNSXX,SCHWAB US TREASURY MONEY INVESTOR,$0.00,0.00%,$0.00,$0.00,N/A,"$${money(shares).slice(1)}`,
     "",
     "Account Summary",
-    `Net Liquidating Value,"$${money(one + two).slice(1)}`,
+    `Net Liquidating Value,"$${money(CORPORATE_STATEMENT_NLV).slice(1)}`,
     "Stock Buying Power,$0.00",
     `Option Buying Power,"($${money(one).slice(1)})"`,
     "Intraday Buying Power,N/A",
