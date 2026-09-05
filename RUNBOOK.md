@@ -620,6 +620,41 @@ fly deploy -a kapman-tradelog          # release_command runs migrate deploy fir
 
 Never commit DB credentials — `fly postgres attach` and `fly secrets set` own them.
 
+### Public brand assets (Cloudflare Access bypass) — #353
+
+iOS "Add to Home Screen" fetches the touch icon in a separate request that
+carries no cookies. Anything that answers that request with a login redirect
+produces a generic letter tile. Two gates must both let these paths through:
+
+1. `src/middleware.ts` — done in code (`PUBLIC_ASSET_PATHS`, matcher).
+2. Cloudflare Access — a dashboard change. In Zero Trust → Access → Applications,
+   add a self-hosted application (or edit the tradelog one) whose **path** rules
+   cover, on `tradelog.kapmancapital.com`:
+
+   ```
+   /favicon.ico
+   /icon.png
+   /apple-icon.png
+   /apple-touch-icon.png
+   /apple-touch-icon-precomposed.png
+   /manifest.webmanifest
+   /icons/*
+   ```
+
+   with a single policy: action **Bypass**, include **Everyone**. Path rules
+   match without the query string, so Next's hashed `?v=` suffixes are fine.
+
+   Verify from a terminal with no cookies — every line must be `200 image/png`
+   (or `application/manifest+json`), never a `302` to `cloudflareaccess.com`:
+
+   ```bash
+   for p in /apple-touch-icon.png /apple-icon.png /icon.png /manifest.webmanifest; do curl -s -o /dev/null -w "$p %{http_code} %{content_type}\n" "https://tradelog.kapmancapital.com$p"; done
+   ```
+
+   Nothing behind the gate is exposed by this: the assets are the brand mark and
+   the manifest. Adding any other path to the bypass list is a design decision,
+   not a convenience.
+
 ### Verify the deploy
 
 ```bash

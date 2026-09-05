@@ -5,7 +5,9 @@ import { PROFILE_IDENTITY_HEADER } from "@/lib/auth/identity";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KapMan Trading Journal",
+  // Window/tab title. Matches the sidebar brand ("KapMan / Tradelog"); the
+  // route title helper in src/lib/navigation.ts and the manifest name agree.
+  title: "KapMan Tradelog",
   description: "Containerized trading journal for imports, FIFO lots, and setup analytics.",
   // Icons come from the App Router FILE CONVENTIONS, not from metadata.icons:
   // src/app/favicon.ico, icon.png and apple-icon.png. Next emits the <link>

@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     scope: "/",
-    name: "KapMan Trading Journal",
-    short_name: "KapMan",
+    name: "KapMan Tradelog",
+    short_name: "Tradelog",
     description: "Trading journal: imports, FIFO lots, live NLV, and setup analytics.",
     start_url: "/dashboard",
     display: "standalone",

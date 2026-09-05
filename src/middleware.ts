@@ -46,6 +46,25 @@ import {
 
 const HEALTH_PATH = "/api/health";
 
+// Brand and PWA assets that must be reachable WITHOUT credentials (#353). iOS
+// "Add to Home Screen" fetches the apple-touch-icon in a separate request that
+// carries no cookies; gating it produced a generic letter tile. These are the
+// public brand mark and the manifest — no account data is behind them. Keep in
+// step with the matcher below and with the Cloudflare Access bypass policy for
+// the same paths (RUNBOOK, "Public brand assets").
+const PUBLIC_ASSET_PATHS = new Set([
+  "/favicon.ico",
+  "/icon.png",
+  "/apple-icon.png",
+  "/apple-touch-icon.png",
+  "/apple-touch-icon-precomposed.png",
+  "/manifest.webmanifest",
+]);
+
+export function isPublicAssetPath(pathname: string): boolean {
+  return PUBLIC_ASSET_PATHS.has(pathname) || pathname.startsWith("/icons/");
+}
+
 function unauthorized(): NextResponse {
   return new NextResponse(
     "Cloudflare Access sign-in required. Open this app at " +
@@ -70,6 +89,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // Let Fly's health check through without credentials — and without identity.
   if (request.nextUrl.pathname === HEALTH_PATH) {
+    return forward();
+  }
+
+  // Public brand assets (#353): no credentials, no identity.
+  if (isPublicAssetPath(request.nextUrl.pathname)) {
     return forward();
   }
 
@@ -103,6 +127,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Run on everything except Next.js internals and common static asset files.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Run on everything except Next.js internals and the public brand/PWA assets
+  // (mirrors PUBLIC_ASSET_PATHS; the handler check above is the backstop).
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|apple-touch-icon(?:-precomposed)?\\.png|manifest\\.webmanifest|icons/).*)",
+  ],
 };

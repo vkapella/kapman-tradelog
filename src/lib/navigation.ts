@@ -53,7 +53,7 @@ export function getRouteTitle(pathname: string): string {
     }
   }
 
-  return "KapMan Trading Journal";
+  return "KapMan Tradelog";
 }
 
 export function getTopbarContextTags(pathname: string): string[] {

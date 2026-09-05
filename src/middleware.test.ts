@@ -104,6 +104,25 @@ describe("middleware identity propagation", () => {
     expect(forwardedHeader(response, "x-kapman-user")).toBeNull();
   });
 
+  // #353: iOS fetches the home-screen icon with no cookies; the brand mark and
+  // manifest are public, everything else stays gated.
+  it("public brand assets: forwarded without credentials and without identity", async () => {
+    accessConfig.mockReturnValue(ACCESS);
+    bearerTokenOk.mockReturnValue(false);
+    verifyAccessJwt.mockResolvedValue(null);
+
+    for (const path of ["/apple-icon.png?abc123", "/apple-touch-icon.png", "/icon.png", "/manifest.webmanifest", "/icons/icon-192.png"]) {
+      const response = await middleware(buildRequest(path, { "x-kapman-user": "victim@kapmancapital.com" }));
+      expect(response.status, path).toBe(200);
+      expect(forwardsSanitizedHeaders(response), path).toBe(true);
+      expect(forwardedHeader(response, "x-kapman-user"), path).toBeNull();
+    }
+
+    const gated = await middleware(buildRequest("/icons-not-public/secret.png"));
+    expect(gated.status).toBe(401);
+    expect(verifyAccessJwt).toHaveBeenCalledTimes(1);
+  });
+
   it("unverified request: 401, nothing forwarded", async () => {
     accessConfig.mockReturnValue(ACCESS);
     bearerTokenOk.mockReturnValue(false);
