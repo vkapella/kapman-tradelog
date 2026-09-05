@@ -1,6 +1,7 @@
 /* ============================================================
    kapman-ui.css — KapMan unified UI: tokens + control primitives
-   Source of truth: kapman-tradelog/design/ (UI-4, handoff 260830)
+   Source of truth: kapman-design/theme/ (UI-4, handoff 260830;
+   moved from kapman-tradelog/design 2026-09-05)
    Generated from the corrected globals.css after UI-0 + UI-0a.
    Governance (decision 04): copy this file VERBATIM into each
    repo, load it before app CSS. No package, no runtime fetch.

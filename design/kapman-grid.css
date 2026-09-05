@@ -1,6 +1,7 @@
 /* ============================================================
    kapman-grid.css — KapMan unified grid theme
-   Source of truth: kapman-tradelog/design/ (UI-4, handoff 260830)
+   Source of truth: kapman-design/theme/ (UI-4, handoff 260830;
+   moved from kapman-tradelog/design 2026-09-05)
    Requires kapman-ui.css to be loaded first (consumes its tokens).
    Copy VERBATIM per repo (decision 04).
 
