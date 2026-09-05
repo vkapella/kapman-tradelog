@@ -56,6 +56,15 @@ Never re-vendor on drift detection alone.
 
 ## OPEN — sent, awaiting ruling
 
+### `to-design/260905-filters-symbol-links.md` — prepared 2026-09-05, operator to send
+| Item | Class | Status |
+|---|---|---|
+| One column filter panel for all three apps: sort asc/desc/clear, search, set picker, exact-or-range for numbers and dates, ruling-58 semantics; Fair Value's AG-native number filter replaced | `RULING` | Decisions D-A1…D-A5 requested; engineering to publish one JSON filter contract after (decision-48 pattern for the Screener's Python twin) |
+| Every ticker/underlying symbol is a Barchart interactive-chart link (Screener's `SymbolLink` generalised); `.km-sym-link` primitive | `RULING` | Decisions D-B1…D-B3 requested; 7 Tradelog surfaces + Fair Value's four grids to follow |
+| Brand assets reachable without credentials; "Kapman" spelling; ≥512px master still wanted | `NOTE` | Implemented in all three apps (#353, #112/#113, #48); README ruling 2026-09-05 |
+| Governance: `kapman-design` as system of record; filter contract → shared panel package | `RULING` | Proposal in §5 of the document |
+| Reconcile the QUEUED table below against Amendment 03 (decisions 48–56) before the batch goes | — | Not yet done; first step of sending |
+
 ### `design-lockup-defects.md` — sent 2026-08-30
 | Item | Class | Status |
 |---|---|---|
