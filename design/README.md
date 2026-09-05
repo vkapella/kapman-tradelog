@@ -357,5 +357,43 @@ Two things that are easy to get wrong here:
   points at `/apple-icon.png`: iOS probes the site root for that exact filename
   when a page carries no apple-touch-icon tag.
 
+### The icon must be reachable without credentials (ruling 2026-09-05)
+
+Every Kapman app sits behind Cloudflare Access and, in Tradelog and the
+Screener, behind an in-app JWT gate as well. iOS "Add to Home Screen" fetches
+the touch icon in a **separate request that carries no cookies**; macOS "Add
+to Dock" reuses the icon already loaded in the signed-in tab. So the Mac
+showed the mark while the phone showed a letter, in all three apps, with the
+icon files perfectly correct. This is a **system requirement, not an app
+detail**: the brand assets are the public identifier and must answer
+anonymously on every Kapman hostname, present and future.
+
+Three layers, all required, all now in place for the three apps
+(Tradelog #353, Screener #112, Fair Value #48):
+
+1. **The app serves them at the root without credentials** —
+   `/favicon.ico`, `/icon.png`, `/apple-icon.png`, `/apple-touch-icon.png`,
+   `/apple-touch-icon-precomposed.png`, `/manifest.webmanifest`, `/icons/*`.
+   Tradelog excludes them from the middleware matcher and short-circuits the
+   handler; the Screener serves them from an allowlist outside its `/api`
+   gate; Fair Value's SPA fallback returns 404 for dotted paths so a missing
+   asset can never hide behind a 200 `index.html`.
+2. **Cloudflare Access bypasses them** — one shared self-hosted application,
+   "Kapman public brand assets", with **explicit-hostname** destination rows
+   for every Kapman hostname and a single Bypass/Everyone policy. Verified
+   2026-09-05 that `*.kapmancapital.com/<path>` rows lose to the site's
+   exact-hostname application and keep redirecting to login; explicit rows
+   win. Never attach that Bypass policy to a site's own application.
+3. **The page declares them** — `apple-touch-icon` (180×180 PNG), `icon`,
+   `manifest`, `theme-color`, and the `apple-mobile-web-app-*` metas.
+
+A new Kapman app therefore ships the asset set from the recipe above, serves
+it anonymously, gets seven rows in the shared Access application, and states
+its title with the brand spelled **"Kapman"** (never "KapMan"; repo names stay
+lowercase; the all-caps sidebar eyebrow is the one sanctioned variant).
+Verification is the anonymous `curl` loop in each repo's runbook. And after
+any icon change, delete and re-add the home-screen shortcut — iOS keeps the
+tile it generated the first time.
+
 The icon is opaque by design — iOS composites transparency to black on some
 versions — and keeps margin because iOS applies its own squircle mask.
