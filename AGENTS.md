@@ -151,7 +151,7 @@ build spec in `/docs/`.
 - `/src/lib/analytics/` — setup grouping, strategy tags, expectancy, win-rate logic
 - `/types/api.ts` — shared API contracts for frontend and backend
 - `/fixtures/` — synthetic and real CSV fixtures for parser and ledger tests
-- `/design/` — dashboard mock HTML used as visual target
+- `/design/` — vendored `kapman-ui.css` / `kapman-grid.css` only; the design system of record is `vkapella/kapman-design`
 - `/docs/` — build specs, issue breakdowns, and project requirements
 
 New files follow this layout:

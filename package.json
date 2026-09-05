@@ -25,7 +25,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "check:contrast": "tsx scripts/check-contrast.ts",
-    "lint:design": "node scripts/check-design-system.mjs"
+    "lint:design": "node scripts/check-design-system.mjs",
+    "lint:design:vendor": "KAPMAN_THEME_SOURCE=../kapman-design/theme node scripts/check-design-system.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

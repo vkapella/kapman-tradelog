@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   // declaring them twice only invites drift. public/apple-touch-icon.png is
   // kept as well, because iOS probes the site root for that exact filename
   // when a page has no apple-touch-icon tag. All are generated from the brand
-  // mark — see design/README.md for the commands.
+  // mark — see kapman-design/theme/README.md ("App icons") for the commands.
   appleWebApp: {
     capable: true,
     title: "Tradelog",

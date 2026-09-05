@@ -38,4 +38,4 @@ For all operational procedures (restart, recovery, data backfills, deployment), 
 
 ## UI target
 
-Use [design/kapman_dashboard_mock_v7.html](design/kapman_dashboard_mock_v7.html) as the active UX skin target. Historical mockups are archived under `design/archived/`.
+The unified UI theme, rulings and Claude Design bundle live in `vkapella/kapman-design` (theme at `theme/`, mocks at `theme/kapman_dashboard_mock_v7.html` and `theme/archived/`). `design/` here holds only the vendored `kapman-ui.css` / `kapman-grid.css` copies.
