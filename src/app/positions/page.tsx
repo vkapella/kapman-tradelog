@@ -154,7 +154,7 @@ export default function Page() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Copy snapshot JSON is a desk workflow: behind the overflow menu on phones. */}
-          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text disabled:opacity-50 max-md:hidden" title="Copy a portfolio_snapshot JSON for the KapMan KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
+          <button type="button" onClick={() => void handleCopySnapshot()} className="rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text disabled:opacity-50 max-md:hidden" title="Copy a portfolio_snapshot JSON for the Kapman KB §A2 ingest">{snapshotCopyStatus === "copied" ? "Copied!" : snapshotCopyStatus === "failed" ? "Copy failed" : "Copy snapshot JSON"}</button>
           <div className="relative md:hidden">
             <button type="button" onClick={() => setOverflowOpen((current) => !current)} aria-haspopup="true" aria-expanded={overflowOpen} aria-label="More actions" className="touch-target rounded border border-border bg-surface-3 px-2 py-1 text-xs text-text">⋯</button>
             {overflowOpen ? (

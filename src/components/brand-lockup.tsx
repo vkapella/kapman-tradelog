@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { HealthResponse } from "@/types/api";
 
-/* UI-3: the standard KapMan lockup (spec §01) — 28px commissioned mark,
+/* UI-3: the standard Kapman lockup (spec §01) — 28px commissioned mark,
  * KAPMAN eyebrow in --gold, tool name, and the release chip.
  *
  * The chip carries the product version only, per decision 05 — which for this

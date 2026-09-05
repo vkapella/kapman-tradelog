@@ -529,7 +529,7 @@ export function RecommendationsTablePanel() {
       <header className="space-y-1">
         <h2 className="text-xl font-semibold text-text">Recommendations Explorer</h2>
         <p className="text-sm text-text-2">
-          Every screening determination the KapMan pipeline mirrored here — Pass 1 and Pass 2, all dispositions.
+          Every screening determination the Kapman pipeline mirrored here — Pass 1 and Pass 2, all dispositions.
           Read-only: corrections flow through the journal and re-ingest idempotently on rec ID.
         </p>
       </header>
@@ -575,7 +575,7 @@ export function RecommendationsTablePanel() {
         <div className="rounded-xl border border-border bg-bg p-6">
           <h3 className="text-lg font-medium text-text">No recommendations found</h3>
           <p className="mt-2 text-sm text-text-2">
-            Adjust filters or pick a different run. Rows appear here when a KapMan screening run posts its
+            Adjust filters or pick a different run. Rows appear here when a Kapman screening run posts its
             determinations.
           </p>
         </div>

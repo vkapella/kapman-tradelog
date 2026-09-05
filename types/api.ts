@@ -914,9 +914,9 @@ export interface PeriodReturnResponse {
 
 export type PeriodReturnApiResponse = ApiDetailResponse<PeriodReturnResponse> | ApiErrorResponse;
 
-// --- Portfolio snapshot export (KapMan KB §A2 ingest contract) ---
+// --- Portfolio snapshot export (Kapman KB §A2 ingest contract) ---
 // Emitted by GET /api/export/portfolio-snapshot as a copy-pasteable handoff the
-// KapMan KB Portfolio mode consumes 1:1. Entry-time Wyckoff/DGPI/IV-HV context and
+// Kapman KB Portfolio mode consumes 1:1. Entry-time Wyckoff/DGPI/IV-HV context and
 // SIGNAL alert levels are intentionally NOT here — those are journal-owned (positions.md),
 // written by the KB at Pass 2, not by tradelog.
 

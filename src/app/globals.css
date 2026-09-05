@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* KapMan unified UI scale (handoff 260830, Tradelog UI-0). Values match
+/* Kapman unified UI scale (handoff 260830, Tradelog UI-0). Values match
  * Component Reference v2 §01–03 exactly — this repo owns the shared theme
  * the sibling apps vendor, so do not tune these locally. */
 :root {
