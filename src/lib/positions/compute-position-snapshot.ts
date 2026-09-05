@@ -10,6 +10,7 @@ import { buildExcursionLegs, computeOpenLegExcursions } from "@/lib/analysis/com
 import { loadFallbackMarks } from "@/lib/positions/fallback-marks";
 import { collectParValueInstrumentKeys, PAR_VALUE_MARK } from "@/lib/positions/par-value-instruments";
 import { normalizePositionSnapshotAccountIds, resolvePositionSnapshotAccountIds, serializePositionSnapshotAccountIds } from "@/lib/positions/position-snapshot";
+import { computeAccountReconciliationTerms, unexplainedDelta } from "@/lib/positions/reconciliation-terms";
 import type {
   EquityQuoteRecord,
   ExecutionRecord,
@@ -186,8 +187,8 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     // provably matches what was read (see #339). External quote calls happen
     // after the transaction commits.
     const inputsReadAt = new Date();
-    const { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows, balanceContext } = await prisma.$transaction(async (tx) => {
-    const [accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows] = await Promise.all([
+    const { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashRows, balanceContext } = await prisma.$transaction(async (tx) => {
+    const [accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashRows] = await Promise.all([
       tx.account.findMany({
         where: accountScope ? { id: { in: accountIds } } : undefined,
         select: { id: true, accountId: true, startingCapital: true, dataRevision: true },
@@ -229,10 +230,12 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
         include: { account: { select: { accountId: true } } },
       }),
       tx.matchedLot.groupBy({ by: ["accountId"], where: accountScope, _sum: { realizedPnl: true } }),
-      tx.cashEvent.groupBy({ by: ["accountId"], where: accountScope, _sum: { amount: true } }),
+      // Rows, not a raw sum: the identity must classify each row exactly as the
+      // value engine does (#356) and price in-kind receives separately (#357).
+      tx.cashEvent.findMany({ where: accountScope, select: { accountId: true, rowType: true, amount: true, description: true } }),
     ]);
     const balanceContext = await loadAccountBalanceContext(accountIds, tx);
-    return { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashByAccountRows, balanceContext };
+    return { accountRows, executionRows, matchedLotRows, adjustmentRows, realizedByAccountRows, cashRows, balanceContext };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 
     detailLog(snapshotId, "loaded-inputs", startedAtMs, {
@@ -328,7 +331,14 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const unrealizedPnl = totalMarkedValue - totalCostBasis;
     const startingCapital = accountRows.reduce((sum, account) => sum + Number(account.startingCapital ?? 0), 0);
     const realizedByAccount = new Map(realizedByAccountRows.map((row) => [row.accountId, toMoneyNumber(row._sum.realizedPnl)]));
-    const cashByAccount = new Map(cashByAccountRows.map((row) => [row.accountId, toMoneyNumber(row._sum.amount)]));
+    const reconciliationTerms = computeAccountReconciliationTerms({
+      accountIds: accountRows.map((account) => account.id),
+      cashRows,
+      executions: executionRows,
+      adjustments: manualAdjustments,
+    });
+    const cashByAccount = new Map(Array.from(reconciliationTerms.entries()).map(([accountId, terms]) => [accountId, terms.cashAdjustments]));
+    const inKindByAccount = new Map(Array.from(reconciliationTerms.entries()).map(([accountId, terms]) => [accountId, terms.inKindContributions]));
     const marksAsOf = new Date();
     const accountValues = accountRows.map((account) => resolveLiveAccountValue({
       accountId: account.id,
@@ -342,11 +352,12 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
 
     const realizedPnl = Array.from(realizedByAccount.values()).reduce((sum, value) => sum + value, 0);
     const cashAdjustments = Array.from(cashByAccount.values()).reduce((sum, value) => sum + value, 0);
+    const inKindContributions = Array.from(inKindByAccount.values()).reduce((sum, value) => sum + value, 0);
     const manualAdjustmentsTotal = sumManualAdjustmentAmounts(manualAdjustments);
     const totalGain = currentNlv === null ? null : currentNlv - startingCapital;
-    const unexplainedDelta = totalGain === null
+    const unexplainedDeltaTotal = currentNlv === null
       ? null
-      : totalGain - unrealizedPnl - cashAdjustments - realizedPnl - manualAdjustmentsTotal;
+      : unexplainedDelta({ nlv: currentNlv, startingCapital, unrealizedPnl, cashAdjustments, inKindContributions, realizedPnl, manualAdjustments: manualAdjustmentsTotal });
 
     // Open-leg MAE/MFE from HistoricalMark daily high/low over entry->now (advisory display).
     const openLegExcursions = await computeOpenLegExcursions(prisma, buildExcursionLegs(pricedPositions, executions), new Date());
@@ -380,12 +391,13 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       const accountStartingCapital = Number(account.startingCapital ?? 0);
       const accountRealized = realizedByAccount.get(account.id) ?? 0;
       const accountCash = cashByAccount.get(account.id) ?? 0;
+      const accountInKind = inKindByAccount.get(account.id) ?? 0;
       const accountManual = sumManualAdjustmentAmounts(manualAdjustments.filter((adjustment) => adjustment.accountId === account.id));
       const accountNlv = value?.reconstructedNlv == null ? null : Number(value.reconstructedNlv);
       const accountTotalGain = accountNlv === null ? null : accountNlv - accountStartingCapital;
-      const accountUnexplained = accountTotalGain === null || accountUnrealized === null
+      const accountUnexplained = accountNlv === null || accountUnrealized === null
         ? null
-        : accountTotalGain - accountUnrealized - accountCash - accountRealized - accountManual;
+        : unexplainedDelta({ nlv: accountNlv, startingCapital: accountStartingCapital, unrealizedPnl: accountUnrealized, cashAdjustments: accountCash, inKindContributions: accountInKind, realizedPnl: accountRealized, manualAdjustments: accountManual });
 
       return {
         runId: snapshotId,
@@ -400,6 +412,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
         startingCapital: toMoneyDecimal(accountStartingCapital),
         realizedPnl: toMoneyDecimal(accountRealized),
         cashAdjustments: toMoneyDecimal(accountCash),
+        inKindContributions: toMoneyDecimal(accountInKind),
         manualAdjustments: toMoneyDecimal(accountManual),
         unrealizedPnl: accountUnrealized === null ? null : toMoneyDecimal(accountUnrealized),
         totalGain: accountTotalGain === null ? null : toMoneyDecimal(accountTotalGain),
@@ -429,11 +442,12 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
           unrealizedPnl: toMoneyDecimal(unrealizedPnl),
           realizedPnl: toMoneyDecimal(realizedPnl),
           cashAdjustments: toMoneyDecimal(cashAdjustments),
+          inKindContributions: toMoneyDecimal(inKindContributions),
           manualAdjustments: toMoneyDecimal(manualAdjustmentsTotal),
           currentNlv: currentNlv === null ? null : toMoneyDecimal(currentNlv),
           startingCapital: toMoneyDecimal(startingCapital),
           totalGain: totalGain === null ? null : toMoneyDecimal(totalGain),
-          unexplainedDelta: unexplainedDelta === null ? null : toMoneyDecimal(unexplainedDelta),
+          unexplainedDelta: unexplainedDeltaTotal === null ? null : toMoneyDecimal(unexplainedDeltaTotal),
           errorMessage: null,
         },
       }),

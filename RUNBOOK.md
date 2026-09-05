@@ -751,3 +751,15 @@ npm run ingest:equity-marks && npm run backfill:value-snapshots
 - **ops scripts:** `ops/archive-db-to-mac.sh` — operational scripts that touch
   production live in `ops/`, deliberately outside `npm run` so they cannot be
   invoked by a blanket `npm run *` permission grant.
+
+
+## After deploying the cash-row classification change (#356, #357, #363)
+
+The reconciliation identity now classifies cash rows exactly as the value engine does and prices in-kind (ACAT) receives separately. Stored figures do not change by themselves:
+
+1. `prisma migrate deploy` adds `in_kind_contributions` to `position_snapshots` and `position_snapshot_accounts`.
+2. Recompute the value series end to end for every account so the new `INTERNAL_JOURNAL` and forex-journal classifications take effect: `npm run backfill:value-snapshots`.
+3. Re-run the position snapshot compute (`POST /api/positions/snapshot/compute`) so `/api/overview/reconciliation` shows the classified `cashAdjustments`, `inKindContributions` and a residual that is a real integrity signal.
+4. Re-import any Fidelity history export that produced `UNKNOWN_ACTION` warnings for `JOURNALED JNL VS A/C TYPES` rows, or accept that those rows remain skipped until re-imported.
+5. `npm run repair:recommendation-schema-version -- --dry-run`, then without `--dry-run`, to strip YAML quotes from stored `journal_schema_version` values (#367).
+6. Check `/api/diagnostics` `cashDrift` and `uncommittedImports`: a persistent offset means a missing or misclassified ledger row; commit or discard uncommitted imports before reading residuals.

@@ -61,7 +61,8 @@ export type CashEventRowType =
   | "TRANSFER_OUT"
   | "TRANSFER_ADJUSTMENT"
   | "ACAT_RECEIVE"
-  | "ACAT_CREDIT";
+  | "ACAT_CREDIT"
+  | "INTERNAL_JOURNAL";
 
 export interface NormalizedCashEvent {
   eventDate: Date;

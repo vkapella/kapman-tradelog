@@ -17,7 +17,7 @@ const accountBalanceMocks = vi.hoisted(() => ({
     groupBy: vi.fn(),
   },
   cashEvent: {
-    groupBy: vi.fn(),
+    findMany: vi.fn(),
   },
 }));
 
@@ -55,7 +55,7 @@ describe("loadAccountBalanceContext", () => {
       },
     ]);
     accountBalanceMocks.execution.groupBy.mockResolvedValue([]);
-    accountBalanceMocks.cashEvent.groupBy.mockResolvedValue([]);
+    accountBalanceMocks.cashEvent.findMany.mockResolvedValue([]);
 
     const { loadAccountBalanceContext } = await import("./account-balance-context");
     const result = await loadAccountBalanceContext(["acct-internal-1"]);
@@ -85,20 +85,12 @@ describe("loadAccountBalanceContext", () => {
         _max: { tradeDate: new Date("2026-04-10T00:00:00.000Z") },
       },
     ]);
-    accountBalanceMocks.cashEvent.groupBy
-      .mockResolvedValueOnce([
-        {
-          accountId: "acct-internal-1",
-          _sum: { amount: { toString: () => "4000" } },
-          _max: { eventDate: new Date("2026-04-10T00:00:00.000Z") },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          accountId: "acct-internal-1",
-          _sum: { amount: { toString: () => "-4000" } },
-        },
-      ]);
+    // Same rows the value engine classifies (#363): the transfer counts, the
+    // sweep into the money-market fund does not.
+    accountBalanceMocks.cashEvent.findMany.mockResolvedValue([
+      { accountId: "acct-internal-1", eventDate: new Date("2026-04-09T00:00:00.000Z"), rowType: "TRANSFER_IN", amount: { toString: () => "8000" }, description: null },
+      { accountId: "acct-internal-1", eventDate: new Date("2026-04-10T00:00:00.000Z"), rowType: "MONEY_MARKET_BUY", amount: { toString: () => "-4000" }, description: null },
+    ]);
 
     const { loadAccountBalanceContext } = await import("./account-balance-context");
     const result = await loadAccountBalanceContext(["acct-internal-1"]);
@@ -145,7 +137,7 @@ describe("loadAccountBalanceContext", () => {
       },
     ]);
     accountBalanceMocks.execution.groupBy.mockResolvedValue([]);
-    accountBalanceMocks.cashEvent.groupBy.mockResolvedValue([]);
+    accountBalanceMocks.cashEvent.findMany.mockResolvedValue([]);
 
     const { loadAccountBalanceContext } = await import("./account-balance-context");
     const result = await loadAccountBalanceContext(["acct-internal-1"]);
@@ -185,7 +177,7 @@ describe("loadAccountBalanceContext", () => {
       },
     ]);
     accountBalanceMocks.execution.groupBy.mockResolvedValue([]);
-    accountBalanceMocks.cashEvent.groupBy.mockResolvedValue([]);
+    accountBalanceMocks.cashEvent.findMany.mockResolvedValue([]);
 
     const { loadAccountBalanceContext } = await import("./account-balance-context");
     const result = await loadAccountBalanceContext(["acct-internal-2"]);
@@ -218,7 +210,7 @@ describe("loadAccountBalanceContext", () => {
     ]);
     accountBalanceMocks.accountValueSnapshot.findMany.mockResolvedValue([]);
     accountBalanceMocks.execution.groupBy.mockResolvedValue([]);
-    accountBalanceMocks.cashEvent.groupBy.mockResolvedValue([]);
+    accountBalanceMocks.cashEvent.findMany.mockResolvedValue([]);
 
     const { loadAccountBalanceContext } = await import("./account-balance-context");
     const result = await loadAccountBalanceContext(["acct-internal-1"]);

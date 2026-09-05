@@ -10,6 +10,29 @@ export interface ApiListMeta {
   total: number;
   page: number;
   pageSize: number;
+  /** Applied query scope, echoed so callers can verify what a list actually covers (#368). */
+  scope?: ListScopeMeta;
+}
+
+export interface ListScopeMeta {
+  accountIds: string[];
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/**
+ * Entity/environment composition of an aggregate response (#364). Consumers
+ * must not present a `mixedEntity` or `mixedEnvironment` aggregate as
+ * performance of any one entity.
+ */
+export interface AggregateScope {
+  requestedAccountIds: string[];
+  resolvedAccountIds: string[];
+  legalEntities: string[];
+  environments: Array<"LIVE" | "PAPER">;
+  mixedEntity: boolean;
+  mixedEnvironment: boolean;
+  unscopedRequest: boolean;
 }
 
 export interface ApiListResponse<T> {
@@ -303,9 +326,14 @@ export interface OverviewSummaryResponse {
   averageHoldDays: string;
   winRate: string | null;
   totalReturnPct: string | null;
+  /** totalReturnPct is growth over configured starting capital and INCLUDES later funding; it is not a return (#365). */
+  totalReturnPctBasis: "legacy_growth_over_starting_capital_includes_funding";
   returnOnCapitalPct: string | null;
   returnOnCapital: {
     beginningValue: string | null;
+    beginningValueSource: "broker_nlv" | "value_snapshot" | "daily_snapshot_cash" | "mixed" | "unavailable";
+    /** In-kind (ACAT) contributions inside the period, included in positiveExternalContributions (#357). */
+    inKindContributions: string;
     endingValue: string | null;
     netExternalContributions: string;
     positiveExternalContributions: string;
@@ -317,6 +345,7 @@ export interface OverviewSummaryResponse {
     missingEndingValueAccountIds: string[];
     endingValueSource: "position_snapshot" | "daily_account_snapshot" | "mixed" | "unavailable";
   };
+  scope: AggregateScope;
   profitFactor: string | null;
   expectancy: string | null;
   maxDrawdown: string | null;
@@ -418,6 +447,11 @@ export interface ReconciliationResponse {
   /** Accounts whose current data revision is ahead of what the run observed. */
   staleAccountIds?: string[];
   source?: "run_accounts" | "legacy_exact_scope" | "empty";
+  /** Transfer-date value of in-kind (ACAT) receives, an external contribution the cash ledger does not carry (#357). */
+  inKindContributions?: string;
+  /** Which cash-row classification produced cashAdjustments (#356). */
+  cashLedgerBasis?: string;
+  scope?: AggregateScope;
 }
 
 export interface TtsEvidenceResponse {
@@ -472,6 +506,12 @@ export interface DiagnosticsResponse {
   };
   warningSamples: string[];
   warningGroups: DiagnosticGroupRecord[];
+  /** Value-engine cash versus broker-side daily-snapshot cash, per account (#359). */
+  cashDrift: CashDriftRecord[];
+  /** Imports that were uploaded or parsed but never committed (#359). */
+  uncommittedImports: Array<{ id: string; accountId: string; filename: string; status: string; createdAt: string }>;
+  /** Net of INTERNAL_JOURNAL rows per account; should be ~0 (#369). */
+  internalJournalNet: Array<{ accountId: string; net: string; rowCount: number }>;
   setupInferenceGroups: DiagnosticGroupRecord[];
   setupInference: {
     setupInferenceTotal: number;
@@ -492,6 +532,18 @@ export interface DiagnosticsResponse {
       lotIds: string[];
     }>;
   };
+}
+
+export interface CashDriftRecord {
+  accountId: string;
+  toleranceAbs: number;
+  comparedDates: number;
+  datesOverTolerance: number;
+  latestDate: string | null;
+  latestEngineCash: string | null;
+  latestBrokerCash: string | null;
+  latestGap: string | null;
+  persistentOffset: boolean;
 }
 
 export interface DiagnosticCaseReference {

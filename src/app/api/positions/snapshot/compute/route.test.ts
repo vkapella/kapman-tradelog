@@ -29,6 +29,7 @@ const routeMocks = vi.hoisted(() => {
     cashEvent: {
       aggregate: vi.fn(),
       groupBy: vi.fn(),
+      findMany: vi.fn(),
     },
     positionSnapshot: {
       create: vi.fn(),
@@ -114,6 +115,7 @@ describe("POST /api/positions/snapshot/compute", () => {
     routeMocks.positionSnapshotAccount.createMany.mockResolvedValue({ count: 1 });
     routeMocks.cashEvent.aggregate.mockResolvedValue({ _sum: { amount: { toString: () => "10.00" } } });
     routeMocks.cashEvent.groupBy.mockResolvedValue([]);
+    routeMocks.cashEvent.findMany.mockResolvedValue([]);
     routeMocks.getStartingCapitalSummary.mockResolvedValue({ total: 10000, byAccount: { "acct-internal-1": 10000 } });
     routeMocks.getEquityQuotes.mockResolvedValue({ SPY: { mark: 510, bid: 509, ask: 511, last: 510, netChange: 0, netPctChange: 0 } });
     routeMocks.getOptionQuotesBatch.mockResolvedValue(new Map());
@@ -212,23 +214,17 @@ describe("POST /api/positions/snapshot/compute", () => {
         _max: { tradeDate: new Date("2026-04-10T00:00:00.000Z") },
       },
     ]);
-    routeMocks.cashEvent.groupBy
-      // Call 1: compute's per-account cash aggregate (inside the inputs tx).
-      .mockResolvedValueOnce([
-        {
-          accountId: "acct-internal-1",
-          _sum: { amount: { toString: () => "750.00" } },
-        },
-      ])
-      // Call 2: balance-context cash sums; call 3 (internal equivalents)
-      // falls through to the beforeEach default of [].
-      .mockResolvedValueOnce([
-        {
-          accountId: "acct-internal-1",
-          _sum: { amount: { toString: () => "750.00" } },
-          _max: { eventDate: new Date("2026-04-11T00:00:00.000Z") },
-        },
-      ]);
+    // Both the compute (inside the inputs tx) and the balance-context fallback
+    // now read classified rows rather than raw sums (#356, #363).
+    routeMocks.cashEvent.findMany.mockResolvedValue([
+      {
+        accountId: "acct-internal-1",
+        eventDate: new Date("2026-04-11T00:00:00.000Z"),
+        rowType: "TRANSFER_IN",
+        amount: { toString: () => "750.00" },
+        description: null,
+      },
+    ]);
 
     const { POST } = await import("./route");
 

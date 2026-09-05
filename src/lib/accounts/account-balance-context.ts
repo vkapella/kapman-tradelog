@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { buildAccountIdWhere, buildAccountScopeWhere } from "@/lib/api/account-scope";
 import { prisma } from "@/lib/db/prisma";
+import { cashLedgerAmount } from "@/lib/ledger/cash-row-classification";
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -38,15 +39,6 @@ export interface AccountBalanceContextRecord {
  */
 const RECONSTRUCTED_SNAPSHOT_CASH_BROKERS: ReadonlySet<string> = new Set(["FIDELITY"]);
 
-const INTERNAL_CASH_EQUIVALENT_ROW_TYPES = new Set([
-  "MONEY_MARKET",
-  "MONEY_MARKET_BUY",
-  "MONEY_MARKET_REDEEM",
-  "MONEY_MARKET_EXCHANGE_OUT",
-  "MONEY_MARKET_EXCHANGE_IN",
-  "REDEMPTION",
-]);
-
 function toNumber(value: Prisma.Decimal | null | undefined): number {
   return Number(value ?? 0);
 }
@@ -64,7 +56,7 @@ function maxIsoDate(left: string | null, right: string | null): string | null {
 }
 
 export async function loadAccountBalanceContext(accountIds: string[], db: DbClient = prisma): Promise<AccountBalanceContextRecord[]> {
-  const [accounts, snapshotRows, valueSnapshotRows, executionSums, cashEventSums, internalCashEquivalentSums] = await Promise.all([
+  const [accounts, snapshotRows, valueSnapshotRows, executionSums, cashEventRows] = await Promise.all([
     db.account.findMany({
       where: buildAccountIdWhere(accountIds) as Prisma.AccountWhereInput | undefined,
       select: { id: true, accountId: true, broker: true },
@@ -93,21 +85,9 @@ export async function loadAccountBalanceContext(accountIds: string[], db: DbClie
       _sum: { netAmount: true },
       _max: { tradeDate: true },
     }),
-    db.cashEvent.groupBy({
-      by: ["accountId"],
+    db.cashEvent.findMany({
       where: buildAccountScopeWhere(accountIds) as Prisma.CashEventWhereInput | undefined,
-      _sum: { amount: true },
-      _max: { eventDate: true },
-    }),
-    db.cashEvent.groupBy({
-      by: ["accountId"],
-      where: {
-        AND: [
-          ...(buildAccountScopeWhere(accountIds) ? [buildAccountScopeWhere(accountIds) as Prisma.CashEventWhereInput] : []),
-          { rowType: { in: Array.from(INTERNAL_CASH_EQUIVALENT_ROW_TYPES) } },
-        ],
-      },
-      _sum: { amount: true },
+      select: { accountId: true, eventDate: true, rowType: true, amount: true, description: true },
     }),
   ]);
 
@@ -142,26 +122,22 @@ export async function loadAccountBalanceContext(accountIds: string[], db: DbClie
       },
     ]),
   );
-  const cashEventSummaryByAccount = new Map(
-    cashEventSums.map((row) => [
-      row.accountId,
-      {
-        cashDelta: toNumber(row._sum.amount),
-        latestDate: row._max.eventDate?.toISOString() ?? null,
-      },
-    ]),
-  );
-  const internalCashEquivalentDeltaByAccount = new Map(
-    internalCashEquivalentSums.map((row) => [row.accountId, toNumber(row._sum.amount)]),
-  );
+  // Same classification as the value engine: internal sweeps, reinvestment
+  // legs, excluded sub-account journals and internal journals contribute zero (#363).
+  const cashEventSummaryByAccount = new Map<string, { cashDelta: number; latestDate: string | null }>();
+  for (const row of cashEventRows) {
+    const entry = cashEventSummaryByAccount.get(row.accountId) ?? { cashDelta: 0, latestDate: null };
+    entry.cashDelta += cashLedgerAmount(row);
+    entry.latestDate = maxIsoDate(entry.latestDate, row.eventDate.toISOString());
+    cashEventSummaryByAccount.set(row.accountId, entry);
+  }
 
   return accounts.map((account) => {
     const latestSnapshot = latestSnapshotByAccount.get(account.id);
     const latestValueSnapshot = latestValueSnapshotByAccount.get(account.id);
     const executionSummary = executionSummaryByAccount.get(account.id);
     const cashEventSummary = cashEventSummaryByAccount.get(account.id);
-    const internalCashEquivalentDelta = internalCashEquivalentDeltaByAccount.get(account.id) ?? 0;
-    const fallbackCash = (executionSummary?.cashDelta ?? 0) + (cashEventSummary?.cashDelta ?? 0) - internalCashEquivalentDelta;
+    const fallbackCash = (executionSummary?.cashDelta ?? 0) + (cashEventSummary?.cashDelta ?? 0);
     // Imported accounts should read from persisted snapshots. The fallback only protects
     // brand-new or otherwise empty accounts that still have zero snapshot rows.
     const hasSnapshot = latestSnapshot !== undefined;

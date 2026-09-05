@@ -8,6 +8,7 @@ import {
 import { detailResponse, errorResponse } from "@/lib/api/responses";
 import { prisma } from "@/lib/db/prisma";
 import { EXTERNAL_CAPITAL_ROW_TYPES } from "@/lib/overview/return-on-capital";
+import { isExternalFlowRow } from "@/lib/ledger/cash-row-classification";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
         ).map((a) => a.id)
       : (await prisma.account.findMany({ select: { id: true } })).map((a) => a.id);
 
-  const [startingSnapshots, endingSnapshots, cashAggregate] = await Promise.all([
+  const [startingSnapshots, endingSnapshots, capitalFlowRows] = await Promise.all([
     prisma.dailyAccountSnapshot.findMany({
       where: {
         accountId: { in: internalAccountIds },
@@ -50,13 +51,13 @@ export async function GET(request: Request) {
       orderBy: { snapshotDate: "desc" },
       distinct: ["accountId"],
     }),
-    prisma.cashEvent.aggregate({
+    prisma.cashEvent.findMany({
       where: {
         accountId: { in: internalAccountIds },
         rowType: { in: [...EXTERNAL_CAPITAL_ROW_TYPES] },
         eventDate: { gte: startDateBound, lte: endDateBound },
       },
-      _sum: { amount: true },
+      select: { amount: true, rowType: true, description: true },
     }),
   ]);
 
@@ -69,7 +70,9 @@ export async function GET(request: Request) {
 
   const startingNlv = sumNlv(startingSnapshots);
   const endingNlv = sumNlv(endingSnapshots);
-  const netFlows = Number(cashAggregate._sum.amount ?? 0);
+  // Classified, not summed raw: a paper forex sub-account journal carries an
+  // external row type but is not equity-account capital (#361, #362).
+  const netFlows = capitalFlowRows.filter(isExternalFlowRow).reduce((sum, row) => sum + Number(row.amount), 0);
 
   const profit = endingNlv - startingNlv - netFlows;
   const denominator = startingNlv + netFlows;

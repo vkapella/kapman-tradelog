@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EXTERNAL_FLOW_ROW_TYPES } from "@/lib/ledger/cash-row-classification";
 
 const routeMocks = vi.hoisted(() => ({
   prisma: {
@@ -9,7 +10,7 @@ const routeMocks = vi.hoisted(() => ({
       findMany: vi.fn(),
     },
     cashEvent: {
-      aggregate: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -43,7 +44,12 @@ describe("GET /api/overview/period-return", () => {
           brokerNetLiquidationValue: money("16000.00"),
         },
       ]);
-    routeMocks.prisma.cashEvent.aggregate.mockResolvedValue({ _sum: { amount: money("2000.00") } });
+    // A transfer counts; a paper forex sub-account journal carries an external
+    // row type but is excluded by the shared classification (#361, #362).
+    routeMocks.prisma.cashEvent.findMany.mockResolvedValue([
+      { amount: money("2000.00"), rowType: "TRANSFER_IN", description: null },
+      { amount: money("10000.00"), rowType: "FND", description: "Initial forex money transfer." },
+    ]);
   });
 
   it("uses only external capital flow row types for net flows", async () => {
@@ -60,16 +66,16 @@ describe("GET /api/overview/period-return", () => {
       },
       select: { id: true },
     });
-    expect(routeMocks.prisma.cashEvent.aggregate).toHaveBeenCalledWith({
+    expect(routeMocks.prisma.cashEvent.findMany).toHaveBeenCalledWith({
       where: {
         accountId: { in: ["acct-internal-1"] },
-        rowType: { in: ["TRANSFER_IN", "TRANSFER_OUT", "TRANSFER_ADJUSTMENT", "ACAT_RECEIVE", "ACAT_CREDIT"] },
+        rowType: { in: [...EXTERNAL_FLOW_ROW_TYPES] },
         eventDate: {
           gte: new Date("2025-09-02"),
           lte: new Date("2025-09-30T23:59:59.999Z"),
         },
       },
-      _sum: { amount: true },
+      select: { amount: true, rowType: true, description: true },
     });
     expect(payload.data.netFlows).toBe(2000);
     expect(payload.data.profit).toBe(4000);

@@ -115,10 +115,21 @@ describe("GET /api/overview/reconciliation", () => {
       realizedPnl: "10000.00",
       manualAdjustments: "1500.00",
       unexplainedDelta: "1000.00",
+      inKindContributions: "0.00",
+      cashLedgerBasis: "classified_ledger_v1",
       runId: "run-wide",
       snapshotAt: "2026-08-28T15:00:00.000Z",
       staleAccountIds: ["acct-1"],
       source: "run_accounts",
+      scope: {
+        requestedAccountIds: ["acct-1"],
+        resolvedAccountIds: ["acct-1"],
+        legalEntities: ["unclassified"],
+        environments: ["LIVE"],
+        mixedEntity: false,
+        mixedEnvironment: false,
+        unscopedRequest: false,
+      },
     });
     expect(routeMocks.positionSnapshotAccount.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { runId: "run-wide", accountId: { in: ["acct-1"] } } }),

@@ -26,7 +26,8 @@
     "db:seed": "prisma db seed",
     "check:contrast": "tsx scripts/check-contrast.ts",
     "lint:design": "node scripts/check-design-system.mjs",
-    "lint:design:vendor": "KAPMAN_THEME_SOURCE=../kapman-design/theme node scripts/check-design-system.mjs"
+    "lint:design:vendor": "KAPMAN_THEME_SOURCE=../kapman-design/theme node scripts/check-design-system.mjs",
+    "repair:recommendation-schema-version": "tsx scripts/normalize-recommendation-schema-version.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

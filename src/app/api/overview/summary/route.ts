@@ -8,10 +8,15 @@ import { prisma } from "@/lib/db/prisma";
 import { computeMaxDrawdown } from "@/lib/overview/max-drawdown";
 import {
   calculateReturnOnCapital,
+  combineBeginningValueSources,
   EXTERNAL_CAPITAL_ROW_TYPES,
+  resolveBeginningValue,
+  type ReturnOnCapitalBeginningValueSource,
   type ReturnOnCapitalEndingValueSource,
   snapshotValue,
 } from "@/lib/overview/return-on-capital";
+import { buildAggregateScope } from "@/lib/api/aggregate-scope";
+import { inKindTransferValue, isExternalFlowRow } from "@/lib/ledger/cash-row-classification";
 import {
   parsePositionSnapshotAccountValuesJson,
   parsePositionSnapshotPositionsJson,
@@ -56,7 +61,7 @@ export async function GET(request: Request) {
 
   const scopedAccounts = await prisma.account.findMany({
     where: buildAccountIdWhere(accountIds) as Prisma.AccountWhereInput | undefined,
-    select: { id: true, accountId: true },
+    select: { id: true, accountId: true, paperMoney: true, legalEntity: { select: { slug: true } } },
     orderBy: { id: "asc" },
   });
   const internalAccountIds = scopedAccounts.map((account) => account.id);
@@ -77,6 +82,7 @@ export async function GET(request: Request) {
     capitalFlowRows,
     latestPerAccountChildRows,
     latestPerAccountPositionSnapshots,
+    inKindCandidateExecutions,
   ] = await Promise.all([
     prisma.execution.count({
       where: { AND: [whereAccount as Prisma.ExecutionWhereInput, executionDateWhere as Prisma.ExecutionWhereInput].filter(Boolean) },
@@ -133,7 +139,7 @@ export async function GET(request: Request) {
           ...(endDateBound ? { lte: endDateBound } : {}),
         },
       },
-      select: { amount: true },
+      select: { amount: true, rowType: true, description: true },
     }),
     // Latest per-account child rows (#339): any COMPLETE run contributes its
     // per-account result, so multi-account snapshots are no longer discarded.
@@ -169,6 +175,20 @@ export async function GET(request: Request) {
         snapshotAt: true,
       },
     }),
+    // In-kind (ACAT) receives inside the period are external contributions the
+    // cash ledger does not carry (#357).
+    prisma.execution.findMany({
+      where: {
+        accountId: { in: internalAccountIds },
+        assetClass: "EQUITY",
+        side: "BUY",
+        tradeDate: {
+          ...(startDateBound ? { gte: startDateBound } : {}),
+          ...(endDateBound ? { lte: endDateBound } : {}),
+        },
+      },
+      select: { id: true, accountId: true, assetClass: true, side: true, quantity: true, price: true, rawRowJson: true },
+    }),
   ]);
 
   const totalPnl = matchedLots.reduce((sum, lot) => sum + Number(lot.realizedPnl), 0);
@@ -203,6 +223,25 @@ export async function GET(request: Request) {
   const missingBeginningValueAccountIds = internalAccountIds
     .filter((accountId) => !beginningSnapshotsByAccountId.has(accountId))
     .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
+  // Value-engine total on (or just before) each beginning date, used when the
+  // daily snapshot carries cash only (#358).
+  const beginningValueSnapshotByAccountId = new Map<string, { toString(): string } | number>();
+  await Promise.all(
+    Array.from(beginningSnapshotsByAccountId.entries()).map(async ([accountId, snapshot]) => {
+      if (snapshot.brokerNetLiquidationValue !== null && snapshot.brokerNetLiquidationValue !== undefined) {
+        return;
+      }
+      const lowerBound = new Date(snapshot.snapshotDate.getTime() - 10 * 24 * 60 * 60 * 1000);
+      const valueSnapshot = (await prisma.accountValueSnapshot.findFirst({
+        where: { accountId, snapshotDate: { lte: snapshot.snapshotDate, gte: lowerBound } },
+        orderBy: { snapshotDate: "desc" },
+        select: { totalValue: true },
+      })) ?? null;
+      if (valueSnapshot) {
+        beginningValueSnapshotByAccountId.set(accountId, valueSnapshot.totalValue);
+      }
+    }),
+  );
   const latestPositionNlvByAccountId = new Map<string, number>();
   // Child rows are ordered by (inputsRevision DESC NULLS LAST, createdAt DESC),
   // so the first row per account is the source-data-freshest result. Rows with
@@ -255,13 +294,16 @@ export async function GET(request: Request) {
   const missingEndingValueAccountIds = internalAccountIds
     .filter((accountId) => !latestPositionNlvByAccountId.has(accountId) && !endingSnapshotsByAccountId.has(accountId))
     .map((accountId) => accountExternalIdsByInternalId.get(accountId) ?? accountId);
+  const beginningResolutions = internalAccountIds.flatMap((accountId) => {
+    const snapshot = beginningSnapshotsByAccountId.get(accountId);
+    return snapshot ? [resolveBeginningValue(snapshot, beginningValueSnapshotByAccountId.get(accountId) ?? null)] : [];
+  });
   const beginningValue =
     missingBeginningValueAccountIds.length > 0
       ? null
-      : internalAccountIds.reduce((sum, accountId) => {
-          const snapshot = beginningSnapshotsByAccountId.get(accountId);
-          return snapshot ? sum + snapshotValue(snapshot) : sum;
-        }, 0);
+      : beginningResolutions.reduce((sum, resolved) => sum + resolved.value, 0);
+  const beginningValueSource: ReturnOnCapitalBeginningValueSource =
+    beginningValue === null ? "unavailable" : combineBeginningValueSources(beginningResolutions.map((resolved) => resolved.source));
   const endingResolution = internalAccountIds.map((accountId) => {
     const positionNlv = latestPositionNlvByAccountId.get(accountId);
     if (positionNlv !== undefined) {
@@ -296,18 +338,24 @@ export async function GET(request: Request) {
   } else if (endingValue !== null) {
     endingValueSource = "daily_account_snapshot";
   }
-  const positiveExternalContributions = capitalFlowRows.reduce((sum, row) => {
+  // Classified, not summed raw: an external row type is not enough (a paper
+  // forex journal is excluded, #361/#362).
+  const externalFlowRows = capitalFlowRows.filter((row) => isExternalFlowRow({ rowType: row.rowType ?? "TRANSFER_IN", amount: row.amount, description: row.description ?? null }));
+  const positiveExternalContributions = externalFlowRows.reduce((sum, row) => {
     const amount = Number(row.amount);
     return amount > 0 ? sum + amount : sum;
   }, 0);
-  const withdrawals = capitalFlowRows.reduce((sum, row) => {
+  const withdrawals = externalFlowRows.reduce((sum, row) => {
     const amount = Number(row.amount);
     return amount < 0 ? sum + Math.abs(amount) : sum;
   }, 0);
+  const inKindContributions = (inKindCandidateExecutions ?? []).reduce((sum, execution) => sum + inKindTransferValue(execution), 0);
   const returnOnCapital = calculateReturnOnCapital({
     beginningValue,
+    beginningValueSource,
     endingValue,
     positiveExternalContributions,
+    inKindContributions,
     withdrawals,
     missingBeginningValueAccountIds,
     missingEndingValueAccountIds,
@@ -332,9 +380,12 @@ export async function GET(request: Request) {
     averageHoldDays: avgHold.toFixed(2),
     winRate: formatNullableMetric(winRate),
     totalReturnPct: formatNullableMetric(totalReturnPct),
+    totalReturnPctBasis: "legacy_growth_over_starting_capital_includes_funding",
     returnOnCapitalPct: formatNullableMetric(returnOnCapital.returnOnCapitalPct),
     returnOnCapital: {
       beginningValue: formatNullableMetric(returnOnCapital.beginningValue),
+      beginningValueSource: returnOnCapital.beginningValueSource,
+      inKindContributions: returnOnCapital.inKindContributions.toFixed(2),
       endingValue: formatNullableMetric(returnOnCapital.endingValue),
       netExternalContributions: returnOnCapital.netExternalContributions.toFixed(2),
       positiveExternalContributions: returnOnCapital.positiveExternalContributions.toFixed(2),
@@ -346,6 +397,7 @@ export async function GET(request: Request) {
       missingEndingValueAccountIds: returnOnCapital.missingEndingValueAccountIds,
       endingValueSource: returnOnCapital.endingValueSource,
     },
+    scope: buildAggregateScope(accountIds, scopedAccounts),
     profitFactor: formatNullableMetric(profitFactor),
     expectancy: formatNullableMetric(expectancy),
     maxDrawdown: formatNullableMetric(maxDrawdown),

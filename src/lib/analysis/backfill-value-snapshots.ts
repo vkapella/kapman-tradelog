@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromPersistedExecution } from "@/lib/ledger/instrument-key";
 import { computeHoldingsAsOf } from "@/lib/positions/compute-holdings-asof";
 import { collectParValueInstrumentKeys } from "@/lib/positions/par-value-instruments";
+import { cashLedgerAmount, isCashNeutralTransferReceive } from "@/lib/ledger/cash-row-classification";
 import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 import {
   computeAccountValueForDate,
@@ -58,15 +59,6 @@ export interface AccountActivityDateRow {
 
 const FALLBACK_MARK_LOOKBACK_DAYS = 10;
 const UPSERT_BATCH_SIZE = 50;
-const INTERNAL_CASH_EQUIVALENT_ROW_TYPES = new Set([
-  "MONEY_MARKET",
-  "MONEY_MARKET_BUY",
-  "MONEY_MARKET_REDEEM",
-  "MONEY_MARKET_EXCHANGE_OUT",
-  "MONEY_MARKET_EXCHANGE_IN",
-  "REDEMPTION",
-]);
-
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -117,24 +109,13 @@ export function buildFirstActivityDateByAccount(input: {
   return result;
 }
 
-export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decimal | number; rowType: string }): number {
-  // Money-market sweep rows move cash into/out of cash-equivalent funds. Trade
-  // cash deltas already capture buying power changes, so including sweeps here
-  // would double-count internal bookkeeping.
-  if (INTERNAL_CASH_EQUIVALENT_ROW_TYPES.has(event.rowType)) {
-    return 0;
-  }
-
-  // A money-market dividend arrives as two rows: the dividend (positive,
-  // income) and its reinvestment (negative). The reinvestment only moves the
-  // income into the fund — a cash equivalent — so it is sweep bookkeeping too.
-  // Deducting it under-counted Fidelity cash by every reinvested dividend
-  // since 2024 (#352).
-  if (event.rowType === "MONEY_MARKET_DIVIDEND" && Number(event.amount) < 0) {
-    return 0;
-  }
-
-  return Number(event.amount);
+/**
+ * The row's contribution to reconstructed cash-and-equivalents. Delegates to the
+ * shared classification so the value engine, the reconciliation compute and
+ * return-on-capital can never disagree about what a row is (#356).
+ */
+export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decimal | number; rowType: string; description?: string | null }): number {
+  return cashLedgerAmount(event);
 }
 
 export function reconstructedTradeCashDelta(execution: {
@@ -165,24 +146,6 @@ export function reconstructedTradeCashDelta(execution: {
   const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
   const grossCashFlow = quantity * price * multiplier;
   return execution.side === "BUY" ? grossCashFlow * -1 : grossCashFlow;
-}
-
-function isRecord(value: Prisma.JsonValue | null | undefined): value is Prisma.JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function jsonStringField(value: Prisma.JsonValue | undefined): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function isCashNeutralTransferReceive(rawRowJson: Prisma.JsonValue | null | undefined): boolean {
-  if (!isRecord(rawRowJson)) {
-    return false;
-  }
-
-  const action = jsonStringField(rawRowJson.action)?.toUpperCase() ?? "";
-  const rawAction = jsonStringField(rawRowJson.rawAction)?.toUpperCase() ?? "";
-  return action.includes("ACAT_RECEIVE") || rawAction.includes("ACAT RECEIVE");
 }
 
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
@@ -424,6 +387,7 @@ export async function backfillValueSnapshots(input: BackfillValueSnapshotsInput 
         eventDate: true,
         rowType: true,
         amount: true,
+        description: true,
       },
     }),
     prismaClient.dailyAccountSnapshot.findMany({
