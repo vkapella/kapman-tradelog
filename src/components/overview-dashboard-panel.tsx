@@ -45,7 +45,7 @@ const overviewKpiHelpText: Record<string, InfoTooltipContent> = {
 };
 
 export function OverviewDashboardPanel() {
-  const { selectedAccounts } = useAccountFilterContext();
+  const { selectedAccounts, selectionWarnings } = useAccountFilterContext();
   const { range, applyRangeToSearchParams } = useContext(RangeFilterContext);
   const [data, setData] = useState<OverviewSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +90,14 @@ export function OverviewDashboardPanel() {
         <h2 className="text-xl font-semibold text-text">Overview Summary</h2>
         <p className="text-sm text-text-2">Headline P&L and activity metrics, import quality checks, and cash-balance-curve snapshot series.</p>
       </header>
+
+      {selectionWarnings.length > 0 ? (
+        <ul role="alert" data-testid="overview-scope-warnings" className="space-y-1 rounded-lg border border-warn-border bg-warn-dim p-3 text-xs text-warn">
+          {selectionWarnings.map((warning) => (
+            <li key={warning}>{warning} These headline figures aggregate the selected accounts and are not performance of any one entity.</li>
+          ))}
+        </ul>
+      ) : null}
 
       {loading ? <LoadingSkeleton lines={6} /> : null}
       {error ? <p className="text-sm text-neg">{error}</p> : null}

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EXTERNAL_CAPITAL_ROW_TYPES } from "@/lib/overview/return-on-capital";
 
 const routeMocks = vi.hoisted(() => ({
   prisma: {
@@ -7,6 +8,10 @@ const routeMocks = vi.hoisted(() => ({
     },
     execution: {
       count: vi.fn(),
+      findMany: vi.fn(),
+    },
+    accountValueSnapshot: {
+      findFirst: vi.fn(),
     },
     matchedLot: {
       findMany: vi.fn(),
@@ -56,6 +61,8 @@ describe("GET /api/overview/summary", () => {
     vi.resetModules();
     vi.clearAllMocks();
     routeMocks.prisma.positionSnapshotAccount.findMany.mockResolvedValue([]);
+    routeMocks.prisma.execution.findMany.mockResolvedValue([]);
+    routeMocks.prisma.accountValueSnapshot.findFirst.mockResolvedValue(null);
 
     routeMocks.prisma.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "X19467537" }]);
     routeMocks.prisma.execution.count.mockResolvedValue(0);
@@ -124,7 +131,7 @@ describe("GET /api/overview/summary", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           accountId: { in: ["acct-internal-1"] },
-          rowType: { in: ["TRANSFER_IN", "TRANSFER_OUT", "TRANSFER_ADJUSTMENT", "ACAT_RECEIVE", "ACAT_CREDIT"] },
+          rowType: { in: [...EXTERNAL_CAPITAL_ROW_TYPES] },
           eventDate: {
             gte: new Date("2026-01-01"),
             lte: new Date("2026-05-24T23:59:59.999Z"),
@@ -337,5 +344,62 @@ describe("GET /api/overview/summary", () => {
       missingEndingValueAccountIds: [],
     });
     expect(payload.data.returnOnCapitalPct).toBe("17.14");
+  });
+});
+
+describe("GET /api/overview/summary beginning-value and in-kind handling (#357, #358)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    routeMocks.prisma.positionSnapshotAccount.findMany.mockResolvedValue([]);
+    routeMocks.prisma.execution.findMany.mockResolvedValue([]);
+    routeMocks.prisma.accountValueSnapshot.findFirst.mockResolvedValue(null);
+    routeMocks.prisma.account.findMany.mockResolvedValue([{ id: "acct-internal-1", accountId: "X19467537", paperMoney: false, legalEntity: { slug: "personal" } }]);
+    routeMocks.prisma.execution.count.mockResolvedValue(0);
+    routeMocks.prisma.matchedLot.findMany.mockResolvedValue([]);
+    routeMocks.prisma.setupGroup.count.mockResolvedValue(0);
+    routeMocks.prisma.import.findMany.mockResolvedValue([]);
+    routeMocks.prisma.dailyAccountSnapshot.count.mockResolvedValue(1);
+    routeMocks.prisma.dailyAccountSnapshot.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "beginning", accountId: "acct-internal-1", snapshotDate: new Date("2024-12-31T00:00:00.000Z"), balance: money("15461.20"), totalCash: money("15461.20"), brokerNetLiquidationValue: null },
+      ])
+      .mockResolvedValueOnce([]);
+    routeMocks.prisma.cashEvent.findMany.mockResolvedValue([
+      { amount: money("10000"), rowType: "TRANSFER_IN", description: null },
+      { amount: money("10000"), rowType: "FND", description: "Initial forex money transfer." },
+    ]);
+    routeMocks.prisma.positionSnapshot.findMany.mockResolvedValue([{ accountIds: JSON.stringify(["acct-internal-1"]), currentNlv: money("88738.06") }]);
+    routeMocks.loadAccountBalanceContext.mockResolvedValue([{ accountExternalId: "X19467537", cash: 23706.76, cashAsOf: "2026-09-03T00:00:00.000Z", brokerNetLiquidationValue: null }]);
+    routeMocks.getStartingCapitalSummary.mockResolvedValue({ total: 0.04, byAccount: { "acct-internal-1": 0.04 } });
+  });
+
+  it("uses the value-engine total for a cash-only beginning snapshot, prices in-kind receives, excludes forex journals and labels scope", async () => {
+    routeMocks.prisma.accountValueSnapshot.findFirst.mockResolvedValue({ totalValue: money("22835.54") });
+    routeMocks.prisma.execution.findMany.mockResolvedValue([
+      { id: "exec-acat", accountId: "acct-internal-1", assetClass: "EQUITY", side: "BUY", quantity: money("100"), price: money("89.81"), rawRowJson: { rawAction: "TRANSFER OF ASSETS ACAT RECEIVE (XLE)" } },
+    ]);
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/overview/summary?accountIds=acct-internal-1"));
+    const payload = (await response.json()) as {
+      data: { totalReturnPctBasis: string; scope: { mixedEntity: boolean; unscopedRequest: boolean }; returnOnCapital: { beginningValue: string; beginningValueSource: string; inKindContributions: string; positiveExternalContributions: string } };
+    };
+    expect(payload.data.returnOnCapital).toMatchObject({
+      beginningValue: "22835.54",
+      beginningValueSource: "value_snapshot",
+      inKindContributions: "8981.00",
+      positiveExternalContributions: "18981.00",
+    });
+    expect(payload.data.totalReturnPctBasis).toBe("legacy_growth_over_starting_capital_includes_funding");
+    expect(payload.data.scope).toMatchObject({ mixedEntity: false, unscopedRequest: false });
+  });
+
+  it("falls back to cash-only and says so when no value snapshot exists", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/overview/summary"));
+    const payload = (await response.json()) as { data: { scope: { unscopedRequest: boolean }; returnOnCapital: { beginningValue: string; beginningValueSource: string } } };
+    expect(payload.data.returnOnCapital).toMatchObject({ beginningValue: "15461.20", beginningValueSource: "daily_snapshot_cash" });
+    expect(payload.data.scope.unscopedRequest).toBe(true);
   });
 });

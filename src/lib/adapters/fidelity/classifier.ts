@@ -80,6 +80,13 @@ export function classifyAction(rawAction: string): ActionClassification {
     return { kind: "CASH_EVENT", cashEventType: "ACAT_CREDIT" };
   }
 
+  // Cash<->margin account-type journals arrive as a +/- pair that nets to zero.
+  // They are internal bookkeeping, not cash flow; persisting them (instead of
+  // skipping them as UNKNOWN) lets diagnostics assert the pair nets out (#369).
+  if (normalized.includes("JOURNALED JNL VS A/C TYPES")) {
+    return { kind: "CASH_EVENT", cashEventType: "INTERNAL_JOURNAL" };
+  }
+
   if (normalized.includes("YOU BOUGHT")) {
     return { kind: "EXECUTION", side: "BUY", openClose: null, assetClass: "EQUITY" };
   }

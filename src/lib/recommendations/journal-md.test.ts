@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseJournalLogFile } from "./journal-md";
+import { parseJournalLogFile, unquoteFrontmatterScalar } from "./journal-md";
 
 // Excerpts below reproduce the real observed shapes of the journal logs.
 
@@ -262,5 +262,15 @@ kind: pass2_log
     const parsed = parseJournalLogFile("# old format", "log/pass2/2026-06/PASS2-20260629-1352-live.md");
     expect(parsed.rows).toEqual([]);
     expect(parsed.skipped[0].reason).toContain("lineage");
+  });
+});
+
+describe("unquoteFrontmatterScalar", () => {
+  it("strips a single pair of wrapping quotes and keeps everything else verbatim", () => {
+    expect(unquoteFrontmatterScalar("'4.0'")).toBe("4.0");
+    expect(unquoteFrontmatterScalar('"4.2"')).toBe("4.2");
+    expect(unquoteFrontmatterScalar("4.0")).toBe("4.0");
+    expect(unquoteFrontmatterScalar("  VS-20260904-0228-01-R2 ")).toBe("VS-20260904-0228-01-R2");
+    expect(unquoteFrontmatterScalar("'unterminated")).toBe("'unterminated");
   });
 });

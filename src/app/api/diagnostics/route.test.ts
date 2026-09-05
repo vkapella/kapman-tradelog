@@ -15,6 +15,15 @@ const diagnosticsRouteMocks = vi.hoisted(() => {
     manualAdjustment: {
       findMany: vi.fn(),
     },
+    accountValueSnapshot: {
+      findMany: vi.fn(),
+    },
+    dailyAccountSnapshot: {
+      findMany: vi.fn(),
+    },
+    cashEvent: {
+      findMany: vi.fn(),
+    },
   };
 });
 
@@ -29,6 +38,9 @@ vi.mock("@/lib/db/prisma", () => {
       execution: diagnosticsRouteMocks.execution,
       matchedLot: diagnosticsRouteMocks.matchedLot,
       manualAdjustment: diagnosticsRouteMocks.manualAdjustment,
+      accountValueSnapshot: diagnosticsRouteMocks.accountValueSnapshot,
+      dailyAccountSnapshot: diagnosticsRouteMocks.dailyAccountSnapshot,
+      cashEvent: diagnosticsRouteMocks.cashEvent,
     },
   };
 });

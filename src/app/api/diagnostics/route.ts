@@ -13,6 +13,7 @@ import {
   type StoredDiagnosticWarning,
 } from "@/lib/diagnostics/case-file";
 import { computeOpenPositionsWithDiagnostics } from "@/lib/positions/compute-open-positions";
+import { computeCashDrift } from "@/lib/diagnostics/cash-drift";
 import type { DiagnosticsResponse, ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 
 function mapExecution(row: {
@@ -156,11 +157,11 @@ export async function GET(request: Request) {
     ],
   };
 
-  const [imports, syntheticExecutions, matchedLots, closeCandidates, executionRows, adjustmentRows, accountCash] =
+  const [imports, syntheticExecutions, matchedLots, closeCandidates, executionRows, adjustmentRows, accountCash, engineCashRows, brokerCashRows, internalJournalRows] =
     await Promise.all([
     prisma.import.findMany({
       where: importAccountScope,
-      select: { accountId: true, warnings: true, parsedRows: true, skippedRows: true },
+      select: { id: true, accountId: true, filename: true, status: true, createdAt: true, warnings: true, parsedRows: true, skippedRows: true },
     }),
     prisma.execution.findMany({
       where: { AND: [{ eventType: "EXPIRATION_INFERRED" }, ...(executionAccountScope ? [executionAccountScope] : []), ...(executionDateWhere ? [executionDateWhere] : [])] },
@@ -237,7 +238,35 @@ export async function GET(request: Request) {
       orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     }),
     loadAccountBalanceContext(accountIds),
+    // Engine-vs-broker cash drift inputs (#359).
+    prisma.accountValueSnapshot.findMany({
+      where: buildAccountScopeWhere(accountIds) as Prisma.AccountValueSnapshotWhereInput | undefined,
+      select: { accountId: true, snapshotDate: true, cashValue: true },
+    }),
+    prisma.dailyAccountSnapshot.findMany({
+      where: buildAccountScopeWhere(accountIds) as Prisma.DailyAccountSnapshotWhereInput | undefined,
+      select: { accountId: true, snapshotDate: true, totalCash: true },
+    }),
+    // Internal cash/margin journals should pair to zero (#369).
+    prisma.cashEvent.findMany({
+      where: { AND: [...(accountScope ? [accountScope as Prisma.CashEventWhereInput] : []), { rowType: "INTERNAL_JOURNAL" }] },
+      select: { accountId: true, amount: true },
+    }),
   ]);
+
+  const driftAccountIds = Array.from(new Set([...(engineCashRows ?? []).map((row) => row.accountId), ...(brokerCashRows ?? []).map((row) => row.accountId)])).sort();
+  const cashDrift = computeCashDrift(driftAccountIds, engineCashRows ?? [], brokerCashRows ?? []);
+  const uncommittedImports = imports
+    .filter((row) => row.status === "UPLOADED" || row.status === "PARSED")
+    .map((row) => ({ id: row.id, accountId: row.accountId, filename: row.filename ?? "", status: String(row.status), createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? "") }));
+  const internalJournalByAccount = new Map<string, { net: number; rowCount: number }>();
+  for (const row of internalJournalRows ?? []) {
+    const entry = internalJournalByAccount.get(row.accountId) ?? { net: 0, rowCount: 0 };
+    entry.net += Number(row.amount);
+    entry.rowCount += 1;
+    internalJournalByAccount.set(row.accountId, entry);
+  }
+  const internalJournalNet = Array.from(internalJournalByAccount.entries()).map(([accountId, entry]) => ({ accountId, net: entry.net.toFixed(2), rowCount: entry.rowCount }));
 
   const parsedRows = imports.reduce((sum, row) => sum + row.parsedRows, 0);
   const skippedRows = imports.reduce((sum, row) => sum + row.skippedRows, 0);
@@ -429,6 +458,9 @@ export async function GET(request: Request) {
     skippedNonCashSections,
     warningSamples,
     warningGroups,
+    cashDrift,
+    uncommittedImports,
+    internalJournalNet,
     setupInferenceGroups,
     setupInference,
   };

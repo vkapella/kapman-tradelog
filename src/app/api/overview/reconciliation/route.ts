@@ -1,6 +1,8 @@
 import { detailResponse } from "@/lib/api/responses";
 import { compareDataRevisions, serializeDataRevision } from "@/lib/accounts/data-revision";
 import { parseAccountIds } from "@/lib/api/account-scope";
+import { buildAggregateScope } from "@/lib/api/aggregate-scope";
+import { CASH_LEDGER_BASIS } from "@/lib/ledger/cash-row-classification";
 import { prisma } from "@/lib/db/prisma";
 import {
   resolvePositionSnapshotAccountIds,
@@ -67,7 +69,7 @@ export async function GET(request: Request) {
       }),
       prisma.account.findMany({
         where: { id: { in: resolvedAccountIds } },
-        select: { id: true, dataRevision: true, startingCapital: true },
+        select: { id: true, accountId: true, dataRevision: true, startingCapital: true, paperMoney: true, legalEntity: { select: { slug: true } } },
       }),
     ]);
     // "Configured" means the operator set a value, including 0 for an account
@@ -105,6 +107,8 @@ export async function GET(request: Request) {
       totalGain: anyNull((child) => child.totalGain) ? "0.00" : money(sum((child) => child.totalGain)),
       unrealizedPnl: anyNull((child) => child.unrealizedPnl) ? "0.00" : money(sum((child) => child.unrealizedPnl)),
       cashAdjustments: money(sum((child) => child.cashAdjustments)),
+      inKindContributions: money(sum((child) => child.inKindContributions ?? null)),
+      cashLedgerBasis: CASH_LEDGER_BASIS,
       realizedPnl: money(sum((child) => child.realizedPnl)),
       manualAdjustments: money(sum((child) => child.manualAdjustments)),
       unexplainedDelta: anyNull((child) => child.unexplainedDelta) ? "0.00" : money(sum((child) => child.unexplainedDelta)),
@@ -112,6 +116,7 @@ export async function GET(request: Request) {
       snapshotAt: coveringRun.snapshotAt.toISOString(),
       staleAccountIds,
       source: "run_accounts",
+      scope: buildAggregateScope(requestedAccountIds, revisionRows.map((row) => ({ accountId: row.accountId ?? row.id, paperMoney: row.paperMoney, legalEntity: row.legalEntity }))),
     };
     return detailResponse(payload);
   }

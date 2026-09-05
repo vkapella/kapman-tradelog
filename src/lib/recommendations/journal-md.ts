@@ -70,6 +70,17 @@ const COLUMN_ALIASES: Record<string, ColumnKey> = {
   reason: "reason",
 };
 
+/**
+ * YAML scalars may be written quoted (`journal_schema_version: '4.0'`). The
+ * quotes are syntax, not value: 222 mirrored rows once stored the literal
+ * `'4.0'` because they were kept (#367).
+ */
+export function unquoteFrontmatterScalar(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^(['"])(.*)\1$/);
+  return match ? match[2].trim() : trimmed;
+}
+
 function parseFrontmatter(lines: string[]): Record<string, string> {
   const result: Record<string, string> = {};
   if (lines[0]?.trim() !== "---") return result;
@@ -77,7 +88,7 @@ function parseFrontmatter(lines: string[]): Record<string, string> {
     const line = lines[i];
     if (line.trim() === "---") break;
     const match = line.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-    if (match) result[match[1]] = match[2].trim();
+    if (match) result[match[1]] = unquoteFrontmatterScalar(match[2]);
   }
   return result;
 }

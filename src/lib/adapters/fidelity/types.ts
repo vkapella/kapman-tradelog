@@ -35,7 +35,8 @@ export type CashEventType =
   | "TRANSFER_OUT"
   | "TRANSFER_ADJUSTMENT"
   | "ACAT_RECEIVE"
-  | "ACAT_CREDIT";
+  | "ACAT_CREDIT"
+  | "INTERNAL_JOURNAL";
 
 export type ActionClassification =
   | { kind: "EXECUTION"; side: "BUY" | "SELL"; openClose: "OPEN" | "CLOSE" | null; assetClass: "OPTION" | "EQUITY" }

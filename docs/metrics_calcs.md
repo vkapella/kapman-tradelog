@@ -48,8 +48,8 @@ If an option open lot remains open after expiration, the ledger creates a synthe
 | `expectancy` | Total realized P&L divided by matched-lot count for the matched-lot cohort. |
 | `startingCapital` | Sum of configured account starting capital. |
 | `currentNlv` | Sum of latest broker NLV when available, otherwise latest cash. |
-| `totalReturnPct` | Legacy metric kept for compatibility: `(currentNlv - startingCapital) / startingCapital * 100`; `null` when starting capital is not positive. |
-| `returnOnCapitalPct` | `(endingValue - beginningValue - netExternalContributions) / capitalBase * 100`; uses NLV period boundaries and only external capital flows (`TRANSFER_IN`, `ACAT_RECEIVE`, `ACAT_CREDIT`); `null` when beginning/ending coverage is incomplete or capital base is not positive. |
+| `totalReturnPct` | Legacy metric kept for compatibility: `(currentNlv - startingCapital) / startingCapital * 100`; `null` when starting capital is not positive. The payload labels it with `totalReturnPctBasis = legacy_growth_over_starting_capital_includes_funding`: it includes later contributions and is not a return (#365). |
+| `returnOnCapitalPct` | `(endingValue - beginningValue - netExternalContributions) / capitalBase * 100`; uses NLV period boundaries and only rows the shared cash-row classification calls `external_flow` (transfers, wires, ACAT cash, thinkorswim FND/LIQ/RAD; a paper forex journal is excluded) plus in-kind ACAT receives valued at their transfer-date basis (`returnOnCapital.inKindContributions`, #357). Beginning value prefers broker NLV, then the value engine's `AccountValueSnapshot.totalValue` on/just before the beginning date, then cash-only (`returnOnCapital.beginningValueSource`, #358). `null` when beginning/ending coverage is incomplete or capital base is not positive. |
 | `returnOnCapital` | Explainability payload for the KPI: beginning/ending values, deposits, withdrawals, return dollars, capital base, missing coverage account IDs, and ending value source. |
 | `snapshotCount` | Count of daily account snapshots. |
 | `maxDrawdown` | Largest peak-to-trough decline in the combined snapshot series. |
@@ -184,12 +184,14 @@ Quote marks are loaded through `POST /api/positions/snapshot/compute` and cached
 |---|---|
 | `unrealizedPnl` | Total marked value of open positions minus total open-position cost basis. |
 | `realizedPnl` | Sum of matched-lot realized P&L. |
-| `cashAdjustments` | Sum of cash-event amounts. |
+| `cashAdjustments` | Sum of cash-event amounts **after** the shared classification in `src/lib/ledger/cash-row-classification.ts` (`cashLedgerBasis = classified_ledger_v1`): internal money-market sweeps, dividend-reinvestment legs, excluded sub-account journals and internal journals contribute zero, exactly as in the value engine (#356). |
+| `inKindContributions` | Transfer-date value of in-kind (ACAT) receives, `quantity × provisional basis` (or an active `EXECUTION_PRICE_OVERRIDE`), derived from executions whose raw action is an ACAT receive (#357). |
 | `manualAdjustments` | Sum of adjustment payload amounts where present, plus add-position cost basis. |
 | `currentNlv` | Sum per account of broker NLV when available, otherwise cash plus marked open-position value. |
 | `startingCapital` | Sum of configured account starting capital. |
 | `totalGain` | `currentNlv - startingCapital`. |
-| `unexplainedDelta` | `totalGain - unrealizedPnl - cashAdjustments - realizedPnl - manualAdjustments`. |
+| `unexplainedDelta` | `totalGain - unrealizedPnl - cashAdjustments - inKindContributions - realizedPnl - manualAdjustments`. With the shared classification this is 0.00 for an internally consistent ledger; a non-zero value is a data-integrity signal, not a definitional artefact. |
+| `scope` | Entity/environment composition of the aggregate (`mixedEntity`, `mixedEnvironment`, `unscopedRequest`); a mixed aggregate is never one entity's performance (#364). |
 
 `/api/overview/reconciliation` reads the latest persisted position snapshot for the requested account scope.
 
@@ -235,6 +237,9 @@ Overall status is red if any threshold metric is red, amber if any is amber, oth
 | Synthetic expiration count | Count of `EXPIRATION_INFERRED` executions. |
 | Account cash | Latest account cash source and date from account-balance context. `snapshot` = broker-reported `DailyAccountSnapshot.totalCash` (thinkorswim); `value_snapshot` = the value engine's reconciled `AccountValueSnapshot.cashValue`, used for brokers whose daily-snapshot cash is an importer reconstruction (Fidelity: swept deposits never appear as `MONEY_MARKET_*` rows, #346); `heuristic_fallback` = summed ledger deltas for accounts with no snapshots. |
 | Duplicate snapshot dates | Count of duplicate snapshot-date warning records. |
+| Cash drift | Per account: value-engine `AccountValueSnapshot.cashValue` versus broker-side `DailyAccountSnapshot.totalCash` on every common date; latest gap, dates over tolerance ($25 absolute by default) and whether the gap is a persistent level offset (#359). |
+| Uncommitted imports | Imports in `UPLOADED` or `PARSED` status; their rows are not in any ledger figure (#359). |
+| Internal journal net | Net of `INTERNAL_JOURNAL` rows per account (Fidelity cash/margin type journals); should be ~0 (#369). |
 | Skipped non-cash sections | Counts of skipped forex, futures, and crypto cash-balance sections. |
 | Setup inference diagnostics | Totals and samples from `inferSetupGroups()`. |
 
