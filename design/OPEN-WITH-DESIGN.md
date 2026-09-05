@@ -63,7 +63,7 @@ Never re-vendor on drift detection alone.
 | Every ticker/underlying symbol is a Barchart interactive-chart link (Screener's `SymbolLink` generalised); `.km-sym-link` primitive | `RULING` | Decisions D-B1…D-B3 requested; 7 Tradelog surfaces + Fair Value's four grids to follow |
 | Brand assets reachable without credentials; "Kapman" spelling; ≥512px master still wanted | `NOTE` | Implemented in all three apps (#353, #112/#113, #48); README ruling 2026-09-05 |
 | Governance: `kapman-design` as system of record; filter contract → shared panel package | `RULING` | Proposal in §5 of the document |
-| Reconcile the QUEUED table below against Amendment 03 (decisions 48–56) before the batch goes | — | Not yet done; first step of sending |
+| Reconcile the QUEUED table below against Amendment 03 (decisions 48–56) before the batch goes | — | **Done 2026-09-05** — see "Reconciled" block under QUEUED; 14 rows closed, 10 travel |
 
 ### `design-lockup-defects.md` — sent 2026-08-30
 | Item | Class | Status |
@@ -105,6 +105,45 @@ Never re-vendor on drift detection alone.
 ---
 
 ## QUEUED — found, not yet sent
+
+### Reconciled 2026-09-05 against Amendment 03 (decisions 48–56) and rulings 57/58
+
+The table below is the historical record and is left intact. This block says
+what is still live. **Only the OPEN rows travel with handoff 260905.**
+
+**Closed — answered since they were queued**
+
+| Queued item | Closed by |
+|---|---|
+| UI-4's v2 saved-view shape breaks a cross-language contract (`BLOCKING`) | Decision 48 — `rangeFilters` sibling key; `filters` never widens |
+| Column width formula budgets for neither furniture nor an in-cell chip | Decision 50 |
+| `--text-4` on a disabled label — "never prose" vs UI-0 step 5 | Decision 51 — tie-break is "reads as language" |
+| UI-2 and UI-3 acceptance lines cannot both hold; UI-2's scope line collides where the hook is shared | Decision 52 — the query is 1024 |
+| Coarse-pointer floor never applied to `.km-icon-btn`/`.km-pin`; corroborated in the Screener | Decision 54 — bare `(pointer: coarse)`, one rule, five controls |
+| A grid row has one height, no provenance variant | Decision 55 — no variant; exceptions named per column |
+| Measured ratios corroborated in a second repo | Decision 56 — a gate that measured nothing has failed |
+| AG Grid's set filter is Enterprise | Recorded, Amendment 03 §8 |
+| UI-4's filter-staging rationale does not hold in the Screener | Recorded, §8 — acceptance reworded to "one re-filter on Apply" |
+| Column reorder coverage | Recorded, §8 — #340 debt |
+| "Text on an accent fill" has no token (the `NOTE` form) | Recorded, §8 — superseded by the `RULING` below |
+| The grid CSS's row-height query contradicts the README ladder | Ruling 57, 2026-09-02 |
+| The three set filters disagree on what a click means (#109 part b) | Ruling 58, 2026-09-02 |
+| Lint false-positive fixes; `token-parity` in a consumer; `shadowed-primitive` threshold; source rules switching off in a consumer; vendor-integrity gate as shared tooling | Engineering, not Design — landed via Screener #110/#111 and the shared `scripts/`; Amendment 03 §8 acknowledges the tooling index |
+
+**Open — carried with handoff 260905**
+
+| Queued item | Class | Where it goes |
+|---|---|---|
+| **"Ink on a filled chip" has no token — rule of three fired, five sites, two hues; proposed `--text-on-fill`** | `RULING` | Standalone ask; the measured table is in the row below |
+| `--pos`/`--neg` migration scope (143 sites) | `RULING` | Decision 49 ruled the border tokens; confirm 143 is the accepted UI-D scope, then it is engineering |
+| Invisible-cohort problem (#109 part a): a view's data-layer filter is invisible to the grid's own filter UI | `RULING` | Folded into 260905 §1 (two-level display; locked view chips) |
+| The 76px pinned symbol column cannot also host a filter | `NOTE` | Feeds 260905 D-A3 |
+| Brand mark needs a ≥512px master | `NOTE` | 260905 §3 |
+| Em dash at `--text-4` is a marker, not prose — worth stating where the contrast rule is stated | `NOTE` | Reference wording |
+| `.km-grid-col-symbol`'s fixed 76px overflows its own 76px cell | `NOTE` | Grid CSS defect; theme change on the next Vendor SHA |
+| Menu elevation has no token (rule of three NOT fired) | `NOTE` | Record only |
+| Headless viewport emulation does not dispatch `matchMedia` change events | `NOTE` | AUDIT_PROMPT verification caveat |
+| Unstable callback prop in a `columnDefs` memo dep list rebuilds all columns (#108) | `NOTE` | Reference §05 engineering note; no design decision needed |
 
 | Item | Class | Found by | Detail |
 |---|---|---|---|
