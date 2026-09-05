@@ -627,9 +627,18 @@ carries no cookies. Anything that answers that request with a login redirect
 produces a generic letter tile. Two gates must both let these paths through:
 
 1. `src/middleware.ts` — done in code (`PUBLIC_ASSET_PATHS`, matcher).
-2. Cloudflare Access — a dashboard change. In Zero Trust → Access → Applications,
-   add a self-hosted application (or edit the tradelog one) whose **path** rules
-   cover, on `tradelog.kapmancapital.com`:
+2. Cloudflare Access — a dashboard change. One self-hosted application,
+   **"Kapman public brand assets"**, holds the public-asset destinations for
+   every Kapman hostname; its only policy is "iOS Add to Home Screen" (action
+   Bypass, include Everyone). Never attach that policy to a site's own
+   application — it would open the whole site.
+
+   Destinations must use **explicit hostnames**: verified 2026-09-05 that a
+   `*.kapmancapital.com/<path>` row loses to the site's exact-hostname
+   application and keeps redirecting to login, while a
+   `tradelog.kapmancapital.com/<path>` row wins. So each Kapman app gets its
+   own seven rows (subdomain, `kapmancapital.com`, path — no leading slash);
+   a new app means seven more rows here and nothing else. The paths:
 
    ```
    /favicon.ico
@@ -641,8 +650,9 @@ produces a generic letter tile. Two gates must both let these paths through:
    /icons/*
    ```
 
-   with a single policy: action **Bypass**, include **Everyone**. Path rules
-   match without the query string, so Next's hashed `?v=` suffixes are fine.
+   Path rules match without the query string, so Next's hashed `?v=` suffixes
+   are fine. The app's own middleware must ALSO allow these paths (step 1);
+   Screener and Fair Value need the same allowlist in their middlewares.
 
    Verify from a terminal with no cookies — every line must be `200 image/png`
    (or `application/manifest+json`), never a `302` to `cloudflareaccess.com`:
