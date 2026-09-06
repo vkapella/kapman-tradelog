@@ -1,4 +1,5 @@
 "use client";
+import { SymbolLink } from "@/components/symbol-link";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
@@ -154,7 +155,7 @@ const COLUMN_CONFIGS: RecommendationColumnConfig[] = [
     },
     width: "84px",
     mobileWidth: "minmax(56px, auto)",
-    render: (row) => <span className="font-mono font-medium">{row.ticker}</span>,
+    render: (row) => <SymbolLink symbol={row.ticker} className="font-mono font-medium" />,
   },
   {
     definition: {

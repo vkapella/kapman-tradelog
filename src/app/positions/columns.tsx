@@ -1,3 +1,4 @@
+import { SymbolLink } from "@/components/symbol-link";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
 import { Badge } from "@/components/Badge";
 import type { TableColumnConfig } from "@/components/data-table/column-config";
@@ -47,7 +48,10 @@ export function buildPositionsColumnConfigs(
       // (dropping it on phones was the v1 mocks' central defect).
       width: "76px",
       mobileWidth: "76px",
-      renderCell: (row) => <div className="px-2 py-2 font-mono font-semibold">{row.underlyingSymbol}</div>,
+      // Decision 64: the symbol is a .km-sym-link whose hit area is the row, so
+      // this cell is a flex container filling its grid item instead of the
+      // padded block the other columns use.
+      renderCell: (row) => <div className="flex h-full items-center px-2 font-mono font-semibold"><SymbolLink symbol={row.underlyingSymbol} /></div>,
     },
     {
       definition: { id: "assetClass", label: "Type", filterMode: "discrete", getFilterValues: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY"), sortMode: "string", getSortValue: (row) => (row.assetClass === "OPTION" ? row.optionType ?? "OPTION" : "EQUITY") },

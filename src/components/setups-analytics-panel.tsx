@@ -1,4 +1,5 @@
 "use client";
+import { SymbolLink } from "@/components/symbol-link";
 
 import Link from "next/link";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -143,7 +144,7 @@ export function SetupsAnalyticsPanel() {
     {
       definition: { id: "underlyingSymbol", label: "Underlying", filterMode: "discrete", getFilterValues: (row) => row.underlyingSymbol, sortMode: "string", getSortValue: (row) => row.underlyingSymbol },
       width: "140px", mobileWidth: "minmax(56px, auto)",
-      renderCell: (row) => <div className="px-2 py-2">{row.underlyingSymbol}</div>,
+      renderCell: (row) => <div className="flex h-full items-center px-2"><SymbolLink symbol={row.underlyingSymbol} /></div>,
     },
     {
       definition: { id: "accountId", label: "Account", filterMode: "discrete", getFilterValues: (row) => row.accountId, getFilterOptionLabel: (value) => getAccountDisplayText(value), sortMode: "string", getSortValue: (row) => getAccountDisplayText(row.accountId), panelWidthClassName: "w-80" },

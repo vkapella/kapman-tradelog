@@ -1,4 +1,5 @@
 "use client";
+import { SymbolLink } from "@/components/symbol-link";
 
 import Link from "next/link";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -242,7 +243,9 @@ export function ExecutionsTablePanel() {
     },
       width: "90px",
       mobileWidth: "minmax(52px, auto)",
-      renderCell: (row) => <div className="px-2 py-2">{displayExecutionSymbol(row)}</div>,
+      // Decision 64/65: the displayed symbol is already the underlying when
+      // there is one, so an options row links the underlying by construction.
+      renderCell: (row) => <div className="flex h-full items-center px-2"><SymbolLink symbol={displayExecutionSymbol(row)} /></div>,
     },
     {
       definition: {
@@ -563,7 +566,7 @@ export function ExecutionsTablePanel() {
                 </div>
                 <div>
                   <p className="text-xs text-text-3">Symbol</p>
-                  <p className="text-xs text-text">{displayExecutionSymbol(detail)}</p>
+                  <p className="text-xs text-text"><SymbolLink symbol={displayExecutionSymbol(detail)} /></p>
                 </div>
                 <div>
                   <p className="text-xs text-text-3">Side</p>

@@ -1,4 +1,5 @@
 "use client";
+import { SymbolLink } from "@/components/symbol-link";
 
 import { memo, useMemo, useRef, useState } from "react";
 import { AccountLabel } from "@/components/accounts/AccountLabel";
@@ -29,7 +30,7 @@ const AdjustmentRow = memo(function AdjustmentRow({ record, onReverse, reversing
     <>
       <div className="px-2 py-2">{new Date(record.createdAt).toLocaleString()}</div>
       <div className="px-2 py-2"><AccountLabel accountId={record.accountId} /></div>
-      <div className="px-2 py-2">{record.symbol}</div>
+      <div className="flex h-full items-center px-2"><SymbolLink symbol={record.symbol} /></div>
       <div className="px-2 py-2">{record.adjustmentType}{splitDirection(record) ? <span className="ml-1 text-[10px] text-text-2">({splitDirection(record)})</span> : null}</div>
       <div className="px-2 py-2">{record.effectiveDate.slice(0, 10)}</div>
       <div className="max-w-[260px] px-2 py-2 font-mono text-[10px] text-text-2">{JSON.stringify(record.payload)}</div>

@@ -1,4 +1,5 @@
 "use client";
+import { SymbolLink } from "@/components/symbol-link";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -260,7 +261,7 @@ export default function TodayPage() {
     };
     return [
       { definition: { id: "asOf", label: "As of" }, width: "auto", renderCell: (rec) => rec.asOf.slice(0, 10) },
-      { definition: { id: "ticker", label: "Ticker" }, width: "auto", renderCell: (rec) => <span className="font-mono font-medium">{rec.ticker}</span> },
+      { definition: { id: "ticker", label: "Ticker" }, width: "auto", renderCell: (rec) => <SymbolLink symbol={rec.ticker} className="font-mono font-medium" /> },
       { definition: { id: "structure", label: "Structure" }, width: "auto", renderCell: (rec) => rec.structure ?? "—" },
       {
         definition: { id: "entryRange", label: "Entry range" }, width: "auto", tier: 2,
