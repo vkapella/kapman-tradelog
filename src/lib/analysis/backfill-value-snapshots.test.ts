@@ -141,6 +141,70 @@ describe("reconstructedTradeCashDelta", () => {
     ).toBe(0);
   });
 
+  it("uses the settled net amount for Fidelity rows so commissions and fees reach cash (#372)", () => {
+    // Fidelity CSV: YOU BOUGHT CLOSING TRANSACTION 1 put @ 0.55, Amount -55.03 (0.03 fee).
+    expect(
+      reconstructedTradeCashDelta({
+        broker: "FIDELITY",
+        assetClass: "OPTION",
+        side: "BUY",
+        quantity: new Prisma.Decimal("1"),
+        price: new Prisma.Decimal("0.55"),
+        netAmount: new Prisma.Decimal("-55.03"),
+      }),
+    ).toBeCloseTo(-55.03, 2);
+
+    // YOU SOLD OPENING TRANSACTION 1 put @ 0.11, Amount 10.97.
+    expect(
+      reconstructedTradeCashDelta({
+        broker: "FIDELITY",
+        assetClass: "OPTION",
+        side: "SELL",
+        quantity: new Prisma.Decimal("1"),
+        price: new Prisma.Decimal("0.11"),
+        netAmount: new Prisma.Decimal("10.97"),
+      }),
+    ).toBeCloseTo(10.97, 2);
+
+    // The side decides the sign even if an adapter ever stored an unsigned amount.
+    expect(
+      reconstructedTradeCashDelta({
+        broker: "FIDELITY",
+        assetClass: "EQUITY",
+        side: "BUY",
+        quantity: new Prisma.Decimal("100"),
+        price: new Prisma.Decimal("44"),
+        netAmount: new Prisma.Decimal("4400"),
+      }),
+    ).toBeCloseTo(-4400, 2);
+  });
+
+  it("falls back to quantity times price when a Fidelity row has no net amount", () => {
+    expect(
+      reconstructedTradeCashDelta({
+        broker: "FIDELITY",
+        assetClass: "OPTION",
+        side: "SELL",
+        quantity: new Prisma.Decimal("2"),
+        price: new Prisma.Decimal("1.84"),
+        netAmount: null,
+      }),
+    ).toBeCloseTo(368, 2);
+  });
+
+  it("keeps quantity times price for thinkorswim rows, whose netAmount is a per-unit net price", () => {
+    expect(
+      reconstructedTradeCashDelta({
+        broker: "SCHWAB_THINKORSWIM",
+        assetClass: "OPTION",
+        side: "SELL",
+        quantity: new Prisma.Decimal("2"),
+        price: new Prisma.Decimal("1.84"),
+        netAmount: new Prisma.Decimal("1.84"),
+      }),
+    ).toBeCloseTo(368, 2);
+  });
+
   it("does not reduce cash for transferred-in ACAT receive executions", () => {
     expect(
       reconstructedTradeCashDelta({

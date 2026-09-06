@@ -118,11 +118,20 @@ export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decim
   return cashLedgerAmount(event);
 }
 
+/**
+ * Brokers whose adapter stores the settled, fee-inclusive cash amount of the
+ * row in `netAmount` (Fidelity's Amount column). thinkorswim trade-history rows
+ * store a per-unit net price there instead, so they stay on quantity × price.
+ */
+const SETTLED_NET_AMOUNT_BROKERS = new Set<string>(["FIDELITY"]);
+
 export function reconstructedTradeCashDelta(execution: {
   assetClass: string;
   side: string | null;
   quantity: Prisma.Decimal | string | number;
   price: Prisma.Decimal | string | number | null;
+  broker?: string | null;
+  netAmount?: Prisma.Decimal | string | number | null;
   rawRowJson?: Prisma.JsonValue | null;
 }): number {
   if (isCashNeutralTransferReceive(execution.rawRowJson)) {
@@ -131,6 +140,17 @@ export function reconstructedTradeCashDelta(execution: {
 
   if (execution.side !== "BUY" && execution.side !== "SELL") {
     return 0;
+  }
+
+  const sign = execution.side === "BUY" ? -1 : 1;
+
+  // Prefer the broker's settled amount when the adapter records it: it already
+  // nets commissions and regulatory fees that quantity × price omits (#372).
+  if (execution.broker && SETTLED_NET_AMOUNT_BROKERS.has(execution.broker) && execution.netAmount !== null && execution.netAmount !== undefined) {
+    const netAmount = Number(execution.netAmount);
+    if (Number.isFinite(netAmount)) {
+      return sign * Math.abs(netAmount);
+    }
   }
 
   if (execution.price === null) {
@@ -145,7 +165,7 @@ export function reconstructedTradeCashDelta(execution: {
 
   const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
   const grossCashFlow = quantity * price * multiplier;
-  return execution.side === "BUY" ? grossCashFlow * -1 : grossCashFlow;
+  return sign * grossCashFlow;
 }
 
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {
