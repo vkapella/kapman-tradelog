@@ -207,6 +207,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
           side: true,
           quantity: true,
           price: true,
+          netAmount: true,
           openingClosingEffect: true,
           instrumentKey: true,
           underlyingSymbol: true,
@@ -339,6 +340,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     });
     const cashByAccount = new Map(Array.from(reconciliationTerms.entries()).map(([accountId, terms]) => [accountId, terms.cashAdjustments]));
     const inKindByAccount = new Map(Array.from(reconciliationTerms.entries()).map(([accountId, terms]) => [accountId, terms.inKindContributions]));
+    const feesByAccount = new Map(Array.from(reconciliationTerms.entries()).map(([accountId, terms]) => [accountId, terms.tradingFees]));
     const marksAsOf = new Date();
     const accountValues = accountRows.map((account) => resolveLiveAccountValue({
       accountId: account.id,
@@ -353,11 +355,12 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
     const realizedPnl = Array.from(realizedByAccount.values()).reduce((sum, value) => sum + value, 0);
     const cashAdjustments = Array.from(cashByAccount.values()).reduce((sum, value) => sum + value, 0);
     const inKindContributions = Array.from(inKindByAccount.values()).reduce((sum, value) => sum + value, 0);
+    const tradingFees = Array.from(feesByAccount.values()).reduce((sum, value) => sum + value, 0);
     const manualAdjustmentsTotal = sumManualAdjustmentAmounts(manualAdjustments);
     const totalGain = currentNlv === null ? null : currentNlv - startingCapital;
     const unexplainedDeltaTotal = currentNlv === null
       ? null
-      : unexplainedDelta({ nlv: currentNlv, startingCapital, unrealizedPnl, cashAdjustments, inKindContributions, realizedPnl, manualAdjustments: manualAdjustmentsTotal });
+      : unexplainedDelta({ nlv: currentNlv, startingCapital, unrealizedPnl, cashAdjustments, inKindContributions, realizedPnl, tradingFees, manualAdjustments: manualAdjustmentsTotal });
 
     // Open-leg MAE/MFE from HistoricalMark daily high/low over entry->now (advisory display).
     const openLegExcursions = await computeOpenLegExcursions(prisma, buildExcursionLegs(pricedPositions, executions), new Date());
@@ -392,12 +395,13 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
       const accountRealized = realizedByAccount.get(account.id) ?? 0;
       const accountCash = cashByAccount.get(account.id) ?? 0;
       const accountInKind = inKindByAccount.get(account.id) ?? 0;
+      const accountFees = feesByAccount.get(account.id) ?? 0;
       const accountManual = sumManualAdjustmentAmounts(manualAdjustments.filter((adjustment) => adjustment.accountId === account.id));
       const accountNlv = value?.reconstructedNlv == null ? null : Number(value.reconstructedNlv);
       const accountTotalGain = accountNlv === null ? null : accountNlv - accountStartingCapital;
       const accountUnexplained = accountNlv === null || accountUnrealized === null
         ? null
-        : unexplainedDelta({ nlv: accountNlv, startingCapital: accountStartingCapital, unrealizedPnl: accountUnrealized, cashAdjustments: accountCash, inKindContributions: accountInKind, realizedPnl: accountRealized, manualAdjustments: accountManual });
+        : unexplainedDelta({ nlv: accountNlv, startingCapital: accountStartingCapital, unrealizedPnl: accountUnrealized, cashAdjustments: accountCash, inKindContributions: accountInKind, realizedPnl: accountRealized, tradingFees: accountFees, manualAdjustments: accountManual });
 
       return {
         runId: snapshotId,
@@ -413,6 +417,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
         realizedPnl: toMoneyDecimal(accountRealized),
         cashAdjustments: toMoneyDecimal(accountCash),
         inKindContributions: toMoneyDecimal(accountInKind),
+        tradingFees: toMoneyDecimal(accountFees),
         manualAdjustments: toMoneyDecimal(accountManual),
         unrealizedPnl: accountUnrealized === null ? null : toMoneyDecimal(accountUnrealized),
         totalGain: accountTotalGain === null ? null : toMoneyDecimal(accountTotalGain),
@@ -443,6 +448,7 @@ async function computeSnapshot(snapshotId: string, accountIds: string[]): Promis
           realizedPnl: toMoneyDecimal(realizedPnl),
           cashAdjustments: toMoneyDecimal(cashAdjustments),
           inKindContributions: toMoneyDecimal(inKindContributions),
+          tradingFees: toMoneyDecimal(tradingFees),
           manualAdjustments: toMoneyDecimal(manualAdjustmentsTotal),
           currentNlv: currentNlv === null ? null : toMoneyDecimal(currentNlv),
           startingCapital: toMoneyDecimal(startingCapital),

@@ -49,6 +49,25 @@ describe("computeAccountReconciliationTerms", () => {
     expect(cash - 0.04 - rawSum - realized).toBeCloseTo(5000 + 50 + 8981, 6);
   });
 
+  it("adds settled-amount fees back so price-based realized P&L and fee-inclusive cash agree (#372)", () => {
+    // Fidelity: sell 1 put @ 0.11 settles 10.97, buy it back @ 0.55 settles -55.03 (0.03 fee each side).
+    const executions = [
+      { id: "e1", accountId: "fid", broker: "FIDELITY", assetClass: "OPTION", side: "SELL", quantity: "1", price: "0.11", netAmount: "10.97" },
+      { id: "e2", accountId: "fid", broker: "FIDELITY", assetClass: "OPTION", side: "BUY", quantity: "1", price: "0.55", netAmount: "-55.03" },
+      // thinkorswim netAmount is a per-unit price: no fee is inferred from it.
+      { id: "e3", accountId: "tos", broker: "SCHWAB_THINKORSWIM", assetClass: "OPTION", side: "SELL", quantity: "2", price: "1.84", netAmount: "1.84" },
+    ];
+    const terms = computeAccountReconciliationTerms({ accountIds: ["fid", "tos"], cashRows: [{ accountId: "fid", rowType: "TRANSFER_IN", amount: "100" }], executions, adjustments: [] });
+    expect(terms.get("fid")?.tradingFees).toBeCloseTo(0.06, 6);
+    expect(terms.get("tos")?.tradingFees).toBe(0);
+
+    // Value-engine cash: 100 + 10.97 - 55.03; matched-lot realized is price-based: 11 - 55.
+    const cash = 100 + 10.97 - 55.03;
+    const realized = 11 - 55;
+    expect(unexplainedDelta({ nlv: cash, startingCapital: 0, unrealizedPnl: 0, cashAdjustments: 100, inKindContributions: 0, realizedPnl: realized, manualAdjustments: 0 })).toBeCloseTo(-0.06, 6);
+    expect(unexplainedDelta({ nlv: cash, startingCapital: 0, unrealizedPnl: 0, cashAdjustments: 100, inKindContributions: 0, realizedPnl: realized, tradingFees: terms.get("fid")?.tradingFees ?? 0, manualAdjustments: 0 })).toBeCloseTo(0, 6);
+  });
+
   it("applies an active EXECUTION_PRICE_OVERRIDE to the in-kind basis", () => {
     const adjustments = [
       { id: "adj-1", status: "ACTIVE", adjustmentType: "EXECUTION_PRICE_OVERRIDE", payload: { executionId: "exec-acat", overridePrice: 85 } },

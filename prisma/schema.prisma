@@ -343,6 +343,8 @@ model PositionSnapshot {
   cashAdjustments   Decimal?               @map("cash_adjustments") @db.Decimal(20, 6)
   /// Transfer-date value of in-kind (ACAT) receives in scope (#357).
   inKindContributions Decimal?             @map("in_kind_contributions") @db.Decimal(20, 6)
+  /// Commissions and fees netted into settled trade amounts in scope (#372).
+  tradingFees       Decimal?               @map("trading_fees") @db.Decimal(20, 6)
   manualAdjustments Decimal?               @map("manual_adjustments") @db.Decimal(20, 6)
   currentNlv        Decimal?               @map("current_nlv") @db.Decimal(20, 6)
   startingCapital   Decimal?               @map("starting_capital") @db.Decimal(20, 6)
@@ -377,6 +379,8 @@ model PositionSnapshotAccount {
   cashAdjustments       Decimal   @map("cash_adjustments") @db.Decimal(20, 6)
   /// Transfer-date value of in-kind (ACAT) receives for this account (#357).
   inKindContributions   Decimal   @default(0) @map("in_kind_contributions") @db.Decimal(20, 6)
+  /// Commissions and fees netted into settled trade amounts for this account (#372).
+  tradingFees           Decimal   @default(0) @map("trading_fees") @db.Decimal(20, 6)
   manualAdjustments     Decimal   @map("manual_adjustments") @db.Decimal(20, 6)
   unrealizedPnl         Decimal?  @map("unrealized_pnl") @db.Decimal(20, 6)
   totalGain             Decimal?  @map("total_gain") @db.Decimal(20, 6)

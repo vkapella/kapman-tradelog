@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { cashLedgerAmount, inKindTransferValue, summarizeCashRows, type CashRowSummary } from "@/lib/ledger/cash-row-classification";
 import type { ManualAdjustmentRecord } from "@/types/api";
+import { tradingFee } from "@/lib/ledger/trade-cash";
 
 export interface ReconciliationCashRow {
   accountId: string;
@@ -16,6 +17,8 @@ export interface ReconciliationExecutionRow {
   side: string | null;
   quantity: Prisma.Decimal | string | number;
   price: Prisma.Decimal | string | number | null;
+  broker?: string | null;
+  netAmount?: Prisma.Decimal | string | number | null;
   rawRowJson?: Prisma.JsonValue | null;
 }
 
@@ -24,6 +27,8 @@ export interface AccountReconciliationTerms {
   cashAdjustments: number;
   /** Transfer-date value of in-kind receives, with basis overrides applied (#357). */
   inKindContributions: number;
+  /** Commissions and fees netted into settled trade amounts; positive is a cost (#372). */
+  tradingFees: number;
   cashRowSummary: CashRowSummary;
 }
 
@@ -45,7 +50,10 @@ export function executionPriceOverrides(adjustments: ManualAdjustmentRecord[]): 
  * Per-account cash and in-kind terms of the reconciliation identity
  *
  *   unexplained = NLV − startingCapital − unrealized − cashAdjustments
- *                 − inKindContributions − realized − manualAdjustments
+ *                 − inKindContributions − realized + tradingFees − manualAdjustments
+ *
+ * Realized P&L from matched lots is price-based, while cash (hence NLV) carries
+ * the broker's settled amounts, so the fees they net must be added back.
  *
  * computed from the same classification the value engine uses, so a zero
  * residual means the ledger is internally consistent and a non-zero one is a
@@ -64,9 +72,13 @@ export function computeAccountReconciliationTerms(input: {
     const inKind = input.executions
       .filter((execution) => execution.accountId === accountId)
       .reduce((sum, execution) => sum + inKindTransferValue(execution, overrides.get(execution.id) ?? null), 0);
+    const fees = input.executions
+      .filter((execution) => execution.accountId === accountId)
+      .reduce((sum, execution) => sum + tradingFee(execution), 0);
     result.set(accountId, {
       cashAdjustments: rows.reduce((sum, row) => sum + cashLedgerAmount(row), 0),
       inKindContributions: inKind,
+      tradingFees: fees,
       cashRowSummary: summarizeCashRows(rows),
     });
   }
@@ -80,7 +92,8 @@ export function unexplainedDelta(terms: {
   cashAdjustments: number;
   inKindContributions: number;
   realizedPnl: number;
+  tradingFees?: number;
   manualAdjustments: number;
 }): number {
-  return terms.nlv - terms.startingCapital - terms.unrealizedPnl - terms.cashAdjustments - terms.inKindContributions - terms.realizedPnl - terms.manualAdjustments;
+  return terms.nlv - terms.startingCapital - terms.unrealizedPnl - terms.cashAdjustments - terms.inKindContributions - terms.realizedPnl + (terms.tradingFees ?? 0) - terms.manualAdjustments;
 }

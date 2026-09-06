@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db/prisma";
 import { deriveInstrumentKeyFromPersistedExecution } from "@/lib/ledger/instrument-key";
 import { computeHoldingsAsOf } from "@/lib/positions/compute-holdings-asof";
 import { collectParValueInstrumentKeys } from "@/lib/positions/par-value-instruments";
-import { cashLedgerAmount, isCashNeutralTransferReceive } from "@/lib/ledger/cash-row-classification";
+import { cashLedgerAmount } from "@/lib/ledger/cash-row-classification";
+import { tradeCashDelta, type TradeCashExecutionLike } from "@/lib/ledger/trade-cash";
 import type { ExecutionRecord, ManualAdjustmentRecord, MatchedLotRecord } from "@/types/api";
 import {
   computeAccountValueForDate,
@@ -119,53 +120,12 @@ export function cumulativeLedgerAmountForCashEvent(event: { amount: Prisma.Decim
 }
 
 /**
- * Brokers whose adapter stores the settled, fee-inclusive cash amount of the
- * row in `netAmount` (Fidelity's Amount column). thinkorswim trade-history rows
- * store a per-unit net price there instead, so they stay on quantity × price.
+ * Signed cash effect of one execution (buy negative, sell positive). Delegates
+ * to the shared trade-cash rules so the value engine and the reconciliation
+ * identity agree on fees (#372).
  */
-const SETTLED_NET_AMOUNT_BROKERS = new Set<string>(["FIDELITY"]);
-
-export function reconstructedTradeCashDelta(execution: {
-  assetClass: string;
-  side: string | null;
-  quantity: Prisma.Decimal | string | number;
-  price: Prisma.Decimal | string | number | null;
-  broker?: string | null;
-  netAmount?: Prisma.Decimal | string | number | null;
-  rawRowJson?: Prisma.JsonValue | null;
-}): number {
-  if (isCashNeutralTransferReceive(execution.rawRowJson)) {
-    return 0;
-  }
-
-  if (execution.side !== "BUY" && execution.side !== "SELL") {
-    return 0;
-  }
-
-  const sign = execution.side === "BUY" ? -1 : 1;
-
-  // Prefer the broker's settled amount when the adapter records it: it already
-  // nets commissions and regulatory fees that quantity × price omits (#372).
-  if (execution.broker && SETTLED_NET_AMOUNT_BROKERS.has(execution.broker) && execution.netAmount !== null && execution.netAmount !== undefined) {
-    const netAmount = Number(execution.netAmount);
-    if (Number.isFinite(netAmount)) {
-      return sign * Math.abs(netAmount);
-    }
-  }
-
-  if (execution.price === null) {
-    return 0;
-  }
-
-  const quantity = Math.abs(Number(execution.quantity));
-  const price = Number(execution.price);
-  if (!Number.isFinite(quantity) || !Number.isFinite(price)) {
-    return 0;
-  }
-
-  const multiplier = execution.assetClass === "OPTION" ? 100 : 1;
-  const grossCashFlow = quantity * price * multiplier;
-  return sign * grossCashFlow;
+export function reconstructedTradeCashDelta(execution: TradeCashExecutionLike): number {
+  return tradeCashDelta(execution);
 }
 
 function toExecutionRecord(row: ExecutionRow): ExecutionRecord {

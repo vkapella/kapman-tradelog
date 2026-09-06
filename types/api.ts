@@ -449,6 +449,8 @@ export interface ReconciliationResponse {
   source?: "run_accounts" | "legacy_exact_scope" | "empty";
   /** Transfer-date value of in-kind (ACAT) receives, an external contribution the cash ledger does not carry (#357). */
   inKindContributions?: string;
+  /** Commissions and fees netted into settled trade amounts, added back in the identity (#372). */
+  tradingFees?: string;
   /** Which cash-row classification produced cashAdjustments (#356). */
   cashLedgerBasis?: string;
   scope?: AggregateScope;

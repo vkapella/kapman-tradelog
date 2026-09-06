@@ -190,7 +190,8 @@ Quote marks are loaded through `POST /api/positions/snapshot/compute` and cached
 | `currentNlv` | Sum per account of broker NLV when available, otherwise cash plus marked open-position value. |
 | `startingCapital` | Sum of configured account starting capital. |
 | `totalGain` | `currentNlv - startingCapital`. |
-| `unexplainedDelta` | `totalGain - unrealizedPnl - cashAdjustments - inKindContributions - realizedPnl - manualAdjustments`. With the shared classification this is 0.00 for an internally consistent ledger; a non-zero value is a data-integrity signal, not a definitional artefact. |
+| `tradingFees` | Commissions and regulatory fees netted into settled trade amounts: per execution, the gap between quantity × price × multiplier and the broker's `netAmount`, for brokers whose adapter stores a settled amount (Fidelity). Zero for thinkorswim rows. Positive is a cost (#372). |
+| `unexplainedDelta` | `totalGain - unrealizedPnl - cashAdjustments - inKindContributions - realizedPnl + tradingFees - manualAdjustments`. Fees are added back because cash carries settled amounts while matched-lot realized P&L is price-based. With the shared classification this is 0.00 for an internally consistent ledger; a non-zero value is a data-integrity signal, not a definitional artefact. |
 | `scope` | Entity/environment composition of the aggregate (`mixedEntity`, `mixedEnvironment`, `unscopedRequest`); a mixed aggregate is never one entity's performance (#364). |
 
 `/api/overview/reconciliation` reads the latest persisted position snapshot for the requested account scope.
