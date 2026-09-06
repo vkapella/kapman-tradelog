@@ -15,8 +15,8 @@ describe("positions symbol column", () => {
     const row = { underlyingSymbol: "NVDA", symbol: "NVDA 250117C00130000", assetClass: "OPTION" } as unknown as PositionsRow;
     const { container } = render(<>{symbol!.renderCell(row)}</>);
     const link = screen.getByRole("link", { name: "Open NVDA chart on Barchart" });
-    expect(link).toHaveClass("km-sym-link");
-    expect(link).toHaveAttribute("href", "https://www.barchart.com/stocks/quotes/NVDA/interactive-chart");
+    expect(link.classList.contains("km-sym-link")).toBe(true);
+    expect(link.getAttribute("href")).toBe("https://www.barchart.com/stocks/quotes/NVDA/interactive-chart");
     expect(link.textContent).toBe("NVDA");
     const cell = container.firstElementChild as HTMLElement;
     expect(cell.className).toContain("flex");

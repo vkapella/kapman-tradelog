@@ -15,9 +15,9 @@ describe("SymbolLink (decisions 64–66)", () => {
   it("renders the theme primitive with the destination in its accessible name, a new tab, and no opener", () => {
     render(<SymbolLink symbol="NVDA" className="font-mono" />);
     const link = screen.getByRole("link", { name: "Open NVDA chart on Barchart" });
-    expect(link).toHaveAttribute("href", chartUrl("NVDA"));
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.getAttribute("href")).toBe(chartUrl("NVDA"));
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     expect(link.className).toBe("km-sym-link font-mono");
     expect(link.textContent).toBe("NVDA");
   });
@@ -25,7 +25,7 @@ describe("SymbolLink (decisions 64–66)", () => {
   it("links the underlying when the displayed symbol is an option (decision 65)", () => {
     render(<SymbolLink symbol="NVDA 250117C00130000" chartSymbol="NVDA" />);
     const link = screen.getByRole("link", { name: "Open NVDA chart on Barchart" });
-    expect(link).toHaveAttribute("href", chartUrl("NVDA"));
+    expect(link.getAttribute("href")).toBe(chartUrl("NVDA"));
     expect(link.textContent).toBe("NVDA 250117C00130000");
   });
 
