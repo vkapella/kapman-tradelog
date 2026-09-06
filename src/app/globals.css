@@ -1,56 +1,24 @@
+/* Ruling 71 (2026-09-06, kapman-design #8): Tradelog consumes the vendored
+ * theme like every other Kapman app. The tokens, the --z-* scale, --tabbar-h
+ * and --tabbar-total now come from design/kapman-ui.css (Vendor SHA 239072b);
+ * the hand-synced :root block that token-parity used to police is gone. The
+ * theme is imported BEFORE Tailwind's base so preflight keeps winning the
+ * element rules (body, a, code) exactly as it did when the tokens lived here;
+ * the app's own base rules below restore the body and scrollbar styling after
+ * preflight, as before. Only app-local tokens remain in :root. */
+@import "../../design/kapman-ui.css";
+@import "../../design/kapman-grid.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Kapman unified UI scale (handoff 260830, Tradelog UI-0). Values match
- * Component Reference v2 §01–03 exactly — this repo owns the shared theme
- * the sibling apps vendor, so do not tune these locally. */
 :root {
-  --bg:             #08090c;  /* page canvas + inset cards within panels (inset sanctioned by owner 2026-08-30; spec amendment pending) */
-  --surface:        #0d0f14;  /* table body, grid, frame interiors */
-  --surface-2:      #12151c;  /* header, toolbar, table head, sheet, sidebar */
-  --surface-3:      #1a1e27;  /* secondary buttons, chips, inputs at rest */
-  --border:         #262b36;
-  --border-subtle:  #1a1e27;  /* row hairlines inside a table (unused until UI-4) */
-  --border-strong:  #3a4150;  /* frozen-column boundary, drag handles, control hover borders */
-  --text:           #e8ebf0;
-  --text-2:         #a8b0bf;
-  --text-3:         #7f8798;
-  --text-4:         #4f586c;  /* 2.6:1 — non-text glyphs only, never prose */
-  --text-on-fill:   #0d0f14;  /* ink on any filled chip or primary button (decision 67); floor is --neg at 5.39:1 */
-  --accent:         #34d3e8;
-  --accent-dim:     color-mix(in srgb, var(--accent) 13%, transparent);
-  --accent-border:  color-mix(in srgb, var(--accent) 30%, transparent);
-  --accent-soft:    #7ce8f7;  /* inline code in documentation surfaces */
-  --gold:           oklch(0.75 0.12 85);  /* KAPMAN wordmark + mark only, not a UI state */
-  --pos:            oklch(0.72 0.17 145);
-  --pos-dim:        oklch(0.72 0.17 145 / 0.12);
-  --pos-border:     color-mix(in srgb, var(--pos) 30%, transparent);
-  --neg:            oklch(0.65 0.20 25);
-  --neg-dim:        oklch(0.65 0.20 25 / 0.12);
-  --neg-border:     color-mix(in srgb, var(--neg) 30%, transparent);
-  --warn:           oklch(0.78 0.14 75);
-  --warn-dim:       oklch(0.78 0.14 75 / 0.12);
-  --warn-border:    color-mix(in srgb, var(--warn) 30%, transparent);
-  --chart-purple:   #a78bfa;  /* app-local; no home in the reference yet (UI-0 open question) */
-  --mono:           "Geist Mono", ui-monospace, monospace;
-  --sans:           "Geist", system-ui, sans-serif;
-  --sidebar-w:      224px;
-  --rail-w:         56px;
-  --topbar-h:       46px;
-  --r:              7px;
-  --r-sm:           4px;
-  --r-lg:           9px;
-  --row-h:          30px;     /* UI-7 decided 2026-08-30: 30 over the prior 34; matches the Screener */
-  --row-h-touch:    44px;
-  --pinned-select:  40px;
-  --pinned-actions: 44px;
-  --pinned-symbol:  76px;
-  /* UI-C (decision 36): enumerated chips take the width of their SET's
-   * longest member, per column. Content-sized chips stay width:auto. */
-  --chip-w-1:       48px;  /* longest member ≤ 4 chars */
-  --chip-w-2:       64px;  /* ≤ 6 */
-  --chip-w-3:       84px;  /* ≤ 9 */
+  /* design-lint-allow: app-local chart colour — chart colours encode series
+     identity, not state, and the token system does not cover them (Amendment
+     01). Visible to the lint only since ruling 71 put this file in consumer
+     mode; it was the authoring token file before. */
+  --chart-purple:   #a78bfa;
 }
 
 * {
@@ -71,32 +39,10 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* ---------------------------------------------------------------------------
- * Mobile shell (#340): layer contract, tab-bar sizing, responsive grid
- * templates, and touch targets. Layer tokens are the ONLY sanctioned z-index
- * source for shell/overlay code — raw z-* utilities are migrated to these.
- * ------------------------------------------------------------------------- */
-:root {
-  --z-page-controls: 30; /* in-page sticky/popover controls (pre-existing level) */
-  --z-topbar:        40;
-  --z-tabbar:        42;
-  --z-drawer-scrim:  60;
-  --z-drawer:        61;
-  --z-sheet-scrim:   70;
-  --z-sheet:         71;
-  --z-modal:         80; /* modals + portaled filter/chooser panels: topmost */
-
-  --tabbar-h: 56px;
-  /* Total bottom obstruction: tab bar + home indicator. Collapses to 0 at md+
-   * so desktop height math is untouched. */
-  --tabbar-total: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
-}
-
-@media (min-width: 768px) {
-  :root {
-    --tabbar-total: 0px;
-  }
-}
+/* Mobile shell (#340). The layer scale (--z-*), --tabbar-h and --tabbar-total
+ * are the theme's (ruling 71); everything below is the app's own. Layer tokens
+ * are the ONLY sanctioned z-index source for shell/overlay code — raw z-*
+ * utilities are migrated to these. */
 
 /* Responsive VirtualGrid template: the shell sets --vgrid-cols-desktop /
  * --vgrid-cols-mobile inline from its config array; rows consume --vgrid-cols.
