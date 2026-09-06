@@ -83,7 +83,12 @@
    held at every width including 390px */
 .km-grid-col-select  { width: var(--pinned-select); }
 .km-grid-col-actions { width: var(--pinned-actions); }
-.km-grid-col-symbol  { width: var(--pinned-symbol); font-family: var(--mono); font-weight: 600; }
+/* The symbol rule sizes a CHILD of a cell the grid has already sized, so it
+   takes the cell's width rather than the column's: with 8px cell padding the
+   content box is 74px, and a fixed 76px span overflowed it by 14–16px on
+   every row the moment a consumer made it a block or flex item (Fair Value,
+   decision 50; Amendment 04 §6). The column itself is still --pinned-symbol. */
+.km-grid-col-symbol  { max-width: 100%; font-family: var(--mono); font-weight: 600; }
 
 /* ---- pane lockstep ----
    Pinned and scrolling panes must resolve to IDENTICAL row heights. Never

@@ -248,10 +248,10 @@ export function DailyPnlCalendarWidget() {
                   ? "bg-surface text-text-3"
                   : day.pnl > 0
                     ? level >= 3
-                      ? "bg-pos text-bg"
+                      ? "bg-pos text-text-on-fill"
                       : "bg-[color:color-mix(in_srgb,var(--pos)_50%,var(--surface))] text-text"
                     : level >= 3
-                      ? "bg-neg text-bg"
+                      ? "bg-neg text-text-on-fill"
                       : "bg-[color:color-mix(in_srgb,var(--neg)_50%,var(--surface))] text-text";
 
               return (

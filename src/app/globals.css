@@ -17,6 +17,7 @@
   --text-2:         #a8b0bf;
   --text-3:         #7f8798;
   --text-4:         #4f586c;  /* 2.6:1 — non-text glyphs only, never prose */
+  --text-on-fill:   #0d0f14;  /* ink on any filled chip or primary button (decision 67); floor is --neg at 5.39:1 */
   --accent:         #34d3e8;
   --accent-dim:     color-mix(in srgb, var(--accent) 13%, transparent);
   --accent-border:  color-mix(in srgb, var(--accent) 30%, transparent);

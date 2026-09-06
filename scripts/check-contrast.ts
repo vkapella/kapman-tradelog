@@ -19,6 +19,7 @@
  *   npm run check:contrast                       # against BASE_URL or :3000
  *   npm run check:contrast -- --self-test        # inject a regression, expect failure
  *   npm run check:contrast -- --report           # print the measured token table
+ *   CONTRAST_ROUTES=/a,/b npm run check:contrast # audit these routes instead
  */
 import { chromium, type Page } from "playwright";
 
@@ -26,7 +27,14 @@ const BASE_URL = process.env.CONTRAST_BASE_URL ?? "http://localhost:3000";
 const SELF_TEST = process.argv.includes("--self-test");
 const REPORT = process.argv.includes("--report");
 
-const ROUTES = [
+// The walker, compositing and ratio maths are the shared core and are the
+// same in every repo; only the navigation model differs. CONTRAST_ROUTES
+// (comma-separated) overrides the route list so kapman-design can run this
+// core against its fixture page and a sibling can name its own routes
+// without forking the array. The default stays Tradelog's audited set.
+const ROUTES = process.env.CONTRAST_ROUTES
+  ? process.env.CONTRAST_ROUTES.split(",").map((r) => r.trim()).filter(Boolean)
+  : [
   "/dashboard",
   "/today",
   "/analytics",
@@ -41,7 +49,7 @@ const ROUTES = [
   "/adjustments",
   "/tts-evidence",
   "/diagnostics",
-];
+  ];
 
 const MIN_RATIO = 4.5;
 

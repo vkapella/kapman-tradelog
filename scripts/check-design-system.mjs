@@ -36,7 +36,7 @@ const SRC = process.env.KAPMAN_APP_SRC
 // and the app's own token block is src/app/globals.css.
 // Vendor integrity (decision 04: "copy VERBATIM ... do not edit the copies").
 // A consuming repo holds its copy under VENDOR_DIR and must match the source
-// of truth byte for byte. THEME_SOURCE points at the authoring repo's design/;
+// of truth byte for byte. THEME_SOURCE points at kapman-design/theme/;
 // when it is absent (CI without the sibling checkout) the rule SKIPS loudly
 // rather than passing silently. In the authoring repo VENDOR_DIR === the
 // source, so the rule is a self-comparison and trivially passes.

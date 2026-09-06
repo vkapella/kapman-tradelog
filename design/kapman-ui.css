@@ -22,6 +22,12 @@
   --text-2:         #a8b0bf;  /* labels, body copy          9.1:1 */
   --text-3:         #7f8798;  /* captions, hints            5.5:1 */
   --text-4:         #4f586c;  /* 2.6:1 — non-text glyphs only, never prose */
+  --text-on-fill:   #0d0f14;  /* ink on any filled chip or primary button — one token, every
+                                 hue (decision 67). Same number as --surface today, which is
+                                 why it has its own name: it is ink, not a surface. Measured
+                                 10.61:1 on --accent, 8.20 --pos, 9.39 --warn, 8.59 --gold;
+                                 the floor is --neg at 5.39:1 — any retune of that hue
+                                 re-measures against this token and stays above 4.5. */
 
   /* ---- signal ---- */
   --accent:         #34d3e8;  /* interactive, selected, the override marker */
@@ -108,9 +114,13 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 }
 
 /* ---- header lockup (spec §01) ---- */
+/* Ruling 70 (kapman-design #1): the bar GROWS by the safe-area inset. Under
+   border-box a fixed `height: var(--topbar-h)` took the padding out of the
+   content box, so on a 59px Dynamic Island inset the lockup collapsed to 0px.
+   The height stays known — anything offset from --topbar-h adds the inset. */
 .km-header {
   display: flex; align-items: center; gap: 12px;
-  height: var(--topbar-h); padding: 0 14px;
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px)); padding: 0 14px;
   padding-top: env(safe-area-inset-top, 0px);
   background: var(--surface-2); border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: var(--z-topbar);
@@ -143,8 +153,11 @@ code { color: var(--accent-soft); font-family: var(--mono); }
               only variant that centres, because it stacks glyph over label
    Active works for BOTH a real tab widget (aria-selected, the Screener) and
    link navigation (aria-current="page", Tradelog/Fair Value — decision 38).
-   No hamburger at any width; primary nav is always visible. The page shell
-   must reserve --tabbar-total at the bottom so the bar never covers content. */
+   Primary nav is always visible; the drawer stays for what the rail and the
+   tab bar cannot reach (README "The drawer stays", 2026-09-02 — the earlier
+   "no hamburger at any width" line belonged to the replaced ladder). The page
+   shell must reserve --tabbar-total at the bottom so the bar never covers
+   content. */
 .km-nav {
   flex: none; width: var(--sidebar-w);
   display: flex; flex-direction: column;
@@ -207,7 +220,7 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-btn:disabled { opacity: 0.6; cursor: default; }
 .km-btn--primary {
   background: var(--accent); border-color: transparent;
-  color: #0d0f14; font-weight: 600;
+  color: var(--text-on-fill); font-weight: 600;   /* decision 67 */
 }
 .km-btn--primary:hover:not(:disabled) { border-color: transparent; filter: brightness(1.06); }
 /* in-flight: label becomes present participle; width may grow, never shrink */
@@ -266,6 +279,35 @@ code { color: var(--accent-soft); font-family: var(--mono); }
 .km-mark { font-family: var(--mono); font-size: 9px; text-transform: uppercase; margin-left: 6px; }
 .km-mark--pin   { color: var(--warn); }   /* operator override pinned */
 .km-mark--model { color: var(--text-4); } /* live model score in force — a sanctioned --text-4 site */
+
+/* ---- symbol link (decisions 64–66) ----
+   Every ticker or underlying is a link to the family chart destination
+   (Barchart, decision 66; options rows link the underlying, decision 65).
+   Inherits the cell's colour and weight so a 200-row grid does not read as a
+   wall of links; the rest affordance is a hairline in --accent-border under
+   the glyphs, hover is accent text and underline, focus is the §02 ring INSET
+   so it survives a cell with overflow: hidden. No external-link glyph in a
+   grid row; the accessible name carries the destination ("Open NVDA chart on
+   Barchart"). Opens in a new tab, rel="noopener noreferrer", stops
+   propagation so the row's own action never fires.
+   THE HIT AREA IS THE ROW: the link stretches to its cell, so its measured
+   box equals the row's content box — 43px where the ladder gives the row
+   44px, 29px where decisions 55/57 keep it at 30, because the row owns the
+   1px hairline under border-box and no child can take it. Never taller than
+   the row (pinned-pane lockstep). For that the CELL must be a flex container;
+   a consumer whose cell is inline-block gets a text-height link (18px,
+   measured on the pre-64 file). Acceptance is measured, not read: link
+   height == row height − 1px at 800px coarse and 1366px coarse
+   (theme/fixtures/primitives.html, 2026-09-06). */
+.km-sym-link {
+  display: inline-flex; align-items: center; align-self: stretch; min-height: 100%;
+  color: inherit; font: inherit;
+  text-decoration: underline; text-decoration-color: var(--accent-border);
+  text-decoration-thickness: 1px; text-underline-offset: 3px;
+  border-radius: var(--r-sm); padding: 0 2px; margin: 0 -2px;
+}
+.km-sym-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.km-sym-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ---- save-status pills (four states — persistent, NOT a toast) ---- */
 .km-save {

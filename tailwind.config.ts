@@ -20,6 +20,9 @@ const config: Config = {
         "text-2": "var(--text-2)",
         "text-3": "var(--text-3)",
         "text-4": "var(--text-4)",
+        // Ink on any filled chip or primary button (decision 67) — one token,
+        // every hue. Class: text-text-on-fill.
+        "text-on-fill": "var(--text-on-fill)",
         accent: "var(--accent)",
         "accent-soft": "var(--accent-soft)",
         gold: "var(--gold)",
