@@ -45,12 +45,14 @@ export function BrandLockup() {
 
   return (
     <span className="flex min-w-0 items-center gap-2">
-      {/* The commissioned mark shipped in the handoff bundle (assets/
-          kapman-mark.png) and is what the sibling apps render. Decision 09's
-          "type monogram is the shipping mark" describes the fallback, not
-          this. */}
+      {/* The 28px lockup renders the SMALL mark, not the master: the same K
+          letterform with less detail, because the master's bull and bear
+          collapse into mud at this size (measured; kapman-design #10, Vendor
+          SHA cfa549f). Both are vendored from kapman-design/theme/assets/ and
+          the sibling apps render the same pair. Decision 09's "type monogram
+          is the shipping mark" describes the fallback, not this. */}
       <img
-        src="/kapman-mark.png"
+        src="/kapman-mark-small.png"
         alt=""
         aria-hidden="true"
         width={28}
