@@ -9,6 +9,7 @@ For consolidated operational procedures, see the root [RUNBOOK.md](../RUNBOOK.md
 - `kapman_build_spec_v9.md` - current v9.0 UX, usability, and data-integrity build spec.
 - `kapman_github_issues_v9.md` - current v9.0 issue breakdown and acceptance criteria.
 - `kapman_github_issues-v9.0-S1.5.md` - current open-positions snapshot refactor sprint brief.
+- `kapman_mandate_monitoring_roadmap_v10.md` - v10 proposal (2026-09-11): mandate-compliance and performance widgets, campaign records, data-model changes, and phased stories KM-201+ derived from Investment Playbook v5 DRAFT r5.
 - `think-or-swim-260727.md` - story for the July 27, 2026 thinkorswim trade-history header variant.
 - `../design/kapman_dashboard_mock_v7.html` - active UX skin and visual target.
 
